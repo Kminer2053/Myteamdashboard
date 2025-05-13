@@ -1,3 +1,4 @@
+import './styles.css';
 // 캘린더 초기화
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');

@@ -1,3 +1,5 @@
+import './styles.css';
+
 document.addEventListener('DOMContentLoaded', function() {
     let isAuthenticated = false;
     const passwordModal = new bootstrap.Modal(document.getElementById('adminPwModal'));
