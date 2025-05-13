@@ -3,9 +3,12 @@ document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
     let holidayDates = [];
 
+    // API 기본 URL 설정
+    const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000';
+
     // 일정 데이터 서버에서 불러오기
     async function loadUserEvents() {
-        const res = await fetch('/api/schedules');
+        const res = await fetch(`${API_BASE_URL}/api/schedules`);
         const events = await res.json();
         return events.map(ev => ({
             ...ev,
@@ -22,7 +25,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // 일정 추가
     async function addUserEvent(event) {
-        const res = await fetch('/api/schedules', {
+        const res = await fetch(`${API_BASE_URL}/api/schedules`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(event)
@@ -31,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // 일정 수정
     async function updateUserEvent(id, event) {
-        const res = await fetch(`/api/schedules/${id}`, {
+        const res = await fetch(`${API_BASE_URL}/api/schedules/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(event)
@@ -40,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     // 일정 삭제
     async function deleteUserEvent(id) {
-        const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE_URL}/api/schedules/${id}`, { method: 'DELETE' });
         return await res.json();
     }
 
@@ -97,11 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const year = currentDate.getFullYear();
             const month = currentDate.getMonth(); // 0부터 시작 (5월이면 4)
             const holidays = await fetchHolidays(year);
-            console.log('fetchInfo.start:', fetchInfo.start);
-            console.log('year:', year, 'month:', month);
-            console.log('holidays:', holidays);
             const monthHolidays = getMonthHolidays(holidays, year, month);
-            console.log('monthHolidays:', monthHolidays);
             try {
                 const userEvents = await loadUserEvents();
                 const filteredEvents = userEvents.filter(ev => {
@@ -226,7 +225,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const content = modalScheduleContent.value;
         // 항상 YYYY-MM-DDTHH:mm 포맷으로 저장
         const start = date + 'T' + (time ? time : '00:00');
-        console.log('[일정 등록/수정] 입력값:', { title, date, time, start, content });
         let events = await loadUserEvents();
         let newEvent = {
             title,
@@ -240,7 +238,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!(pendingEvent && pendingEvent.id)) {
             newEvent.id = Date.now().toString();
             events.push(newEvent);
-            console.log('[신규 등록] 저장되는 이벤트:', newEvent);
             await addUserEvent(newEvent);
             calendar.refetchEvents();
             scheduleModal.hide();
@@ -249,8 +246,6 @@ document.addEventListener('DOMContentLoaded', function() {
             newEvent.id = pendingEvent.id;
             // 수정 시 기존 이벤트와 비교
             const beforeEvent = events.find(ev => ev.id === pendingEvent.id);
-            console.log('[수정 전 기존 이벤트]', beforeEvent);
-            console.log('[수정 후 저장되는 이벤트]', newEvent);
             events = events.map(ev => (ev.id === pendingEvent.id ? newEvent : ev));
             await updateUserEvent(pendingEvent.id, newEvent);
             calendar.refetchEvents();
@@ -366,13 +361,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // ===== 리스크 이슈 모니터링 1단계: 키워드 관리 및 뉴스 모킹 =====
     // 키워드 체크박스 UI 렌더링 (서버 연동)
     async function renderKeywordCheckboxes() {
-        console.log('[renderKeywordCheckboxes] 시작');
         const keywords = await loadKeywords();
         const container = document.getElementById('keywordCheckboxList');
-        if (!container) {
-            console.log('[renderKeywordCheckboxes] container 엘리먼트 없음');
-            return;
-        }
+        if (!container) return;
         container.innerHTML = '';
         if (keywords.length === 0) {
             container.innerHTML = '<span class="text-muted">등록된 키워드가 없습니다.</span>';
@@ -395,26 +386,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderNewsByChecked() {
-        console.log('[renderNewsByChecked] 시작');
         const container = document.getElementById('keywordCheckboxList');
-        if (!container) {
-            console.log('[renderNewsByChecked] container 엘리먼트 없음');
-            return;
-        }
+        if (!container) return;
         const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
-        console.log('[renderNewsByChecked] 체크된 키워드:', checked);
         renderNews(checked);
     }
 
     // 뉴스 UI 렌더링 (선택된 키워드 기반 필터, 카드형, 본문 미표시, 우측 상단에 건수/갱신 버튼)
     function renderNews(selectedKeywords) {
-        console.log('[renderNews] 진입, selectedKeywords:', selectedKeywords);
         const keywords = selectedKeywords || loadKeywords();
         const newsFeed = document.getElementById('newsFeed');
-        if (!newsFeed) {
-            console.log('[renderNews] newsFeed 엘리먼트 없음, 종료');
-            return;
-        }
+        if (!newsFeed) return;
         const today = new Date().toISOString().slice(0, 10);
         const allNews = JSON.parse(localStorage.getItem(`riskNews_${today}`) || '[]');
         let filtered = [];
@@ -444,7 +426,6 @@ document.addEventListener('DOMContentLoaded', function() {
             emptyDiv.className = 'news-item';
             emptyDiv.textContent = '오늘의 뉴스가 없습니다.';
             newsFeed.appendChild(emptyDiv);
-            console.log('[renderNews] 뉴스 없음, 종료');
             return;
         }
         filtered.forEach(item => {
@@ -460,87 +441,67 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             newsFeed.appendChild(card);
         });
-        console.log('[renderNews] 렌더링 완료, 뉴스 건수:', filtered.length);
     }
 
     // fetchAndSaveAllNews를 체크된 키워드만 대상으로 동작하도록 개선
     async function fetchAndSaveAllNews(keywordsParam) {
-        try {
-            console.log('[fetchAndSaveAllNews] 시작');
-            const keywords = keywordsParam || await loadKeywords();
-            if (!Array.isArray(keywords) || keywords.length === 0) return;
-            const today = new Date().toISOString().slice(0, 10);
-            let allNews = [];
-            for (const kw of keywords) {
-                try {
-                    console.log(`[fetchAndSaveAllNews] 키워드 ${kw} 처리 중`);
-                    const res = await fetch(`/api/naver-news?query=${encodeURIComponent(kw)}&max=100`);
-                    if (!res.ok) {
-                        console.error(`[fetchAndSaveAllNews] API 호출 실패: ${kw}`);
-                        continue;
-                    }
-                    const data = await res.json();
-                    if (data.items) {
-                        data.items.forEach(item => {
-                            if (!allNews.some(n => n.link === item.link)) {
-                                allNews.push({ ...item, keyword: kw });
-                            }
-                        });
-                    }
-                } catch (e) {
-                    console.error(`[fetchAndSaveAllNews] 키워드 ${kw} 처리 중 오류:`, e);
+        const keywords = keywordsParam || await loadKeywords();
+        if (!Array.isArray(keywords) || keywords.length === 0) return;
+        const today = new Date().toISOString().slice(0, 10);
+        let allNews = [];
+        for (const kw of keywords) {
+            try {
+                const res = await fetch(`/api/naver-news?query=${encodeURIComponent(kw)}&max=100`);
+                if (!res.ok) {
+                    continue;
                 }
+                const data = await res.json();
+                if (data.items) {
+                    data.items.forEach(item => {
+                        if (!allNews.some(n => n.link === item.link)) {
+                            allNews.push({ ...item, keyword: kw });
+                        }
+                    });
+                }
+            } catch (e) {
             }
-            // 서버에 저장
-            await fetch('/api/risk-news', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items: allNews })
-            });
-            // 서버에서 최신 데이터 GET
-            const getRes = await fetch('/api/risk-news');
-            const news = await getRes.json();
-            localStorage.setItem(`riskNews_${today}`, JSON.stringify(news));
-            localStorage.setItem('riskNews_lastUpdate', today);
-            console.log('[fetchAndSaveAllNews] 완료, 저장된 뉴스:', news.length);
-        } catch (error) {
-            console.error('[fetchAndSaveAllNews] 전체 프로세스 오류:', error);
         }
+        // 서버에 저장
+        await fetch('/api/risk-news', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: allNews })
+        });
+        // 서버에서 최신 데이터 GET
+        const getRes = await fetch('/api/risk-news');
+        const news = await getRes.json();
+        localStorage.setItem(`riskNews_${today}`, JSON.stringify(news));
+        localStorage.setItem('riskNews_lastUpdate', today);
     }
 
     function checkAndUpdateNews() {
-        console.log('[checkAndUpdateNews] 시작');
         const today = new Date().toISOString().slice(0, 10);
         const lastUpdate = localStorage.getItem('riskNews_lastUpdate');
         const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
-        
-        console.log('[checkAndUpdateNews] 마지막 갱신:', lastUpdate, '설정된 시간:', updateTime);
         
         const now = new Date();
         const [h, m] = updateTime.split(':').map(Number);
         const updateDate = new Date(today + 'T' + updateTime);
         
         if (lastUpdate !== today && now >= updateDate) {
-            console.log('[checkAndUpdateNews] 갱신 필요');
             fetchAndSaveAllNews().then(() => {
-                console.log('[checkAndUpdateNews] 갱신 완료');
                 renderNewsUI();
             });
         } else {
-            console.log('[checkAndUpdateNews] 갱신 불필요');
             renderNewsUI();
         }
     }
 
     function renderNewsUI() {
-        console.log('[renderNewsUI] 시작');
         const today = new Date().toISOString().slice(0, 10);
         const news = JSON.parse(localStorage.getItem(`riskNews_${today}`) || '[]');
         const newsFeed = document.getElementById('newsFeed');
-        if (!newsFeed) {
-            console.log('[renderNewsUI] newsFeed 엘리먼트 없음');
-            return;
-        }
+        if (!newsFeed) return;
         newsFeed.innerHTML = '';
 
         // === 상단 건수/갱신 버튼 추가 ===
@@ -563,7 +524,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (news.length === 0) {
             newsFeed.innerHTML += '<div class="news-item">오늘의 뉴스가 없습니다.</div>';
-            console.log('[renderNewsUI] 뉴스 없음');
             return;
         }
         news.forEach(item => {
@@ -579,7 +539,6 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             newsFeed.appendChild(card);
         });
-        console.log('[renderNewsUI] 렌더링 완료, 뉴스 건수:', news.length);
     }
 
     // 대시보드 진입 시 자동 뉴스 갱신 체크

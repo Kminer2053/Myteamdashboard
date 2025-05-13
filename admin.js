@@ -2,23 +2,19 @@ document.addEventListener('DOMContentLoaded', function() {
     let isAuthenticated = false;
     const passwordModal = new bootstrap.Modal(document.getElementById('adminPwModal'));
     
-    console.log('[admin.js] DOMContentLoaded');
     // 페이지 로드 시 비밀번호 확인 모달 표시
     passwordModal.show();
-    console.log('[admin.js] 비밀번호 모달 표시');
 
     // 비밀번호 확인 (폼 submit 이벤트로 변경)
     document.getElementById('adminPwForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const passwordInput = document.getElementById('adminPwInput');
-        console.log('[admin.js] 인증 시도, 입력값:', passwordInput.value);
         if (passwordInput.value === 'admin123') { // 실제로는 더 안전한 인증 방식 사용 필요
             isAuthenticated = true;
             passwordModal.hide();
             document.querySelectorAll('.input-group').forEach(group => {
                 group.style.display = 'flex';
             });
-            console.log('[admin.js] 인증 성공, 리스트 갱신 시도');
             updateList('riskKeywords', riskKeywordsList);
             updateList('partnerConditions', partnerConditionsList);
             updateList('techTopics', techTopicsList);
@@ -26,13 +22,11 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('비밀번호가 일치하지 않습니다.');
             passwordInput.value = '';
             passwordInput.focus();
-            console.log('[admin.js] 인증 실패');
         }
     });
 
     // 모달이 닫힐 때 메인 페이지로 리다이렉트
     document.getElementById('adminPwModal').addEventListener('hidden.bs.modal', function() {
-        console.log('[admin.js] 모달 닫힘, 인증 상태:', isAuthenticated);
         if (!isAuthenticated) {
             window.location.href = 'index.html';
         }
@@ -45,12 +39,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     addRiskKeywordBtn.addEventListener('click', function() {
         if (!isAuthenticated) {
-            console.log('[admin.js] 인증 전 키워드 추가 시도 차단');
             return;
         }
         const keyword = riskKeywordInput.value.trim();
         if (keyword) {
-            console.log('[admin.js] 키워드 추가 시도:', keyword);
             addItem('riskKeywords', keyword, riskKeywordsList);
             riskKeywordInput.value = '';
         }
@@ -63,12 +55,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     addPartnerConditionBtn.addEventListener('click', function() {
         if (!isAuthenticated) {
-            console.log('[admin.js] 인증 전 조건 추가 시도 차단');
             return;
         }
         const condition = partnerConditionInput.value.trim();
         if (condition) {
-            console.log('[admin.js] 조건 추가 시도:', condition);
             addItem('partnerConditions', condition, partnerConditionsList);
             partnerConditionInput.value = '';
         }
@@ -81,12 +71,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     addTechTopicBtn.addEventListener('click', function() {
         if (!isAuthenticated) {
-            console.log('[admin.js] 인증 전 주제 추가 시도 차단');
             return;
         }
         const topic = techTopicInput.value.trim();
         if (topic) {
-            console.log('[admin.js] 주제 추가 시도:', topic);
             addItem('techTopics', topic, techTopicsList);
             techTopicInput.value = '';
         }
@@ -159,12 +147,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.input-group').forEach(group => {
             group.style.display = 'none';
         });
-        console.log('[admin.js] loadData 실행');
     }
 
     // 초기 데이터 로드
     loadData();
-    console.log('[admin.js] loadData 호출 완료');
 
     // 전역 함수로 등록 (함수 정의 이후에 위치)
     window.removeItem = removeItem;

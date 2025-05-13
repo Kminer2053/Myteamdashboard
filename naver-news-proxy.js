@@ -18,8 +18,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const NAVER_CLIENT_ID = 'e037eF7sxB3VuJHBpay5';
-const NAVER_CLIENT_SECRET = 'qkPfGHxNkN';
+const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID || 'e037eF7sxB3VuJHBpay5';
+const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET || 'qkPfGHxNkN';
 
 // === API 문서화 ===
 /**
@@ -78,7 +78,6 @@ async function collectRiskNews() {
     }
   }
   fs.writeFileSync(`riskNews_${today}.json`, JSON.stringify(allNews, null, 2));
-  console.log(`[자동수집][리스크이슈] ${today} 뉴스 ${allNews.length}건 저장 완료`);
 }
 
 // === 자동 뉴스 수집: 제휴처탐색 ===
@@ -107,7 +106,6 @@ async function collectPartnerNews() {
     }
   }
   fs.writeFileSync(`partnerNews_${today}.json`, JSON.stringify(allNews, null, 2));
-  console.log(`[자동수집][제휴처탐색] ${today} 뉴스 ${allNews.length}건 저장 완료`);
 }
 
 // === 자동 뉴스 수집: 신기술동향 ===
@@ -136,7 +134,6 @@ async function collectTechNews() {
     }
   }
   fs.writeFileSync(`techNews_${today}.json`, JSON.stringify(allNews, null, 2));
-  console.log(`[자동수집][신기술동향] ${today} 뉴스 ${allNews.length}건 저장 완료`);
 }
 
 // === 동적 cron 스케줄 등록 함수 ===
@@ -151,7 +148,6 @@ async function scheduleNewsJob() {
     await collectPartnerNews();
     await collectTechNews();
   });
-  console.log(`[자동수집] 매일 ${time}에 뉴스 수집 스케줄 등록됨 (cron: ${cronExp})`);
 }
 
 // 서버 시작 시 스케줄 등록
@@ -189,12 +185,9 @@ app.get('/api/naver-news', async (req, res) => {
     let start = 1;
     let callCount = 0;
     
-    console.log(`[프록시] 쿼리: ${query}, max: ${maxNum}, display: ${displayNum}`);
-    
     if (maxNum <= 100) {
       // 100개 이하 요청 시 한 번만 호출
       const params = { query, display: maxNum, start, sort };
-      console.log('[디버그] 네이버 API 호출 params:', params);
       const result = await axios.get('https://openapi.naver.com/v1/search/news.json', {
         params,
         headers: {
@@ -203,13 +196,11 @@ app.get('/api/naver-news', async (req, res) => {
         }
       });
       allItems = result.data.items || [];
-      console.log('[디버그] 네이버 API 반환 items.length:', allItems.length);
     } else {
       // 100개 초과 요청 시 기존 방식대로 루프
       while (allItems.length < maxNum && start <= 1000) {
         callCount++;
         const params = { query, display: displayNum, start, sort };
-        console.log(`[디버그] 네이버 API 호출 #${callCount} params:`, params);
         try {
           const result = await axios.get('https://openapi.naver.com/v1/search/news.json', {
             params,
@@ -219,7 +210,6 @@ app.get('/api/naver-news', async (req, res) => {
             }
           });
           const items = result.data.items || [];
-          console.log(`[디버그] 네이버 API 반환 #${callCount} items.length:`, items.length);
           if (items.length > 0) {
             items.forEach(item => {
               if (!allItems.some(n => n.link === item.link)) {
@@ -242,15 +232,13 @@ app.get('/api/naver-news', async (req, res) => {
       }
     }
     
-    console.log(`[프록시] 최종 반환 뉴스 개수: ${allItems.slice(0, maxNum).length}`);
     res.json({ items: allItems.slice(0, maxNum) });
     
   } catch (err) {
     console.error('[프록시] 에러:', err.message);
     res.status(500).json({ 
       error: '서버 에러',
-      message: err.message,
-      details: err.response?.data || '알 수 없는 오류'
+      message: err.message
     });
   }
 });
