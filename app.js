@@ -433,19 +433,23 @@ document.addEventListener('DOMContentLoaded', function() {
             renderNews(checked);
         };
         if (filtered.length === 0) {
-            // 오늘 데이터가 없으면 전체 DB 데이터 표출
+            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용)
             const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
             const allNews = await getRes.json();
-            if (allNews.length === 0) {
-                const emptyDiv = document.createElement('div');
-                emptyDiv.className = 'news-item';
-                emptyDiv.textContent = 'DB에 저장된 뉴스가 없습니다.';
-                newsFeed.appendChild(emptyDiv);
-                return;
+            let filteredAll = [];
+            if (keywords.length > 0) {
+                filteredAll = allNews.filter(news => keywords.includes(news.keyword));
+            } else {
+                filteredAll = allNews;
             }
+            // 상단 건수/오늘 정보 없음 메시지
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'news-item';
+            emptyDiv.textContent = '오늘의 뉴스가 없습니다. (아래는 과거 전체 데이터)';
+            newsFeed.appendChild(emptyDiv);
             // 전체 데이터 최신순 정렬 및 표출
-            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            allNews.forEach(item => {
+            filteredAll.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            filteredAll.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'card mb-2';
                 card.innerHTML = `
@@ -458,6 +462,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
                 newsFeed.appendChild(card);
             });
+            // 상단 건수 갱신
+            topBar.querySelector('span').innerHTML = `표시: <b>${filteredAll.length}</b>건`;
             return;
         }
         filtered.forEach(item => {
@@ -655,19 +661,21 @@ document.addEventListener('DOMContentLoaded', function() {
             renderPartnerResults(checked);
         };
         if (filtered.length === 0) {
-            // 오늘 데이터가 없으면 전체 DB 데이터 표출
+            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용)
             const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
             const allNews = await getRes.json();
-            if (allNews.length === 0) {
-                const emptyDiv = document.createElement('div');
-                emptyDiv.className = 'news-item';
-                emptyDiv.textContent = 'DB에 저장된 정보가 없습니다.';
-                resultsDiv.appendChild(emptyDiv);
-                return;
+            let filteredAll = [];
+            if (selected && selected.length > 0) {
+                filteredAll = allNews.filter(item => selected.includes(item.keyword));
+            } else {
+                filteredAll = allNews;
             }
-            // 전체 데이터 최신순 정렬 및 표출
-            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            allNews.forEach(item => {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'news-item';
+            emptyDiv.textContent = '오늘의 정보가 없습니다. (아래는 과거 전체 데이터)';
+            resultsDiv.appendChild(emptyDiv);
+            filteredAll.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            filteredAll.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'card mb-2';
                 card.innerHTML = `
@@ -680,6 +688,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
                 resultsDiv.appendChild(card);
             });
+            // 상단 건수 갱신
+            topBar.querySelector('span').innerHTML = `표시: <b>${filteredAll.length}</b>건`;
             return;
         }
         filtered.forEach(item => {
@@ -767,19 +777,21 @@ document.addEventListener('DOMContentLoaded', function() {
             renderTechTrendResults(checked);
         };
         if (filtered.length === 0) {
-            // 오늘 데이터가 없으면 전체 DB 데이터 표출
+            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용)
             const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
             const allNews = await getRes.json();
-            if (allNews.length === 0) {
-                const emptyDiv = document.createElement('div');
-                emptyDiv.className = 'news-item';
-                emptyDiv.textContent = 'DB에 저장된 정보가 없습니다.';
-                resultsDiv.appendChild(emptyDiv);
-                return;
+            let filteredAll = [];
+            if (selected && selected.length > 0) {
+                filteredAll = allNews.filter(item => selected.includes(item.keyword));
+            } else {
+                filteredAll = allNews;
             }
-            // 전체 데이터 최신순 정렬 및 표출
-            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            allNews.forEach(item => {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'news-item';
+            emptyDiv.textContent = '오늘의 정보가 없습니다. (아래는 과거 전체 데이터)';
+            resultsDiv.appendChild(emptyDiv);
+            filteredAll.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            filteredAll.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'card mb-2';
                 card.innerHTML = `
@@ -792,6 +804,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
                 resultsDiv.appendChild(card);
             });
+            // 상단 건수 갱신
+            topBar.querySelector('span').innerHTML = `표시: <b>${filteredAll.length}</b>건`;
             return;
         }
         filtered.forEach(item => {
