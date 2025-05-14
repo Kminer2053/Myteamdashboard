@@ -57,6 +57,7 @@ async function collectRiskNews() {
   const today = new Date().toISOString().slice(0, 10);
   const keywords = (await RiskKeyword.find()).map(k => k.value);
   let allNews = [];
+  console.log(`[자동수집][리스크이슈] ${today} 수집 시작 (키워드 ${keywords.length}개)`);
   for (const kw of keywords) {
     try {
       const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
@@ -78,6 +79,7 @@ async function collectRiskNews() {
     }
   }
   fs.writeFileSync(`riskNews_${today}.json`, JSON.stringify(allNews, null, 2));
+  console.log(`[자동수집][리스크이슈] ${today} 수집 완료 (총 ${allNews.length}건)`);
 }
 
 // === 자동 뉴스 수집: 제휴처탐색 ===
@@ -85,6 +87,7 @@ async function collectPartnerNews() {
   const today = new Date().toISOString().slice(0, 10);
   const conds = (await PartnerCondition.find()).map(c => c.value);
   let allNews = [];
+  console.log(`[자동수집][제휴처탐색] ${today} 수집 시작 (조건 ${conds.length}개)`);
   for (const kw of conds) {
     try {
       const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
@@ -106,6 +109,7 @@ async function collectPartnerNews() {
     }
   }
   fs.writeFileSync(`partnerNews_${today}.json`, JSON.stringify(allNews, null, 2));
+  console.log(`[자동수집][제휴처탐색] ${today} 수집 완료 (총 ${allNews.length}건)`);
 }
 
 // === 자동 뉴스 수집: 신기술동향 ===
@@ -113,6 +117,7 @@ async function collectTechNews() {
   const today = new Date().toISOString().slice(0, 10);
   const topics = (await TechTopic.find()).map(t => t.value);
   let allNews = [];
+  console.log(`[자동수집][신기술동향] ${today} 수집 시작 (주제 ${topics.length}개)`);
   for (const kw of topics) {
     try {
       const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
@@ -134,6 +139,7 @@ async function collectTechNews() {
     }
   }
   fs.writeFileSync(`techNews_${today}.json`, JSON.stringify(allNews, null, 2));
+  console.log(`[자동수집][신기술동향] ${today} 수집 완료 (총 ${allNews.length}건)`);
 }
 
 // === 동적 cron 스케줄 등록 함수 ===
@@ -143,10 +149,13 @@ async function scheduleNewsJob() {
   const time = (setting && setting.value) ? setting.value : '07:00';
   const [h, m] = time.split(':').map(Number);
   const cronExp = `${m} ${h} * * *`;
+  console.log(`[자동수집][크론] ${cronExp} (매일 ${time})에 자동 뉴스 수집 예약됨`);
   newsCronJob = cron.schedule(cronExp, async () => {
+    console.log(`[자동수집][크론] ${new Date().toLocaleString()} 자동 뉴스 수집 시작`);
     await collectRiskNews();
     await collectPartnerNews();
     await collectTechNews();
+    console.log(`[자동수집][크론] ${new Date().toLocaleString()} 자동 뉴스 수집 완료`);
   });
 }
 
