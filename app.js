@@ -583,11 +583,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
         renderPartnerResults(checked);
     }
-    function renderPartnerResults(selected) {
+    async function renderPartnerResults(selected) {
         const resultsDiv = document.getElementById('partnerResults');
         if (!resultsDiv) return;
         const today = new Date().toISOString().slice(0, 10);
-        const allData = JSON.parse(localStorage.getItem(`partnerNews_${today}`) || '[]');
+        // 항상 DB에서 최신 데이터 GET
+        const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
+        const allData = await getRes.json();
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => selected.includes(item.keyword));
@@ -608,7 +610,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             await fetchAndSaveAllPartners(checked);
-            renderPartnerResults(checked);
+            await renderPartnerResults(checked); // 갱신 후 DB에서 다시 GET
         };
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
@@ -662,11 +664,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
         renderTechTrendResults(checked);
     }
-    function renderTechTrendResults(selected) {
+    async function renderTechTrendResults(selected) {
         const resultsDiv = document.getElementById('techTrendResults');
         if (!resultsDiv) return;
         const today = new Date().toISOString().slice(0, 10);
-        const allData = JSON.parse(localStorage.getItem(`techNews_${today}`) || '[]');
+        // 항상 DB에서 최신 데이터 GET
+        const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
+        const allData = await getRes.json();
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => selected.includes(item.keyword));
@@ -686,7 +690,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             await fetchAndSaveAllTechs(checked);
-            renderTechTrendResults(checked);
+            await renderTechTrendResults(checked); // 갱신 후 DB에서 다시 GET
         };
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
