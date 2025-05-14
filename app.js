@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let holidayDates = [];
 
     // API 기본 URL 설정
-    const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:4000';
+    const API_BASE_URL = import.meta.env.VITE_API_URL;
 
     // 일정 데이터 서버에서 불러오기
     async function loadUserEvents() {
@@ -304,12 +304,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ===== 리스크 이슈 키워드 서버 연동 =====
     async function loadKeywords() {
-        const res = await fetch('/api/risk-keywords');
+        const res = await fetch(`${API_BASE_URL}/api/risk-keywords`);
         const keywords = await res.json();
         return keywords.map(k => k.value);
     }
     async function addKeyword(value) {
-        const res = await fetch('/api/risk-keywords', {
+        const res = await fetch(`${API_BASE_URL}/api/risk-keywords`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ value })
@@ -317,18 +317,18 @@ document.addEventListener('DOMContentLoaded', function() {
         return await res.json();
     }
     async function deleteKeyword(id) {
-        const res = await fetch(`/api/risk-keywords/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE_URL}/api/risk-keywords/${id}`, { method: 'DELETE' });
         return await res.json();
     }
 
     // ===== 제휴처 조건 서버 연동 =====
     async function loadPartnerConditions() {
-        const res = await fetch('/api/partner-conditions');
+        const res = await fetch(`${API_BASE_URL}/api/partner-conditions`);
         const conds = await res.json();
         return conds.map(c => c.value);
     }
     async function addPartnerCondition(value) {
-        const res = await fetch('/api/partner-conditions', {
+        const res = await fetch(`${API_BASE_URL}/api/partner-conditions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ value })
@@ -336,18 +336,18 @@ document.addEventListener('DOMContentLoaded', function() {
         return await res.json();
     }
     async function deletePartnerCondition(id) {
-        const res = await fetch(`/api/partner-conditions/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE_URL}/api/partner-conditions/${id}`, { method: 'DELETE' });
         return await res.json();
     }
 
     // ===== 신기술 주제 서버 연동 =====
     async function loadTechTopics() {
-        const res = await fetch('/api/tech-topics');
+        const res = await fetch(`${API_BASE_URL}/api/tech-topics`);
         const topics = await res.json();
         return topics.map(t => t.value);
     }
     async function addTechTopic(value) {
-        const res = await fetch('/api/tech-topics', {
+        const res = await fetch(`${API_BASE_URL}/api/tech-topics`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ value })
@@ -355,7 +355,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return await res.json();
     }
     async function deleteTechTopic(id) {
-        const res = await fetch(`/api/tech-topics/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE_URL}/api/tech-topics/${id}`, { method: 'DELETE' });
         return await res.json();
     }
 
@@ -452,7 +452,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let allNews = [];
         for (const kw of keywords) {
             try {
-                const res = await fetch(`/api/naver-news?query=${encodeURIComponent(kw)}&max=100`);
+                const res = await fetch(`${API_BASE_URL}/api/naver-news?query=${encodeURIComponent(kw)}&max=100`);
                 if (!res.ok) {
                     continue;
                 }
@@ -468,13 +468,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         // 서버에 저장
-        await fetch('/api/risk-news', {
+        await fetch(`${API_BASE_URL}/api/risk-news`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ items: allNews })
         });
         // 서버에서 최신 데이터 GET
-        const getRes = await fetch('/api/risk-news');
+        const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const news = await getRes.json();
         localStorage.setItem(`riskNews_${today}`, JSON.stringify(news));
         localStorage.setItem('riskNews_lastUpdate', today);
@@ -718,7 +718,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let allNews = [];
         for (const kw of keywords) {
             try {
-                const res = await fetch(`/api/naver-news?query=${encodeURIComponent(kw)}&max=100`);
+                const res = await fetch(`${API_BASE_URL}/api/naver-news?query=${encodeURIComponent(kw)}&max=100`);
                 const data = await res.json();
                 if (data.items) {
                     data.items.forEach(item => {
@@ -729,12 +729,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } catch (e) { /* 네트워크 오류 등 무시 */ }
         }
-        await fetch('/api/partner-news', {
+        await fetch(`${API_BASE_URL}/api/partner-news`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ items: allNews })
         });
-        const getRes = await fetch('/api/partner-news');
+        const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const news = await getRes.json();
         localStorage.setItem(`partnerNews_${today}`, JSON.stringify(news));
         localStorage.setItem('partnerNews_lastUpdate', today);
@@ -760,7 +760,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let allNews = [];
         for (const kw of keywords) {
             try {
-                const res = await fetch(`/api/naver-news?query=${encodeURIComponent(kw)}&max=100`);
+                const res = await fetch(`${API_BASE_URL}/api/naver-news?query=${encodeURIComponent(kw)}&max=100`);
                 const data = await res.json();
                 if (data.items) {
                     data.items.forEach(item => {
@@ -771,12 +771,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } catch (e) { /* 네트워크 오류 등 무시 */ }
         }
-        await fetch('/api/tech-news', {
+        await fetch(`${API_BASE_URL}/api/tech-news`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ items: allNews })
         });
-        const getRes = await fetch('/api/tech-news');
+        const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
         const news = await getRes.json();
         localStorage.setItem(`techNews_${today}`, JSON.stringify(news));
         localStorage.setItem('techNews_lastUpdate', today);

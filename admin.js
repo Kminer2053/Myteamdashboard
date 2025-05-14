@@ -1,4 +1,5 @@
 import './styles.css';
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 document.addEventListener('DOMContentLoaded', function() {
     let isAuthenticated = false;
@@ -161,12 +162,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ===== 서버 연동 함수 =====
     async function loadKeywords() {
-        const res = await fetch('/api/risk-keywords');
+        const res = await fetch(`${API_BASE_URL}/api/risk-keywords`);
         const keywords = await res.json();
         return keywords;
     }
     async function addKeyword(value) {
-        const res = await fetch('/api/risk-keywords', {
+        const res = await fetch(`${API_BASE_URL}/api/risk-keywords`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ value })
@@ -174,16 +175,16 @@ document.addEventListener('DOMContentLoaded', function() {
         return await res.json();
     }
     async function deleteKeyword(id) {
-        const res = await fetch(`/api/risk-keywords/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE_URL}/api/risk-keywords/${id}`, { method: 'DELETE' });
         return await res.json();
     }
     async function loadPartnerConditions() {
-        const res = await fetch('/api/partner-conditions');
+        const res = await fetch(`${API_BASE_URL}/api/partner-conditions`);
         const conds = await res.json();
         return conds;
     }
     async function addPartnerCondition(value) {
-        const res = await fetch('/api/partner-conditions', {
+        const res = await fetch(`${API_BASE_URL}/api/partner-conditions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ value })
@@ -191,16 +192,16 @@ document.addEventListener('DOMContentLoaded', function() {
         return await res.json();
     }
     async function deletePartnerCondition(id) {
-        const res = await fetch(`/api/partner-conditions/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE_URL}/api/partner-conditions/${id}`, { method: 'DELETE' });
         return await res.json();
     }
     async function loadTechTopics() {
-        const res = await fetch('/api/tech-topics');
+        const res = await fetch(`${API_BASE_URL}/api/tech-topics`);
         const topics = await res.json();
         return topics;
     }
     async function addTechTopic(value) {
-        const res = await fetch('/api/tech-topics', {
+        const res = await fetch(`${API_BASE_URL}/api/tech-topics`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ value })
@@ -208,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return await res.json();
     }
     async function deleteTechTopic(id) {
-        const res = await fetch(`/api/tech-topics/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE_URL}/api/tech-topics/${id}`, { method: 'DELETE' });
         return await res.json();
     }
 }); 
