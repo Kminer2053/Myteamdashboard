@@ -743,18 +743,9 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem(`partnerNews_${today}`, JSON.stringify(news));
         localStorage.setItem('partnerNews_lastUpdate', today);
     }
-    function checkAndUpdatePartnerNews() {
-        const today = new Date().toISOString().slice(0, 10);
-        const lastUpdate = localStorage.getItem('partnerNews_lastUpdate');
-        const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
-        const now = new Date();
-        const [h, m] = updateTime.split(':').map(Number);
-        const updateDate = new Date(today + 'T' + updateTime);
-        if (lastUpdate !== today && now >= updateDate) {
-            fetchAndSaveAllPartners().then(() => renderPartnerResults(loadPartnerConditions()));
-        } else {
-            renderPartnerResults(loadPartnerConditions());
-        }
+    async function checkAndUpdatePartnerNews() {
+        const checked = await loadPartnerConditions();
+        await renderPartnerResults(checked); // 항상 DB에서 GET
     }
     // 신기술 동향 정보 수집 및 저장
     async function fetchAndSaveAllTechs(keywordsParam) {
@@ -785,18 +776,9 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem(`techNews_${today}`, JSON.stringify(news));
         localStorage.setItem('techNews_lastUpdate', today);
     }
-    function checkAndUpdateTechNews() {
-        const today = new Date().toISOString().slice(0, 10);
-        const lastUpdate = localStorage.getItem('techNews_lastUpdate');
-        const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
-        const now = new Date();
-        const [h, m] = updateTime.split(':').map(Number);
-        const updateDate = new Date(today + 'T' + updateTime);
-        if (lastUpdate !== today && now >= updateDate) {
-            fetchAndSaveAllTechs().then(() => renderTechTrendResults(loadTechTopics()));
-        } else {
-            renderTechTrendResults(loadTechTopics());
-        }
+    async function checkAndUpdateTechNews() {
+        const checked = await loadTechTopics();
+        await renderTechTrendResults(checked); // 항상 DB에서 GET
     }
 
     // 페이지 로드 시 자동 갱신 체크
