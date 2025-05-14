@@ -598,11 +598,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!resultsDiv) return;
         const today = new Date().toISOString().slice(0, 10);
         let allData = JSON.parse(localStorage.getItem(`partnerNews_${today}`) || '[]');
-        if (!Array.isArray(allData) || allData.length === 0) {
-            // localStorage에 없으면 DB에서 GET
+        const lastUpdate = localStorage.getItem('partnerNews_lastUpdate');
+        if (!Array.isArray(allData) || allData.length === 0 || lastUpdate !== today) {
+            // localStorage에 없거나 오늘 날짜가 아니면 DB에서 GET
             const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
             allData = await getRes.json();
             localStorage.setItem(`partnerNews_${today}`, JSON.stringify(allData));
+            localStorage.setItem('partnerNews_lastUpdate', today);
         }
         let filtered = [];
         if (selected && selected.length > 0) {
@@ -628,6 +630,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
             const news = await getRes.json();
             localStorage.setItem(`partnerNews_${today}`, JSON.stringify(news));
+            localStorage.setItem('partnerNews_lastUpdate', today);
             renderPartnerResults(checked);
         };
         if (filtered.length === 0) {
@@ -687,11 +690,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!resultsDiv) return;
         const today = new Date().toISOString().slice(0, 10);
         let allData = JSON.parse(localStorage.getItem(`techNews_${today}`) || '[]');
-        if (!Array.isArray(allData) || allData.length === 0) {
-            // localStorage에 없으면 DB에서 GET
+        const lastUpdate = localStorage.getItem('techNews_lastUpdate');
+        if (!Array.isArray(allData) || allData.length === 0 || lastUpdate !== today) {
+            // localStorage에 없거나 오늘 날짜가 아니면 DB에서 GET
             const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
             allData = await getRes.json();
             localStorage.setItem(`techNews_${today}`, JSON.stringify(allData));
+            localStorage.setItem('techNews_lastUpdate', today);
         }
         let filtered = [];
         if (selected && selected.length > 0) {
@@ -716,6 +721,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
             const news = await getRes.json();
             localStorage.setItem(`techNews_${today}`, JSON.stringify(news));
+            localStorage.setItem('techNews_lastUpdate', today);
             renderTechTrendResults(checked);
         };
         if (filtered.length === 0) {
