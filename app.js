@@ -399,9 +399,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const newsFeed = document.getElementById('newsFeed');
         if (!newsFeed) return;
         const today = new Date().toISOString().slice(0, 10);
-        // 항상 DB에서 최신 데이터 GET
-        const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
-        const allNews = await getRes.json();
+        let allNews = JSON.parse(localStorage.getItem(`riskNews_${today}`) || '[]');
+        if (!Array.isArray(allNews) || allNews.length === 0) {
+            // localStorage에 없으면 DB에서 GET
+            const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
+            allNews = await getRes.json();
+            localStorage.setItem(`riskNews_${today}`, JSON.stringify(allNews));
+        }
         let filtered = [];
         if (keywords.length > 0) {
             filtered = allNews.filter(news => keywords.includes(news.keyword));
@@ -421,8 +425,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('체크된 키워드가 없습니다.');
                 return;
             }
-            await fetchAndSaveAllNews(checked);
-            await renderNews(checked); // 갱신 후 DB에서 다시 GET
+            await fetchAndSaveAllNews(checked); // DB에 갱신
+            // 갱신 후 DB에서 GET
+            const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
+            const news = await getRes.json();
+            localStorage.setItem(`riskNews_${today}`, JSON.stringify(news));
+            renderNews(checked);
         };
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
@@ -585,13 +593,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
         renderPartnerResults(checked);
     }
-    async function renderPartnerResults(selected) {
+    function renderPartnerResults(selected) {
         const resultsDiv = document.getElementById('partnerResults');
         if (!resultsDiv) return;
         const today = new Date().toISOString().slice(0, 10);
-        // 항상 DB에서 최신 데이터 GET
-        const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
-        const allData = await getRes.json();
+        const allData = JSON.parse(localStorage.getItem(`partnerNews_${today}`) || '[]');
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => selected.includes(item.keyword));
@@ -612,7 +618,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             await fetchAndSaveAllPartners(checked);
-            await renderPartnerResults(checked); // 갱신 후 DB에서 다시 GET
+            renderPartnerResults(checked);
         };
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
@@ -666,13 +672,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
         renderTechTrendResults(checked);
     }
-    async function renderTechTrendResults(selected) {
+    function renderTechTrendResults(selected) {
         const resultsDiv = document.getElementById('techTrendResults');
         if (!resultsDiv) return;
         const today = new Date().toISOString().slice(0, 10);
-        // 항상 DB에서 최신 데이터 GET
-        const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
-        const allData = await getRes.json();
+        const allData = JSON.parse(localStorage.getItem(`techNews_${today}`) || '[]');
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => selected.includes(item.keyword));
@@ -692,7 +696,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             await fetchAndSaveAllTechs(checked);
-            await renderTechTrendResults(checked); // 갱신 후 DB에서 다시 GET
+            renderTechTrendResults(checked);
         };
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
@@ -745,9 +749,18 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem(`partnerNews_${today}`, JSON.stringify(news));
         localStorage.setItem('partnerNews_lastUpdate', today);
     }
-    async function checkAndUpdatePartnerNews() {
-        const checked = await loadPartnerConditions();
-        await renderPartnerResults(checked); // 항상 DB에서 GET
+    function checkAndUpdatePartnerNews() {
+        const today = new Date().toISOString().slice(0, 10);
+        const lastUpdate = localStorage.getItem('partnerNews_lastUpdate');
+        const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
+        const now = new Date();
+        const [h, m] = updateTime.split(':').map(Number);
+        const updateDate = new Date(today + 'T' + updateTime);
+        if (lastUpdate !== today && now >= updateDate) {
+            fetchAndSaveAllPartners().then(() => renderPartnerResults(loadPartnerConditions()));
+        } else {
+            renderPartnerResults(loadPartnerConditions());
+        }
     }
     // 신기술 동향 정보 수집 및 저장
     async function fetchAndSaveAllTechs(keywordsParam) {
@@ -778,9 +791,18 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem(`techNews_${today}`, JSON.stringify(news));
         localStorage.setItem('techNews_lastUpdate', today);
     }
-    async function checkAndUpdateTechNews() {
-        const checked = await loadTechTopics();
-        await renderTechTrendResults(checked); // 항상 DB에서 GET
+    function checkAndUpdateTechNews() {
+        const today = new Date().toISOString().slice(0, 10);
+        const lastUpdate = localStorage.getItem('techNews_lastUpdate');
+        const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
+        const now = new Date();
+        const [h, m] = updateTime.split(':').map(Number);
+        const updateDate = new Date(today + 'T' + updateTime);
+        if (lastUpdate !== today && now >= updateDate) {
+            fetchAndSaveAllTechs().then(() => renderTechTrendResults(loadTechTopics()));
+        } else {
+            renderTechTrendResults(loadTechTopics());
+        }
     }
 
     // 페이지 로드 시 자동 갱신 체크
