@@ -593,11 +593,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
         renderPartnerResults(checked);
     }
-    function renderPartnerResults(selected) {
+    async function renderPartnerResults(selected) {
         const resultsDiv = document.getElementById('partnerResults');
         if (!resultsDiv) return;
         const today = new Date().toISOString().slice(0, 10);
-        const allData = JSON.parse(localStorage.getItem(`partnerNews_${today}`) || '[]');
+        let allData = JSON.parse(localStorage.getItem(`partnerNews_${today}`) || '[]');
+        if (!Array.isArray(allData) || allData.length === 0) {
+            // localStorage에 없으면 DB에서 GET
+            const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
+            allData = await getRes.json();
+            localStorage.setItem(`partnerNews_${today}`, JSON.stringify(allData));
+        }
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => selected.includes(item.keyword));
@@ -617,7 +623,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('체크된 조건이 없습니다.');
                 return;
             }
-            await fetchAndSaveAllPartners(checked);
+            await fetchAndSaveAllPartners(checked); // DB에 갱신
+            // 갱신 후 DB에서 GET
+            const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
+            const news = await getRes.json();
+            localStorage.setItem(`partnerNews_${today}`, JSON.stringify(news));
             renderPartnerResults(checked);
         };
         if (filtered.length === 0) {
