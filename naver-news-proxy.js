@@ -80,6 +80,19 @@ async function collectRiskNews() {
   }
   fs.writeFileSync(`riskNews_${today}.json`, JSON.stringify(allNews, null, 2));
   console.log(`[자동수집][리스크이슈] ${today} 수집 완료 (총 ${allNews.length}건)`);
+  // === DB 저장 ===
+  let insertedRisk = 0;
+  for (const item of allNews) {
+    try {
+      await RiskNews.updateOne(
+        { link: item.link },
+        { $setOnInsert: item },
+        { upsert: true }
+      );
+      insertedRisk++;
+    } catch (e) { /* 중복 등 무시 */ }
+  }
+  console.log(`[자동수집][리스크이슈] ${today} DB 저장 완료 (총 ${insertedRisk}건)`);
 }
 
 // === 자동 뉴스 수집: 제휴처탐색 ===
@@ -110,6 +123,19 @@ async function collectPartnerNews() {
   }
   fs.writeFileSync(`partnerNews_${today}.json`, JSON.stringify(allNews, null, 2));
   console.log(`[자동수집][제휴처탐색] ${today} 수집 완료 (총 ${allNews.length}건)`);
+  // === DB 저장 ===
+  let insertedPartner = 0;
+  for (const item of allNews) {
+    try {
+      await PartnerNews.updateOne(
+        { link: item.link },
+        { $setOnInsert: item },
+        { upsert: true }
+      );
+      insertedPartner++;
+    } catch (e) { /* 중복 등 무시 */ }
+  }
+  console.log(`[자동수집][제휴처탐색] ${today} DB 저장 완료 (총 ${insertedPartner}건)`);
 }
 
 // === 자동 뉴스 수집: 신기술동향 ===
@@ -140,6 +166,19 @@ async function collectTechNews() {
   }
   fs.writeFileSync(`techNews_${today}.json`, JSON.stringify(allNews, null, 2));
   console.log(`[자동수집][신기술동향] ${today} 수집 완료 (총 ${allNews.length}건)`);
+  // === DB 저장 ===
+  let insertedTech = 0;
+  for (const item of allNews) {
+    try {
+      await TechNews.updateOne(
+        { link: item.link },
+        { $setOnInsert: item },
+        { upsert: true }
+      );
+      insertedTech++;
+    } catch (e) { /* 중복 등 무시 */ }
+  }
+  console.log(`[자동수집][신기술동향] ${today} DB 저장 완료 (총 ${insertedTech}건)`);
 }
 
 // === 동적 cron 스케줄 등록 함수 ===

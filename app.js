@@ -433,10 +433,31 @@ document.addEventListener('DOMContentLoaded', function() {
             renderNews(checked);
         };
         if (filtered.length === 0) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'news-item';
-            emptyDiv.textContent = '오늘의 뉴스가 없습니다.';
-            newsFeed.appendChild(emptyDiv);
+            // 오늘 데이터가 없으면 전체 DB 데이터 표출
+            const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
+            const allNews = await getRes.json();
+            if (allNews.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'news-item';
+                emptyDiv.textContent = 'DB에 저장된 뉴스가 없습니다.';
+                newsFeed.appendChild(emptyDiv);
+                return;
+            }
+            // 전체 데이터 최신순 정렬 및 표출
+            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            allNews.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card mb-2';
+                card.innerHTML = `
+                  <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                      <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                      <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge bg-secondary">${item.keyword}</span></div>
+                    </div>
+                  </div>
+                `;
+                newsFeed.appendChild(card);
+            });
             return;
         }
         filtered.forEach(item => {
@@ -634,10 +655,31 @@ document.addEventListener('DOMContentLoaded', function() {
             renderPartnerResults(checked);
         };
         if (filtered.length === 0) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'news-item';
-            emptyDiv.textContent = '오늘의 정보가 없습니다.';
-            resultsDiv.appendChild(emptyDiv);
+            // 오늘 데이터가 없으면 전체 DB 데이터 표출
+            const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
+            const allNews = await getRes.json();
+            if (allNews.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'news-item';
+                emptyDiv.textContent = 'DB에 저장된 정보가 없습니다.';
+                resultsDiv.appendChild(emptyDiv);
+                return;
+            }
+            // 전체 데이터 최신순 정렬 및 표출
+            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            allNews.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card mb-2';
+                card.innerHTML = `
+                  <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                      <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                      <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge bg-secondary">${item.keyword}</span></div>
+                    </div>
+                  </div>
+                `;
+                resultsDiv.appendChild(card);
+            });
             return;
         }
         filtered.forEach(item => {
@@ -725,10 +767,31 @@ document.addEventListener('DOMContentLoaded', function() {
             renderTechTrendResults(checked);
         };
         if (filtered.length === 0) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'news-item';
-            emptyDiv.textContent = '오늘의 정보가 없습니다.';
-            resultsDiv.appendChild(emptyDiv);
+            // 오늘 데이터가 없으면 전체 DB 데이터 표출
+            const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
+            const allNews = await getRes.json();
+            if (allNews.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'news-item';
+                emptyDiv.textContent = 'DB에 저장된 정보가 없습니다.';
+                resultsDiv.appendChild(emptyDiv);
+                return;
+            }
+            // 전체 데이터 최신순 정렬 및 표출
+            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            allNews.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card mb-2';
+                card.innerHTML = `
+                  <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                      <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                      <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge bg-secondary">${item.keyword}</span></div>
+                    </div>
+                  </div>
+                `;
+                resultsDiv.appendChild(card);
+            });
             return;
         }
         filtered.forEach(item => {

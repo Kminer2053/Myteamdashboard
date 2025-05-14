@@ -68,16 +68,11 @@
     border-color: #0a58ca;
 }
 
-/* 모든 이벤트 텍스트에 말줄임표 적용 (공휴일+사용자 일정 모두) */
-.fc-event-title, 
-.fc-event-title-container, 
-.fc-event-main, 
-.fc-daygrid-event, 
-.fc-event-main-frame, 
-.fc-event-title.fc-sticky {
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+/* 사용자 일정 제목이 칸을 넘지 않게 말줄임표 처리 */
+.fc-event-title, .fc-event-title-container, .fc-event-main {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     max-width: 100%;
     display: block;
 } 
