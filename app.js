@@ -433,14 +433,17 @@ document.addEventListener('DOMContentLoaded', function() {
             renderNews(checked);
         };
         if (filtered.length === 0) {
-            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용)
+            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용, 오늘 데이터 제외)
             const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
             const allNews = await getRes.json();
+            const todayStr = new Date().toISOString().slice(0, 10);
             let filteredAll = [];
             if (keywords.length > 0) {
-                filteredAll = allNews.filter(news => keywords.includes(news.keyword));
+                filteredAll = allNews
+                    .filter(news => keywords.includes(news.keyword))
+                    .filter(news => !(news.pubDate && news.pubDate.startsWith(todayStr)));
             } else {
-                filteredAll = allNews;
+                filteredAll = []; // 체크박스 모두 해제 시 아무것도 안 보임
             }
             // 상단 건수/오늘 정보 없음 메시지
             const emptyDiv = document.createElement('div');
@@ -453,10 +456,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const card = document.createElement('div');
                 card.className = 'card mb-2';
                 card.innerHTML = `
-                  <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-                    <div class="flex-grow-1">
-                      <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                      <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge bg-secondary">${item.keyword}</span></div>
+                  <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
+                    <div class=\"flex-grow-1\">
+                      <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                      <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
                     </div>
                   </div>
                 `;
@@ -470,10 +473,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const card = document.createElement('div');
             card.className = 'card mb-2';
             card.innerHTML = `
-              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-                <div class="flex-grow-1">
-                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge bg-secondary">${item.keyword}</span></div>
+              <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
+                <div class=\"flex-grow-1\">
+                  <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                  <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
                 </div>
               </div>
             `;
@@ -568,10 +571,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const card = document.createElement('div');
             card.className = 'card mb-2';
             card.innerHTML = `
-              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-                <div class="flex-grow-1">
-                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge bg-secondary">${item.keyword}</span></div>
+              <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
+                <div class=\"flex-grow-1\">
+                  <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                  <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
                 </div>
               </div>
             `;
@@ -661,14 +664,17 @@ document.addEventListener('DOMContentLoaded', function() {
             renderPartnerResults(checked);
         };
         if (filtered.length === 0) {
-            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용)
+            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용, 오늘 데이터 제외)
             const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
             const allNews = await getRes.json();
+            const todayStr = new Date().toISOString().slice(0, 10);
             let filteredAll = [];
             if (selected && selected.length > 0) {
-                filteredAll = allNews.filter(item => selected.includes(item.keyword));
+                filteredAll = allNews
+                    .filter(item => selected.includes(item.keyword))
+                    .filter(item => !(item.pubDate && item.pubDate.startsWith(todayStr)));
             } else {
-                filteredAll = allNews;
+                filteredAll = [];
             }
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
@@ -679,10 +685,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const card = document.createElement('div');
                 card.className = 'card mb-2';
                 card.innerHTML = `
-                  <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-                    <div class="flex-grow-1">
-                      <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                      <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge bg-secondary">${item.keyword}</span></div>
+                  <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
+                    <div class=\"flex-grow-1\">
+                      <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                      <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
                     </div>
                   </div>
                 `;
@@ -696,10 +702,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const card = document.createElement('div');
             card.className = 'card mb-2';
             card.innerHTML = `
-              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-                <div class="flex-grow-1">
-                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge bg-secondary">${item.keyword}</span></div>
+              <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
+                <div class=\"flex-grow-1\">
+                  <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                  <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
                 </div>
               </div>
             `;
@@ -777,14 +783,17 @@ document.addEventListener('DOMContentLoaded', function() {
             renderTechTrendResults(checked);
         };
         if (filtered.length === 0) {
-            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용)
+            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용, 오늘 데이터 제외)
             const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
             const allNews = await getRes.json();
+            const todayStr = new Date().toISOString().slice(0, 10);
             let filteredAll = [];
             if (selected && selected.length > 0) {
-                filteredAll = allNews.filter(item => selected.includes(item.keyword));
+                filteredAll = allNews
+                    .filter(item => selected.includes(item.keyword))
+                    .filter(item => !(item.pubDate && item.pubDate.startsWith(todayStr)));
             } else {
-                filteredAll = allNews;
+                filteredAll = [];
             }
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
@@ -795,10 +804,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const card = document.createElement('div');
                 card.className = 'card mb-2';
                 card.innerHTML = `
-                  <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-                    <div class="flex-grow-1">
-                      <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                      <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge bg-secondary">${item.keyword}</span></div>
+                  <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
+                    <div class=\"flex-grow-1\">
+                      <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                      <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
                     </div>
                   </div>
                 `;
@@ -812,10 +821,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const card = document.createElement('div');
             card.className = 'card mb-2';
             card.innerHTML = `
-              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-                <div class="flex-grow-1">
-                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge bg-secondary">${item.keyword}</span></div>
+              <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
+                <div class=\"flex-grow-1\">
+                  <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                  <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
                 </div>
               </div>
             `;
