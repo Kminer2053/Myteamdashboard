@@ -539,4 +539,6 @@ app.get('/api/tech-news', async (req, res) => {
 const PORT = 4000;
 app.listen(PORT, () => {
   console.log(`[서버] http://localhost:${PORT} 에서 실행 중`);
+  console.log(`[서버] 시작 시간: ${new Date().toLocaleString()}`);
+  console.log(`[서버] 환경: ${process.env.NODE_ENV || 'development'}`);
 });
