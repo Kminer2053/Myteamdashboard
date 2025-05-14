@@ -682,11 +682,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
         renderTechTrendResults(checked);
     }
-    function renderTechTrendResults(selected) {
+    async function renderTechTrendResults(selected) {
         const resultsDiv = document.getElementById('techTrendResults');
         if (!resultsDiv) return;
         const today = new Date().toISOString().slice(0, 10);
-        const allData = JSON.parse(localStorage.getItem(`techNews_${today}`) || '[]');
+        let allData = JSON.parse(localStorage.getItem(`techNews_${today}`) || '[]');
+        if (!Array.isArray(allData) || allData.length === 0) {
+            // localStorage에 없으면 DB에서 GET
+            const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
+            allData = await getRes.json();
+            localStorage.setItem(`techNews_${today}`, JSON.stringify(allData));
+        }
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => selected.includes(item.keyword));
@@ -705,7 +711,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('체크된 주제가 없습니다.');
                 return;
             }
-            await fetchAndSaveAllTechs(checked);
+            await fetchAndSaveAllTechs(checked); // DB에 갱신
+            // 갱신 후 DB에서 GET
+            const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
+            const news = await getRes.json();
+            localStorage.setItem(`techNews_${today}`, JSON.stringify(news));
             renderTechTrendResults(checked);
         };
         if (filtered.length === 0) {
