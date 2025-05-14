@@ -394,12 +394,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 뉴스 UI 렌더링 (선택된 키워드 기반 필터, 카드형, 본문 미표시, 우측 상단에 건수/갱신 버튼)
-    function renderNews(selectedKeywords) {
-        const keywords = selectedKeywords || loadKeywords();
+    async function renderNews(selectedKeywords) {
+        const keywords = selectedKeywords || await loadKeywords();
         const newsFeed = document.getElementById('newsFeed');
         if (!newsFeed) return;
         const today = new Date().toISOString().slice(0, 10);
-        const allNews = JSON.parse(localStorage.getItem(`riskNews_${today}`) || '[]');
+        // 항상 DB에서 최신 데이터 GET
+        const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
+        const allNews = await getRes.json();
         let filtered = [];
         if (keywords.length > 0) {
             filtered = allNews.filter(news => keywords.includes(news.keyword));
@@ -420,7 +422,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             await fetchAndSaveAllNews(checked);
-            renderNews(checked);
+            await renderNews(checked); // 갱신 후 DB에서 다시 GET
         };
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
