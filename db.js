@@ -7,7 +7,7 @@ mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, '[MongoDB] 연결 에러:'));
 db.once('open', () => {
-  // console.log('[MongoDB] 연결 성공');
+  console.log('[MongoDB] 연결 성공');
 });
 
 // 모델 정의

@@ -4,7 +4,7 @@ const axios = require('axios');
 const cors = require('cors');
 const fs = require('fs');
 const cron = require('node-cron');
-const { Keyword } = require('./db');
+const { mongoose, Keyword } = require('./db');
 const Schedule = require('./models/Schedule');
 const RiskKeyword = require('./models/RiskKeyword');
 const PartnerCondition = require('./models/PartnerCondition');
@@ -55,146 +55,281 @@ let newsCronJob = null;
 // === 자동 뉴스 수집: 리스크이슈 ===
 async function collectRiskNews() {
   const today = new Date().toISOString().slice(0, 10);
-  const keywords = (await RiskKeyword.find()).map(k => k.value);
-  let allNews = [];
-  console.log(`[자동수집][리스크이슈] ${today} 수집 시작 (키워드 ${keywords.length}개)`);
-  for (const kw of keywords) {
-    try {
-      const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-        params: { query: kw, display: 100, sort: 'date' },
-        headers: {
-          'X-Naver-Client-Id': NAVER_CLIENT_ID,
-          'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-        }
-      });
-      if (res.data.items) {
-        res.data.items.forEach(item => {
-          if (!allNews.some(n => n.link === item.link)) {
-            allNews.push({ ...item, keyword: kw });
+  try {
+    const keywords = (await RiskKeyword.find()).map(k => k.value);
+    if (keywords.length === 0) {
+      console.log(`[자동수집][리스크이슈] ${today} 키워드가 없습니다. 수집을 건너뜁니다.`);
+      return;
+    }
+    
+    let allNews = [];
+    console.log(`[자동수집][리스크이슈] ${today} 수집 시작 (키워드 ${keywords.length}개)`);
+    
+    for (const kw of keywords) {
+      try {
+        console.log(`[자동수집][리스크이슈] 키워드 "${kw}" 수집 시작`);
+        const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+          params: { query: kw, display: 100, sort: 'date' },
+          headers: {
+            'X-Naver-Client-Id': NAVER_CLIENT_ID,
+            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
           }
         });
+        
+        if (res.data.items && res.data.items.length > 0) {
+          console.log(`[자동수집][리스크이슈] 키워드 "${kw}" 결과 ${res.data.items.length}건 수집`);
+          res.data.items.forEach(item => {
+            if (!allNews.some(n => n.link === item.link)) {
+              allNews.push({ ...item, keyword: kw });
+            }
+          });
+        } else {
+          console.log(`[자동수집][리스크이슈] 키워드 "${kw}" 결과 없음`);
+        }
+      } catch (e) {
+        console.error(`[자동수집][리스크이슈] 키워드 "${kw}" 뉴스 수집 실패:`, 
+          e.response ? `상태 코드: ${e.response.status}, 메시지: ${JSON.stringify(e.response.data)}` : e.message);
       }
-    } catch (e) {
-      console.error(`[자동수집][리스크이슈] 키워드 ${kw} 뉴스 수집 실패:`, e.message);
     }
+    
+    if (allNews.length > 0) {
+      try {
+        fs.writeFileSync(`riskNews_${today}.json`, JSON.stringify(allNews, null, 2));
+        console.log(`[자동수집][리스크이슈] ${today} 수집 완료 (총 ${allNews.length}건)`);
+      } catch (fileError) {
+        console.error(`[자동수집][리스크이슈] 파일 저장 실패:`, fileError.message);
+      }
+      
+      // === DB 저장 ===
+      let insertedRisk = 0;
+      let duplicateRisk = 0;
+      for (const item of allNews) {
+        try {
+          const result = await RiskNews.updateOne(
+            { link: item.link },
+            { $setOnInsert: item },
+            { upsert: true }
+          );
+          
+          if (result.upsertedCount > 0) {
+            insertedRisk++;
+          } else {
+            duplicateRisk++;
+          }
+        } catch (dbError) {
+          console.error(`[자동수집][리스크이슈] DB 저장 실패 (${item.title}):`, dbError.message);
+        }
+      }
+      console.log(`[자동수집][리스크이슈] ${today} DB 저장 완료 (신규: ${insertedRisk}건, 중복: ${duplicateRisk}건)`);
+    } else {
+      console.log(`[자동수집][리스크이슈] ${today} 수집된 뉴스가 없습니다.`);
+    }
+  } catch (error) {
+    console.error(`[자동수집][리스크이슈] 전체 프로세스 에러:`, error);
+    throw error; // 상위 호출자에게 에러 전파
   }
-  fs.writeFileSync(`riskNews_${today}.json`, JSON.stringify(allNews, null, 2));
-  console.log(`[자동수집][리스크이슈] ${today} 수집 완료 (총 ${allNews.length}건)`);
-  // === DB 저장 ===
-  let insertedRisk = 0;
-  for (const item of allNews) {
-    try {
-      await RiskNews.updateOne(
-        { link: item.link },
-        { $setOnInsert: item },
-        { upsert: true }
-      );
-      insertedRisk++;
-    } catch (e) { /* 중복 등 무시 */ }
-  }
-  console.log(`[자동수집][리스크이슈] ${today} DB 저장 완료 (총 ${insertedRisk}건)`);
 }
 
 // === 자동 뉴스 수집: 제휴처탐색 ===
 async function collectPartnerNews() {
   const today = new Date().toISOString().slice(0, 10);
-  const conds = (await PartnerCondition.find()).map(c => c.value);
-  let allNews = [];
-  console.log(`[자동수집][제휴처탐색] ${today} 수집 시작 (조건 ${conds.length}개)`);
-  for (const kw of conds) {
-    try {
-      const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-        params: { query: kw, display: 100, sort: 'date' },
-        headers: {
-          'X-Naver-Client-Id': NAVER_CLIENT_ID,
-          'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-        }
-      });
-      if (res.data.items) {
-        res.data.items.forEach(item => {
-          if (!allNews.some(n => n.link === item.link)) {
-            allNews.push({ ...item, keyword: kw });
+  try {
+    const conds = (await PartnerCondition.find()).map(c => c.value);
+    if (conds.length === 0) {
+      console.log(`[자동수집][제휴처탐색] ${today} 검색 조건이 없습니다. 수집을 건너뜁니다.`);
+      return;
+    }
+    
+    let allNews = [];
+    console.log(`[자동수집][제휴처탐색] ${today} 수집 시작 (조건 ${conds.length}개)`);
+    
+    for (const kw of conds) {
+      try {
+        console.log(`[자동수집][제휴처탐색] 조건 "${kw}" 수집 시작`);
+        const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+          params: { query: kw, display: 100, sort: 'date' },
+          headers: {
+            'X-Naver-Client-Id': NAVER_CLIENT_ID,
+            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
           }
         });
+        
+        if (res.data.items && res.data.items.length > 0) {
+          console.log(`[자동수집][제휴처탐색] 조건 "${kw}" 결과 ${res.data.items.length}건 수집`);
+          res.data.items.forEach(item => {
+            if (!allNews.some(n => n.link === item.link)) {
+              allNews.push({ ...item, keyword: kw });
+            }
+          });
+        } else {
+          console.log(`[자동수집][제휴처탐색] 조건 "${kw}" 결과 없음`);
+        }
+      } catch (e) {
+        console.error(`[자동수집][제휴처탐색] 조건 "${kw}" 뉴스 수집 실패:`, 
+          e.response ? `상태 코드: ${e.response.status}, 메시지: ${JSON.stringify(e.response.data)}` : e.message);
       }
-    } catch (e) {
-      console.error(`[자동수집][제휴처탐색] 조건 ${kw} 뉴스 수집 실패:`, e.message);
     }
+    
+    if (allNews.length > 0) {
+      try {
+        fs.writeFileSync(`partnerNews_${today}.json`, JSON.stringify(allNews, null, 2));
+        console.log(`[자동수집][제휴처탐색] ${today} 수집 완료 (총 ${allNews.length}건)`);
+      } catch (fileError) {
+        console.error(`[자동수집][제휴처탐색] 파일 저장 실패:`, fileError.message);
+      }
+      
+      // === DB 저장 ===
+      let insertedPartner = 0;
+      let duplicatePartner = 0;
+      for (const item of allNews) {
+        try {
+          const result = await PartnerNews.updateOne(
+            { link: item.link },
+            { $setOnInsert: item },
+            { upsert: true }
+          );
+          
+          if (result.upsertedCount > 0) {
+            insertedPartner++;
+          } else {
+            duplicatePartner++;
+          }
+        } catch (dbError) {
+          console.error(`[자동수집][제휴처탐색] DB 저장 실패 (${item.title}):`, dbError.message);
+        }
+      }
+      console.log(`[자동수집][제휴처탐색] ${today} DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
+    } else {
+      console.log(`[자동수집][제휴처탐색] ${today} 수집된 뉴스가 없습니다.`);
+    }
+  } catch (error) {
+    console.error(`[자동수집][제휴처탐색] 전체 프로세스 에러:`, error);
+    throw error; // 상위 호출자에게 에러 전파
   }
-  fs.writeFileSync(`partnerNews_${today}.json`, JSON.stringify(allNews, null, 2));
-  console.log(`[자동수집][제휴처탐색] ${today} 수집 완료 (총 ${allNews.length}건)`);
-  // === DB 저장 ===
-  let insertedPartner = 0;
-  for (const item of allNews) {
-    try {
-      await PartnerNews.updateOne(
-        { link: item.link },
-        { $setOnInsert: item },
-        { upsert: true }
-      );
-      insertedPartner++;
-    } catch (e) { /* 중복 등 무시 */ }
-  }
-  console.log(`[자동수집][제휴처탐색] ${today} DB 저장 완료 (총 ${insertedPartner}건)`);
 }
 
 // === 자동 뉴스 수집: 신기술동향 ===
 async function collectTechNews() {
   const today = new Date().toISOString().slice(0, 10);
-  const topics = (await TechTopic.find()).map(t => t.value);
-  let allNews = [];
-  console.log(`[자동수집][신기술동향] ${today} 수집 시작 (주제 ${topics.length}개)`);
-  for (const kw of topics) {
-    try {
-      const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-        params: { query: kw, display: 100, sort: 'date' },
-        headers: {
-          'X-Naver-Client-Id': NAVER_CLIENT_ID,
-          'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-        }
-      });
-      if (res.data.items) {
-        res.data.items.forEach(item => {
-          if (!allNews.some(n => n.link === item.link)) {
-            allNews.push({ ...item, keyword: kw });
+  try {
+    const topics = (await TechTopic.find()).map(t => t.value);
+    if (topics.length === 0) {
+      console.log(`[자동수집][신기술동향] ${today} 주제가 없습니다. 수집을 건너뜁니다.`);
+      return;
+    }
+    
+    let allNews = [];
+    console.log(`[자동수집][신기술동향] ${today} 수집 시작 (주제 ${topics.length}개)`);
+    
+    for (const kw of topics) {
+      try {
+        console.log(`[자동수집][신기술동향] 주제 "${kw}" 수집 시작`);
+        const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+          params: { query: kw, display: 100, sort: 'date' },
+          headers: {
+            'X-Naver-Client-Id': NAVER_CLIENT_ID,
+            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
           }
         });
+        
+        if (res.data.items && res.data.items.length > 0) {
+          console.log(`[자동수집][신기술동향] 주제 "${kw}" 결과 ${res.data.items.length}건 수집`);
+          res.data.items.forEach(item => {
+            if (!allNews.some(n => n.link === item.link)) {
+              allNews.push({ ...item, keyword: kw });
+            }
+          });
+        } else {
+          console.log(`[자동수집][신기술동향] 주제 "${kw}" 결과 없음`);
+        }
+      } catch (e) {
+        console.error(`[자동수집][신기술동향] 주제 "${kw}" 뉴스 수집 실패:`, 
+          e.response ? `상태 코드: ${e.response.status}, 메시지: ${JSON.stringify(e.response.data)}` : e.message);
       }
-    } catch (e) {
-      console.error(`[자동수집][신기술동향] 주제 ${kw} 뉴스 수집 실패:`, e.message);
     }
+    
+    if (allNews.length > 0) {
+      try {
+        fs.writeFileSync(`techNews_${today}.json`, JSON.stringify(allNews, null, 2));
+        console.log(`[자동수집][신기술동향] ${today} 수집 완료 (총 ${allNews.length}건)`);
+      } catch (fileError) {
+        console.error(`[자동수집][신기술동향] 파일 저장 실패:`, fileError.message);
+      }
+      
+      // === DB 저장 ===
+      let insertedTech = 0;
+      let duplicateTech = 0;
+      for (const item of allNews) {
+        try {
+          const result = await TechNews.updateOne(
+            { link: item.link },
+            { $setOnInsert: item },
+            { upsert: true }
+          );
+          
+          if (result.upsertedCount > 0) {
+            insertedTech++;
+          } else {
+            duplicateTech++;
+          }
+        } catch (dbError) {
+          console.error(`[자동수집][신기술동향] DB 저장 실패 (${item.title}):`, dbError.message);
+        }
+      }
+      console.log(`[자동수집][신기술동향] ${today} DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
+    } else {
+      console.log(`[자동수집][신기술동향] ${today} 수집된 뉴스가 없습니다.`);
+    }
+  } catch (error) {
+    console.error(`[자동수집][신기술동향] 전체 프로세스 에러:`, error);
+    throw error; // 상위 호출자에게 에러 전파
   }
-  fs.writeFileSync(`techNews_${today}.json`, JSON.stringify(allNews, null, 2));
-  console.log(`[자동수집][신기술동향] ${today} 수집 완료 (총 ${allNews.length}건)`);
-  // === DB 저장 ===
-  let insertedTech = 0;
-  for (const item of allNews) {
-    try {
-      await TechNews.updateOne(
-        { link: item.link },
-        { $setOnInsert: item },
-        { upsert: true }
-      );
-      insertedTech++;
-    } catch (e) { /* 중복 등 무시 */ }
-  }
-  console.log(`[자동수집][신기술동향] ${today} DB 저장 완료 (총 ${insertedTech}건)`);
 }
 
 // === 동적 cron 스케줄 등록 함수 ===
 async function scheduleNewsJob() {
   if (newsCronJob) newsCronJob.stop();
   const setting = await Setting.findOne({ key: 'newsUpdateTime' });
-  const time = (setting && setting.value) ? setting.value : '07:00';
+  const time = (setting && setting.value) ? setting.value : '08:00';
   const [h, m] = time.split(':').map(Number);
   const cronExp = `${m} ${h} * * *`;
   console.log(`[자동수집][크론] ${cronExp} (매일 ${time})에 자동 뉴스 수집 예약됨`);
-  newsCronJob = cron.schedule(cronExp, async () => {
-    console.log(`[자동수집][크론] ${new Date().toLocaleString()} 자동 뉴스 수집 시작`);
+  
+  // 디버깅을 위한 즉시 실행 테스트
+  console.log(`[자동수집][크론] 서버 시작 시 테스트 수집 시도...`);
+  try {
     await collectRiskNews();
     await collectPartnerNews();
     await collectTechNews();
-    console.log(`[자동수집][크론] ${new Date().toLocaleString()} 자동 뉴스 수집 완료`);
+    console.log(`[자동수집][크론] 서버 시작 시 테스트 수집 완료`);
+  } catch (error) {
+    console.error(`[자동수집][크론] 초기 테스트 수집 에러:`, error);
+  }
+  
+  newsCronJob = cron.schedule(cronExp, async () => {
+    console.log(`[자동수집][크론] ${new Date().toLocaleString()} 자동 뉴스 수집 시작`);
+    try {
+      await collectRiskNews();
+      await collectPartnerNews();
+      await collectTechNews();
+      console.log(`[자동수집][크론] ${new Date().toLocaleString()} 자동 뉴스 수집 완료`);
+    } catch (error) {
+      console.error(`[자동수집][크론] 수집 중 에러 발생:`, error);
+    }
+  }, {
+    scheduled: true,
+    timezone: "Asia/Seoul" // 한국 시간대 명시
+  });
+  
+  // 크론 작업이 올바르게 등록되었는지 확인
+  console.log(`[자동수집][크론] 작업 상태: ${newsCronJob ? '활성화됨' : '비활성화됨'}`);
+  
+  // 5분마다 상태 확인을 위한 테스트 크론 작업
+  cron.schedule('*/5 * * * *', () => {
+    console.log(`[자동수집][크론] ${new Date().toLocaleString()} 크론 작업 상태 확인 - 정상 작동 중`);
+  }, {
+    scheduled: true,
+    timezone: "Asia/Seoul"
   });
 }
 
@@ -576,8 +711,38 @@ app.get('/api/tech-news', async (req, res) => {
 });
 
 const PORT = 4000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`[서버] http://localhost:${PORT} 에서 실행 중`);
   console.log(`[서버] 시작 시간: ${new Date().toLocaleString()}`);
   console.log(`[서버] 환경: ${process.env.NODE_ENV || 'development'}`);
+  
+  try {
+    // MongoDB 연결 상태 확인
+    if (mongoose.connection.readyState !== 1) {
+      console.log(`[서버] MongoDB 연결 중... (현재 상태: ${mongoose.connection.readyState})`);
+      // 연결이 완료될 때까지 대기
+      await new Promise((resolve) => {
+        if (mongoose.connection.readyState === 1) resolve();
+        else mongoose.connection.once('connected', resolve);
+      });
+    }
+    console.log(`[서버] MongoDB 연결 확인됨`);
+    
+    // 뉴스 키워드 데이터 확인
+    const riskKeywords = await RiskKeyword.countDocuments();
+    const partnerConditions = await PartnerCondition.countDocuments();
+    const techTopics = await TechTopic.countDocuments();
+    
+    console.log(`[서버] 데이터 현황:`);
+    console.log(`[서버] - 리스크이슈 키워드: ${riskKeywords}개`);
+    console.log(`[서버] - 제휴처탐색 조건: ${partnerConditions}개`);
+    console.log(`[서버] - 신기술동향 주제: ${techTopics}개`);
+    
+    // 크론 작업 초기화
+    console.log(`[서버] 자동 수집 작업 초기화 중...`);
+    await scheduleNewsJob();
+    console.log(`[서버] 서버 초기화 완료`);
+  } catch (error) {
+    console.error(`[서버] 초기화 중 오류 발생:`, error);
+  }
 });
