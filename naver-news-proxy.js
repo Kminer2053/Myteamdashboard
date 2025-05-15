@@ -288,7 +288,11 @@ async function collectTechNews() {
 
 // === 동적 cron 스케줄 등록 함수 ===
 async function scheduleNewsJob() {
-  if (newsCronJob) newsCronJob.stop();
+  if (newsCronJob) {
+    console.log(`[자동수집][크론] 기존 작업 중지 후 재설정 중...`);
+    newsCronJob.stop();
+  }
+  
   const setting = await Setting.findOne({ key: 'newsUpdateTime' });
   const time = (setting && setting.value) ? setting.value : '08:00';
   const [h, m] = time.split(':').map(Number);
@@ -332,9 +336,6 @@ async function scheduleNewsJob() {
     timezone: "Asia/Seoul"
   });
 }
-
-// 서버 시작 시 스케줄 등록
-scheduleNewsJob();
 
 // 최신 뉴스 파일 반환
 app.get('/api/naver-news-latest', (req, res) => {
@@ -738,10 +739,14 @@ app.listen(PORT, async () => {
     console.log(`[서버] - 제휴처탐색 조건: ${partnerConditions}개`);
     console.log(`[서버] - 신기술동향 주제: ${techTopics}개`);
     
-    // 크론 작업 초기화
+    // 크론 작업 초기화 - 한 번만 실행
     console.log(`[서버] 자동 수집 작업 초기화 중...`);
-    await scheduleNewsJob();
-    console.log(`[서버] 서버 초기화 완료`);
+    if (!newsCronJob) {  // 크론 작업이 없을 때만 초기화
+      await scheduleNewsJob();
+      console.log(`[서버] 서버 초기화 완료`);
+    } else {
+      console.log(`[서버] 자동 수집 작업이 이미 실행 중입니다`);
+    }
   } catch (error) {
     console.error(`[서버] 초기화 중 오류 발생:`, error);
   }
