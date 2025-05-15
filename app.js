@@ -393,32 +393,44 @@ document.addEventListener('DOMContentLoaded', function() {
         renderNews(checked);
     }
 
-    // 뉴스 UI 렌더링 (선택된 키워드 기반 필터, 카드형, 본문 미표시, 우측 상단에 건수/갱신 버튼)
+    // 리스크 이슈 모니터링 뉴스 UI 렌더링 (체크박스 기반 필터)
     async function renderNews(selectedKeywords) {
         const keywords = selectedKeywords || await loadKeywords();
         const newsFeed = document.getElementById('newsFeed');
         if (!newsFeed) return;
+        
+        // DB에서 모든 데이터 불러오기
+        const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
+        const allNews = await getRes.json();
+        
+        // 오늘 날짜 데이터만 필터링
         const today = new Date().toISOString().slice(0, 10);
-        let allNews = JSON.parse(localStorage.getItem(`riskNews_${today}`) || '[]');
-        if (!Array.isArray(allNews) || allNews.length === 0) {
-            // localStorage에 없으면 DB에서 GET
-            const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
-            allNews = await getRes.json();
-            localStorage.setItem(`riskNews_${today}`, JSON.stringify(allNews));
-        }
+        const todayNews = allNews.filter(news => news.pubDate && news.pubDate.startsWith(today));
+        
+        // 체크박스 필터링
         let filtered = [];
         if (keywords.length > 0) {
             filtered = allNews.filter(news => keywords.includes(news.keyword));
         }
+        
+        // 오늘 데이터 중 체크박스 필터링
+        let todayFiltered = [];
+        if (keywords.length > 0) {
+            todayFiltered = todayNews.filter(news => keywords.includes(news.keyword));
+        }
+        
         newsFeed.innerHTML = '';
-        // 우측 상단 건수/갱신 버튼
+        
+        // 상단 건수/갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">표시: <b>${filtered.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayFiltered.length}</b>건, 누적: <b>${filtered.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshNewsBtn">정보갱신</button>
         `;
         newsFeed.appendChild(topBar);
+        
+        // 정보갱신 버튼 이벤트
         document.getElementById('refreshNewsBtn').onclick = async function() {
             const checked = Array.from(document.querySelectorAll('#keywordCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
             if (!checked.length) {
@@ -426,57 +438,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             await fetchAndSaveAllNews(checked); // DB에 갱신
-            // 갱신 후 DB에서 GET
-            const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
-            const news = await getRes.json();
-            localStorage.setItem(`riskNews_${today}`, JSON.stringify(news));
             renderNews(checked);
         };
+        
+        // 데이터가 없거나 체크박스 선택이 없는 경우
         if (filtered.length === 0) {
-            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용, 오늘 데이터 제외)
-            const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
-            const allNews = await getRes.json();
-            const todayStr = new Date().toISOString().slice(0, 10);
-            let filteredAll = [];
-            if (keywords.length > 0) {
-                filteredAll = allNews
-                    .filter(news => keywords.includes(news.keyword))
-                    .filter(news => !(news.pubDate && news.pubDate.startsWith(todayStr)));
-            } else {
-                filteredAll = []; // 체크박스 모두 해제 시 아무것도 안 보임
-            }
-            // 상단 건수/오늘 정보 없음 메시지
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
-            emptyDiv.textContent = '오늘의 뉴스가 없습니다. (아래는 과거 전체 데이터)';
+            emptyDiv.textContent = '표시할 뉴스가 없습니다.';
             newsFeed.appendChild(emptyDiv);
-            // 전체 데이터 최신순 정렬 및 표출
-            filteredAll.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            filteredAll.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'card mb-2';
-                card.innerHTML = `
-                  <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
-                    <div class=\"flex-grow-1\">
-                      <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                      <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
-                    </div>
-                  </div>
-                `;
-                newsFeed.appendChild(card);
-            });
-            // 상단 건수 갱신
-            topBar.querySelector('span').innerHTML = `표시: <b>${filteredAll.length}</b>건`;
             return;
         }
+        
+        // 최신순으로 정렬하여 표시
+        filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         filtered.forEach(item => {
             const card = document.createElement('div');
             card.className = 'card mb-2';
+            // 오늘 데이터에 하이라이트 처리
+            const isToday = item.pubDate && item.pubDate.startsWith(today);
+            if (isToday) {
+                card.classList.add('border-primary');
+            }
             card.innerHTML = `
-              <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
-                <div class=\"flex-grow-1\">
-                  <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
+              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
+                <div class="flex-grow-1">
+                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
               </div>
             `;
@@ -626,29 +614,39 @@ document.addEventListener('DOMContentLoaded', function() {
     async function renderPartnerResults(selected) {
         const resultsDiv = document.getElementById('partnerResults');
         if (!resultsDiv) return;
+        
+        // DB에서 모든 데이터 불러오기
+        const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
+        const allData = await getRes.json();
+        
+        // 오늘 날짜 데이터만 필터링
         const today = new Date().toISOString().slice(0, 10);
-        let allData = JSON.parse(localStorage.getItem(`partnerNews_${today}`) || '[]');
-        const lastUpdate = localStorage.getItem('partnerNews_lastUpdate');
-        if (!Array.isArray(allData) || allData.length === 0 || lastUpdate !== today) {
-            // localStorage에 없거나 오늘 날짜가 아니면 DB에서 GET
-            const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
-            allData = await getRes.json();
-            localStorage.setItem(`partnerNews_${today}`, JSON.stringify(allData));
-            localStorage.setItem('partnerNews_lastUpdate', today);
-        }
+        const todayData = allData.filter(item => item.pubDate && item.pubDate.startsWith(today));
+        
+        // 체크박스 필터링
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => selected.includes(item.keyword));
         }
+        
+        // 오늘 데이터 중 체크박스 필터링
+        let todayFiltered = [];
+        if (selected && selected.length > 0) {
+            todayFiltered = todayData.filter(item => selected.includes(item.keyword));
+        }
+        
         resultsDiv.innerHTML = '';
-        // 상단 건수/정보갱신 버튼
+        
+        // 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">표시: <b>${filtered.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayFiltered.length}</b>건, 누적: <b>${filtered.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshPartnerBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
+        
+        // 정보갱신 버튼 이벤트
         document.getElementById('refreshPartnerBtn').onclick = async function() {
             const checked = Array.from(document.querySelectorAll('#partnerCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
             if (!checked.length) {
@@ -656,56 +654,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             await fetchAndSaveAllPartners(checked); // DB에 갱신
-            // 갱신 후 DB에서 GET
-            const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
-            const news = await getRes.json();
-            localStorage.setItem(`partnerNews_${today}`, JSON.stringify(news));
-            localStorage.setItem('partnerNews_lastUpdate', today);
             renderPartnerResults(checked);
         };
+        
+        // 데이터가 없거나 체크박스 선택이 없는 경우
         if (filtered.length === 0) {
-            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용, 오늘 데이터 제외)
-            const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
-            const allNews = await getRes.json();
-            const todayStr = new Date().toISOString().slice(0, 10);
-            let filteredAll = [];
-            if (selected && selected.length > 0) {
-                filteredAll = allNews
-                    .filter(item => selected.includes(item.keyword))
-                    .filter(item => !(item.pubDate && item.pubDate.startsWith(todayStr)));
-            } else {
-                filteredAll = [];
-            }
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
-            emptyDiv.textContent = '오늘의 정보가 없습니다. (아래는 과거 전체 데이터)';
+            emptyDiv.textContent = '표시할 정보가 없습니다.';
             resultsDiv.appendChild(emptyDiv);
-            filteredAll.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            filteredAll.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'card mb-2';
-                card.innerHTML = `
-                  <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
-                    <div class=\"flex-grow-1\">
-                      <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                      <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
-                    </div>
-                  </div>
-                `;
-                resultsDiv.appendChild(card);
-            });
-            // 상단 건수 갱신
-            topBar.querySelector('span').innerHTML = `표시: <b>${filteredAll.length}</b>건`;
             return;
         }
+        
+        // 최신순으로 정렬하여 표시
+        filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         filtered.forEach(item => {
             const card = document.createElement('div');
             card.className = 'card mb-2';
+            // 오늘 데이터에 하이라이트 처리
+            const isToday = item.pubDate && item.pubDate.startsWith(today);
+            if (isToday) {
+                card.classList.add('border-primary');
+            }
             card.innerHTML = `
-              <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
-                <div class=\"flex-grow-1\">
-                  <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
+              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
+                <div class="flex-grow-1">
+                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
               </div>
             `;
@@ -746,28 +721,39 @@ document.addEventListener('DOMContentLoaded', function() {
     async function renderTechTrendResults(selected) {
         const resultsDiv = document.getElementById('techTrendResults');
         if (!resultsDiv) return;
+        
+        // DB에서 모든 데이터 불러오기
+        const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
+        const allData = await getRes.json();
+        
+        // 오늘 날짜 데이터만 필터링
         const today = new Date().toISOString().slice(0, 10);
-        let allData = JSON.parse(localStorage.getItem(`techNews_${today}`) || '[]');
-        const lastUpdate = localStorage.getItem('techNews_lastUpdate');
-        if (!Array.isArray(allData) || allData.length === 0 || lastUpdate !== today) {
-            // localStorage에 없거나 오늘 날짜가 아니면 DB에서 GET
-            const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
-            allData = await getRes.json();
-            localStorage.setItem(`techNews_${today}`, JSON.stringify(allData));
-            localStorage.setItem('techNews_lastUpdate', today);
-        }
+        const todayData = allData.filter(item => item.pubDate && item.pubDate.startsWith(today));
+        
+        // 체크박스 필터링
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => selected.includes(item.keyword));
         }
+        
+        // 오늘 데이터 중 체크박스 필터링
+        let todayFiltered = [];
+        if (selected && selected.length > 0) {
+            todayFiltered = todayData.filter(item => selected.includes(item.keyword));
+        }
+        
         resultsDiv.innerHTML = '';
+        
+        // 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">표시: <b>${filtered.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayFiltered.length}</b>건, 누적: <b>${filtered.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshTechBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
+        
+        // 정보갱신 버튼 이벤트
         document.getElementById('refreshTechBtn').onclick = async function() {
             const checked = Array.from(document.querySelectorAll('#techCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
             if (!checked.length) {
@@ -775,56 +761,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             await fetchAndSaveAllTechs(checked); // DB에 갱신
-            // 갱신 후 DB에서 GET
-            const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
-            const news = await getRes.json();
-            localStorage.setItem(`techNews_${today}`, JSON.stringify(news));
-            localStorage.setItem('techNews_lastUpdate', today);
             renderTechTrendResults(checked);
         };
+        
+        // 데이터가 없거나 체크박스 선택이 없는 경우
         if (filtered.length === 0) {
-            // 오늘 데이터가 없으면 전체 DB 데이터 표출 (체크박스 필터 적용, 오늘 데이터 제외)
-            const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
-            const allNews = await getRes.json();
-            const todayStr = new Date().toISOString().slice(0, 10);
-            let filteredAll = [];
-            if (selected && selected.length > 0) {
-                filteredAll = allNews
-                    .filter(item => selected.includes(item.keyword))
-                    .filter(item => !(item.pubDate && item.pubDate.startsWith(todayStr)));
-            } else {
-                filteredAll = [];
-            }
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
-            emptyDiv.textContent = '오늘의 정보가 없습니다. (아래는 과거 전체 데이터)';
+            emptyDiv.textContent = '표시할 정보가 없습니다.';
             resultsDiv.appendChild(emptyDiv);
-            filteredAll.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            filteredAll.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'card mb-2';
-                card.innerHTML = `
-                  <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
-                    <div class=\"flex-grow-1\">
-                      <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                      <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
-                    </div>
-                  </div>
-                `;
-                resultsDiv.appendChild(card);
-            });
-            // 상단 건수 갱신
-            topBar.querySelector('span').innerHTML = `표시: <b>${filteredAll.length}</b>건`;
             return;
         }
+        
+        // 최신순으로 정렬하여 표시
+        filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         filtered.forEach(item => {
             const card = document.createElement('div');
             card.className = 'card mb-2';
+            // 오늘 데이터에 하이라이트 처리
+            const isToday = item.pubDate && item.pubDate.startsWith(today);
+            if (isToday) {
+                card.classList.add('border-primary');
+            }
             card.innerHTML = `
-              <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
-                <div class=\"flex-grow-1\">
-                  <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
+              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
+                <div class="flex-grow-1">
+                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
               </div>
             `;
