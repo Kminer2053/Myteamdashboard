@@ -403,22 +403,34 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const allNews = await getRes.json();
         
-        // 오늘 날짜 데이터만 필터링
+        // pubDate에서 YYYY-MM-DD 추출 함수
+        function extractDate(pubDate) {
+            if (!pubDate) return '';
+            const d = new Date(pubDate);
+            if (isNaN(d)) return '';
+            return d.toISOString().slice(0, 10);
+        }
         const today = new Date().toISOString().slice(0, 10);
-        const todayNews = allNews.filter(news => news.pubDate && news.pubDate.startsWith(today));
+        const todayNews = allNews.filter(news => extractDate(news.pubDate) === today);
         
-        // 체크박스 필터링
+        // 체크박스 필터링 (키워드 일부만 일치해도 통과)
         let filtered = [];
         if (keywords.length > 0) {
-            filtered = allNews.filter(news => keywords.includes(news.keyword));
+            filtered = allNews.filter(news => {
+                if (!news.keyword) return false;
+                const newsKeywords = news.keyword.split('|').map(k => k.trim());
+                return newsKeywords.some(k => keywords.includes(k));
+            });
         }
-        
         // 오늘 데이터 중 체크박스 필터링
         let todayFiltered = [];
         if (keywords.length > 0) {
-            todayFiltered = todayNews.filter(news => keywords.includes(news.keyword));
+            todayFiltered = todayNews.filter(news => {
+                if (!news.keyword) return false;
+                const newsKeywords = news.keyword.split('|').map(k => k.trim());
+                return newsKeywords.some(k => keywords.includes(k));
+            });
         }
-        
         newsFeed.innerHTML = '';
         
         // 상단 건수/갱신 버튼 - '금일: x건, 누적: y건' 형식
@@ -619,20 +631,34 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const allData = await getRes.json();
         
-        // 오늘 날짜 데이터만 필터링
+        // pubDate에서 YYYY-MM-DD 추출 함수
+        function extractDate(pubDate) {
+            if (!pubDate) return '';
+            const d = new Date(pubDate);
+            if (isNaN(d)) return '';
+            return d.toISOString().slice(0, 10);
+        }
         const today = new Date().toISOString().slice(0, 10);
-        const todayData = allData.filter(item => item.pubDate && item.pubDate.startsWith(today));
+        const todayData = allData.filter(item => extractDate(item.pubDate) === today);
         
-        // 체크박스 필터링
+        // 체크박스 필터링 (키워드 일부만 일치해도 통과)
         let filtered = [];
         if (selected && selected.length > 0) {
-            filtered = allData.filter(item => selected.includes(item.keyword));
+            filtered = allData.filter(item => {
+                if (!item.keyword) return false;
+                const newsKeywords = item.keyword.split('|').map(k => k.trim());
+                return newsKeywords.some(k => selected.includes(k));
+            });
         }
         
         // 오늘 데이터 중 체크박스 필터링
         let todayFiltered = [];
         if (selected && selected.length > 0) {
-            todayFiltered = todayData.filter(item => selected.includes(item.keyword));
+            todayFiltered = todayData.filter(item => {
+                if (!item.keyword) return false;
+                const newsKeywords = item.keyword.split('|').map(k => k.trim());
+                return newsKeywords.some(k => selected.includes(k));
+            });
         }
         
         resultsDiv.innerHTML = '';
@@ -726,20 +752,34 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
         const allData = await getRes.json();
         
-        // 오늘 날짜 데이터만 필터링
+        // pubDate에서 YYYY-MM-DD 추출 함수
+        function extractDate(pubDate) {
+            if (!pubDate) return '';
+            const d = new Date(pubDate);
+            if (isNaN(d)) return '';
+            return d.toISOString().slice(0, 10);
+        }
         const today = new Date().toISOString().slice(0, 10);
-        const todayData = allData.filter(item => item.pubDate && item.pubDate.startsWith(today));
+        const todayData = allData.filter(item => extractDate(item.pubDate) === today);
         
-        // 체크박스 필터링
+        // 체크박스 필터링 (키워드 일부만 일치해도 통과)
         let filtered = [];
         if (selected && selected.length > 0) {
-            filtered = allData.filter(item => selected.includes(item.keyword));
+            filtered = allData.filter(item => {
+                if (!item.keyword) return false;
+                const newsKeywords = item.keyword.split('|').map(k => k.trim());
+                return newsKeywords.some(k => selected.includes(k));
+            });
         }
         
         // 오늘 데이터 중 체크박스 필터링
         let todayFiltered = [];
         if (selected && selected.length > 0) {
-            todayFiltered = todayData.filter(item => selected.includes(item.keyword));
+            todayFiltered = todayData.filter(item => {
+                if (!item.keyword) return false;
+                const newsKeywords = item.keyword.split('|').map(k => k.trim());
+                return newsKeywords.some(k => selected.includes(k));
+            });
         }
         
         resultsDiv.innerHTML = '';
