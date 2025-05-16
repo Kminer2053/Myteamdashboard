@@ -7,6 +7,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // API 기본 URL 설정
     const API_BASE_URL = import.meta.env.VITE_API_URL;
 
+    // pubDate에서 YYYY-MM-DD 추출 함수 (전역)
+    function extractDate(pubDate) {
+        if (!pubDate) return '';
+        const d = new Date(pubDate);
+        if (isNaN(d)) return '';
+        return d.toISOString().slice(0, 10);
+    }
+
     // 일정 데이터 서버에서 불러오기
     async function loadUserEvents() {
         const res = await fetch(`${API_BASE_URL}/api/schedules`);
@@ -404,29 +412,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const allNews = await getRes.json();
         
-        // pubDate에서 YYYY-MM-DD 추출 함수
-        function extractDate(pubDate) {
-            if (!pubDate) return '';
-            const d = new Date(pubDate);
-            if (isNaN(d)) return '';
-            return d.toISOString().slice(0, 10);
-        }
-        const today = new Date().toISOString().slice(0, 10);
-        const todayNews = allNews.filter(news => extractDate(news.pubDate) === today);
-        
-        // 체크박스 필터링 (키워드 일부만 일치해도 통과)
-        let filtered = [];
-        if (keywords.length > 0) {
-            filtered = allNews.filter(news => {
-                if (!news.keyword) return false;
-                const newsKeywords = news.keyword.split('|').map(k => k.trim());
-                return newsKeywords.some(k => keywords.includes(k));
-            });
-        }
         // 오늘 데이터 중 체크박스 필터링
-        let todayFiltered = [];
+        let todayNews = [];
         if (keywords.length > 0) {
-            todayFiltered = todayNews.filter(news => {
+            todayNews = allNews.filter(news => {
                 if (!news.keyword) return false;
                 const newsKeywords = news.keyword.split('|').map(k => k.trim());
                 return newsKeywords.some(k => keywords.includes(k));
@@ -438,7 +427,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayFiltered.length}</b>건, 누적: <b>${filtered.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayNews.length}</b>건, 누적: <b>${keywords.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshNewsBtn">정보갱신</button>
         `;
         newsFeed.appendChild(topBar);
@@ -455,7 +444,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         
         // 데이터가 없거나 체크박스 선택이 없는 경우
-        if (filtered.length === 0) {
+        if (todayNews.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
             emptyDiv.textContent = '표시할 뉴스가 없습니다.';
@@ -463,22 +452,17 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // 카드 렌더링 직전 filtered 배열 로그
-        console.log('리스크이슈 filtered', filtered);
-        filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-        filtered.forEach(item => {
+        // 카드 렌더링 직전 todayNews 배열 로그
+        console.log('리스크이슈 todayNews', todayNews);
+        todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+        todayNews.forEach(item => {
             const card = document.createElement('div');
-            const isToday = extractDate(item.pubDate) === today;
             card.className = 'card mb-2';
-            if (isToday) {
-                card.classList.add('border-primary', 'bg-light');
-            }
             card.innerHTML = `
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
-                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
+                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${item.keyword ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
               </div>
             `;
@@ -638,30 +622,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const allData = await getRes.json();
         
-        // pubDate에서 YYYY-MM-DD 추출 함수
-        function extractDate(pubDate) {
-            if (!pubDate) return '';
-            const d = new Date(pubDate);
-            if (isNaN(d)) return '';
-            return d.toISOString().slice(0, 10);
-        }
-        const today = new Date().toISOString().slice(0, 10);
-        const todayData = allData.filter(item => extractDate(item.pubDate) === today);
-        
         // 체크박스 필터링 (키워드 일부만 일치해도 통과)
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => {
-                if (!item.keyword) return false;
-                const newsKeywords = item.keyword.split('|').map(k => k.trim());
-                return newsKeywords.some(k => selected.includes(k));
-            });
-        }
-        
-        // 오늘 데이터 중 체크박스 필터링
-        let todayFiltered = [];
-        if (selected && selected.length > 0) {
-            todayFiltered = todayData.filter(item => {
                 if (!item.keyword) return false;
                 const newsKeywords = item.keyword.split('|').map(k => k.trim());
                 return newsKeywords.some(k => selected.includes(k));
@@ -674,7 +638,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayFiltered.length}</b>건, 누적: <b>${filtered.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${filtered.length}</b>건, 누적: <b>${selected.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshPartnerBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
@@ -760,30 +724,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
         const allData = await getRes.json();
         
-        // pubDate에서 YYYY-MM-DD 추출 함수
-        function extractDate(pubDate) {
-            if (!pubDate) return '';
-            const d = new Date(pubDate);
-            if (isNaN(d)) return '';
-            return d.toISOString().slice(0, 10);
-        }
-        const today = new Date().toISOString().slice(0, 10);
-        const todayData = allData.filter(item => extractDate(item.pubDate) === today);
-        
         // 체크박스 필터링 (키워드 일부만 일치해도 통과)
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => {
-                if (!item.keyword) return false;
-                const newsKeywords = item.keyword.split('|').map(k => k.trim());
-                return newsKeywords.some(k => selected.includes(k));
-            });
-        }
-        
-        // 오늘 데이터 중 체크박스 필터링
-        let todayFiltered = [];
-        if (selected && selected.length > 0) {
-            todayFiltered = todayData.filter(item => {
                 if (!item.keyword) return false;
                 const newsKeywords = item.keyword.split('|').map(k => k.trim());
                 return newsKeywords.some(k => selected.includes(k));
@@ -796,7 +740,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayFiltered.length}</b>건, 누적: <b>${filtered.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${filtered.length}</b>건, 누적: <b>${selected.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshTechBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
