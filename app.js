@@ -404,6 +404,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 리스크 이슈 모니터링 뉴스 UI 렌더링 (체크박스 기반 필터)
     async function renderNews(selectedKeywords) {
+        console.log('renderNews 실행됨');
         const keywords = selectedKeywords || await loadKeywords();
         const newsFeed = document.getElementById('newsFeed');
         if (!newsFeed) return;
@@ -411,6 +412,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // DB에서 모든 데이터 불러오기
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const allNews = await getRes.json();
+        console.log('API 응답 allNews', allNews);
         
         // 오늘 데이터 중 체크박스 필터링
         let todayNews = [];
@@ -427,7 +429,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayNews.length}</b>건, 누적: <b>${keywords.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayNews.length}</b>건, 누적: <b>${allNews.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshNewsBtn">정보갱신</button>
         `;
         newsFeed.appendChild(topBar);
@@ -615,12 +617,14 @@ document.addEventListener('DOMContentLoaded', function() {
         renderPartnerResults(checked);
     }
     async function renderPartnerResults(selected) {
+        console.log('renderPartnerResults 실행됨');
         const resultsDiv = document.getElementById('partnerResults');
         if (!resultsDiv) return;
         
         // DB에서 모든 데이터 불러오기
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const allData = await getRes.json();
+        console.log('API 응답 allData', allData);
         
         // 체크박스 필터링 (키워드 일부만 일치해도 통과)
         let filtered = [];
@@ -638,7 +642,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${filtered.length}</b>건, 누적: <b>${selected.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${filtered.length}</b>건, 누적: <b>${allData.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshPartnerBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
@@ -717,12 +721,14 @@ document.addEventListener('DOMContentLoaded', function() {
         renderTechTrendResults(checked);
     }
     async function renderTechTrendResults(selected) {
+        console.log('renderTechTrendResults 실행됨');
         const resultsDiv = document.getElementById('techTrendResults');
         if (!resultsDiv) return;
         
         // DB에서 모든 데이터 불러오기
         const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
         const allData = await getRes.json();
+        console.log('API 응답 allData', allData);
         
         // 체크박스 필터링 (키워드 일부만 일치해도 통과)
         let filtered = [];
@@ -740,7 +746,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${filtered.length}</b>건, 누적: <b>${selected.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${filtered.length}</b>건, 누적: <b>${allData.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshTechBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
