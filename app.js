@@ -389,7 +389,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderNewsByChecked() {
         const container = document.getElementById('keywordCheckboxList');
         if (!container) return;
-        const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+        const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked'))
+            .flatMap(cb => cb.value.split('|').map(v => v.trim()));
         renderNews(checked);
     }
 
@@ -466,15 +467,15 @@ document.addEventListener('DOMContentLoaded', function() {
         filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         filtered.forEach(item => {
             const card = document.createElement('div');
+            const isToday = extractDate(item.pubDate) === today;
             card.className = 'card mb-2';
-            // 오늘 데이터에 하이라이트 처리
-            const isToday = item.pubDate && item.pubDate.startsWith(today);
             if (isToday) {
-                card.classList.add('border-primary');
+                card.classList.add('border-primary', 'bg-light');
             }
             card.innerHTML = `
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
+                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
                   <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
@@ -569,12 +570,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         news.forEach(item => {
             const card = document.createElement('div');
+            const isToday = extractDate(item.pubDate) === today;
             card.className = 'card mb-2';
+            if (isToday) {
+                card.classList.add('border-primary', 'bg-light');
+            }
             card.innerHTML = `
-              <div class=\"card-body d-flex flex-column flex-md-row justify-content-between align-items-center\">
-                <div class=\"flex-grow-1\">
-                  <a href=\"${item.link}\" target=\"_blank\"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class=\"text-muted small mb-1\">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class=\"badge bg-secondary\">${item.keyword}</span></div>
+              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
+                <div class="flex-grow-1">
+                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
+                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
               </div>
             `;
@@ -696,15 +702,15 @@ document.addEventListener('DOMContentLoaded', function() {
         filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         filtered.forEach(item => {
             const card = document.createElement('div');
+            const isToday = extractDate(item.pubDate) === today;
             card.className = 'card mb-2';
-            // 오늘 데이터에 하이라이트 처리
-            const isToday = item.pubDate && item.pubDate.startsWith(today);
             if (isToday) {
-                card.classList.add('border-primary');
+                card.classList.add('border-primary', 'bg-light');
             }
             card.innerHTML = `
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
+                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
                   <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
@@ -817,15 +823,15 @@ document.addEventListener('DOMContentLoaded', function() {
         filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         filtered.forEach(item => {
             const card = document.createElement('div');
+            const isToday = extractDate(item.pubDate) === today;
             card.className = 'card mb-2';
-            // 오늘 데이터에 하이라이트 처리
-            const isToday = item.pubDate && item.pubDate.startsWith(today);
             if (isToday) {
-                card.classList.add('border-primary');
+                card.classList.add('border-primary', 'bg-light');
             }
             card.innerHTML = `
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
+                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
                   <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
