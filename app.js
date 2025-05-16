@@ -463,7 +463,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // 최신순으로 정렬하여 표시
+        // 카드 렌더링 직전 filtered 배열 로그
+        console.log('리스크이슈 filtered', filtered);
         filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         filtered.forEach(item => {
             const card = document.createElement('div');
@@ -698,7 +699,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // 최신순으로 정렬하여 표시
+        // 카드 렌더링 직전 filtered 배열 로그
+        console.log('제휴처탐색 filtered', filtered);
         filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         filtered.forEach(item => {
             const card = document.createElement('div');
@@ -819,7 +821,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // 최신순으로 정렬하여 표시
+        // 카드 렌더링 직전 filtered 배열 로그
+        console.log('신기술동향 filtered', filtered);
         filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         filtered.forEach(item => {
             const card = document.createElement('div');
