@@ -411,44 +411,36 @@ document.addEventListener('DOMContentLoaded', function() {
         const allNews = await getRes.json();
         console.log('API 응답 allNews', allNews);
         const today = new Date().toISOString().slice(0, 10);
-        const todayNews = allNews.filter(news => extractDate(news.pubDate) === today);
-        console.log('리스크이슈 todayNews', todayNews);
+        let filtered = [];
+        if (keywords.length > 0) {
+            filtered = allNews.filter(news => {
+                if (!news.keyword) return false;
+                const newsKeywords = news.keyword.split('|').map(k => k.trim());
+                return newsKeywords.some(k => keywords.includes(k));
+            });
+        }
+        const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
+        console.log('리스크이슈 filtered', filtered);
         newsFeed.innerHTML = '';
-        
-        // 상단 건수/갱신 버튼 - '금일: x건' 형식
+        // 상단 건수/갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayNews.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${filtered.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshNewsBtn">정보갱신</button>
         `;
         newsFeed.appendChild(topBar);
-        
-        // 정보갱신 버튼 이벤트
-        document.getElementById('refreshNewsBtn').onclick = async function() {
-            const checked = Array.from(document.querySelectorAll('#keywordCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
-            if (!checked.length) {
-                alert('체크된 키워드가 없습니다.');
-                return;
-            }
-            await fetchAndSaveAllNews(checked); // DB에 갱신
-            renderNews(checked);
-        };
-        
-        // 데이터가 없거나 체크박스 선택이 없는 경우
-        if (todayNews.length === 0) {
+        if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
             emptyDiv.textContent = '표시할 뉴스가 없습니다.';
             newsFeed.appendChild(emptyDiv);
             return;
         }
-        
-        // 최신순으로 정렬하여 표시
-        todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-        todayNews.forEach(item => {
-            const card = document.createElement('div');
+        filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+        filtered.forEach(item => {
             const isToday = extractDate(item.pubDate) === today;
+            const card = document.createElement('div');
             card.className = 'card mb-2';
             if (isToday) {
                 card.classList.add('border-primary', 'bg-light');
@@ -617,6 +609,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const allData = await getRes.json();
         console.log('API 응답 allData', allData);
+        const today = new Date().toISOString().slice(0, 10);
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => {
@@ -625,29 +618,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 return newsKeywords.some(k => selected.includes(k));
             });
         }
+        const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         console.log('제휴처탐색 filtered', filtered);
         resultsDiv.innerHTML = '';
-        // 상단 건수/정보갱신 버튼 - '금일: x건' 형식
+        // 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${filtered.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${filtered.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshPartnerBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
-        
-        // 정보갱신 버튼 이벤트
-        document.getElementById('refreshPartnerBtn').onclick = async function() {
-            const checked = Array.from(document.querySelectorAll('#partnerCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
-            if (!checked.length) {
-                alert('체크된 조건이 없습니다.');
-                return;
-            }
-            await fetchAndSaveAllPartners(checked); // DB에 갱신
-            renderPartnerResults(checked);
-        };
-        
-        // 데이터가 없거나 체크박스 선택이 없는 경우
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
@@ -655,12 +636,10 @@ document.addEventListener('DOMContentLoaded', function() {
             resultsDiv.appendChild(emptyDiv);
             return;
         }
-        
-        // 최신순으로 정렬하여 표시
         filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         filtered.forEach(item => {
-            const card = document.createElement('div');
             const isToday = extractDate(item.pubDate) === today;
+            const card = document.createElement('div');
             card.className = 'card mb-2';
             if (isToday) {
                 card.classList.add('border-primary', 'bg-light');
@@ -715,6 +694,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
         const allData = await getRes.json();
         console.log('API 응답 allData', allData);
+        const today = new Date().toISOString().slice(0, 10);
         let filtered = [];
         if (selected && selected.length > 0) {
             filtered = allData.filter(item => {
@@ -723,29 +703,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 return newsKeywords.some(k => selected.includes(k));
             });
         }
+        const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         console.log('신기술동향 filtered', filtered);
         resultsDiv.innerHTML = '';
-        // 상단 건수/정보갱신 버튼 - '금일: x건' 형식
+        // 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${filtered.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${filtered.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshTechBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
-        
-        // 정보갱신 버튼 이벤트
-        document.getElementById('refreshTechBtn').onclick = async function() {
-            const checked = Array.from(document.querySelectorAll('#techCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
-            if (!checked.length) {
-                alert('체크된 주제가 없습니다.');
-                return;
-            }
-            await fetchAndSaveAllTechs(checked); // DB에 갱신
-            renderTechTrendResults(checked);
-        };
-        
-        // 데이터가 없거나 체크박스 선택이 없는 경우
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
@@ -753,12 +721,10 @@ document.addEventListener('DOMContentLoaded', function() {
             resultsDiv.appendChild(emptyDiv);
             return;
         }
-        
-        // 최신순으로 정렬하여 표시
         filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         filtered.forEach(item => {
-            const card = document.createElement('div');
             const isToday = extractDate(item.pubDate) === today;
+            const card = document.createElement('div');
             card.className = 'card mb-2';
             if (isToday) {
                 card.classList.add('border-primary', 'bg-light');
