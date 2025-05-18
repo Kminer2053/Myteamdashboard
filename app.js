@@ -439,7 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 정보갱신 중...</div></div>';
             await fetchAndSaveAllNews(checked);
-            renderNews(checked);
+            await renderNews(checked);
         };
 
         if (filtered.length === 0) {
@@ -589,7 +589,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 정보갱신 중...</div></div>';
             await fetchAndSaveAllPartners(checked);
-            renderPartnerResults(checked);
+            await renderPartnerResults(checked);
         };
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
@@ -686,7 +686,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 정보갱신 중...</div></div>';
             await fetchAndSaveAllTechs(checked);
-            renderTechTrendResults(checked);
+            await renderTechTrendResults(checked);
         };
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
