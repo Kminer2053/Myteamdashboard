@@ -422,14 +422,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         console.log('리스크이슈 filtered', filtered);
         newsFeed.innerHTML = '';
-        // 상단 건수/갱신 버튼 - '금일: x건, 누적: y건' 형식
+        // === 상단 건수/갱신 버튼 추가 ===
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${filtered.length}</b>건</span>
+            <span class="me-2 text-secondary small">표시: <b>${todayCount}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshNewsBtn">정보갱신</button>
         `;
         newsFeed.appendChild(topBar);
+        document.getElementById('refreshNewsBtn').onclick = async function() {
+            const checked = Array.from(document.querySelectorAll('#keywordCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
+            if (!checked.length) {
+                alert('체크된 키워드가 없습니다.');
+                return;
+            }
+            newsFeed.innerHTML = '<div class="text-center my-3">리스크이슈 정보갱신 중...</div>';
+            await fetchAndSaveAllNews(checked);
+            renderNews(checked);
+        };
+
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
@@ -533,6 +544,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('체크된 키워드가 없습니다.');
                 return;
             }
+            newsFeed.innerHTML = '<div class="text-center my-3">리스크이슈 정보갱신 중...</div>';
             await fetchAndSaveAllNews(checked);
             renderNews(checked);
         };
@@ -628,7 +640,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         console.log('제휴처탐색 filtered', filtered);
         resultsDiv.innerHTML = '';
-        // 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
+        // 제휴처탐색 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
@@ -636,6 +648,16 @@ document.addEventListener('DOMContentLoaded', function() {
             <button class="btn btn-sm btn-outline-primary" id="refreshPartnerBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
+        document.getElementById('refreshPartnerBtn').onclick = async function() {
+            const checked = Array.from(document.querySelectorAll('#partnerCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
+            if (!checked.length) {
+                alert('체크된 조건이 없습니다.');
+                return;
+            }
+            resultsDiv.innerHTML = '<div class="text-center my-3">제휴처탐색 정보갱신 중...</div>';
+            await fetchAndSaveAllPartners(checked);
+            renderPartnerResults(checked);
+        };
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
@@ -714,7 +736,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         console.log('신기술동향 filtered', filtered);
         resultsDiv.innerHTML = '';
-        // 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
+        // 신기술동향 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
@@ -722,6 +744,16 @@ document.addEventListener('DOMContentLoaded', function() {
             <button class="btn btn-sm btn-outline-primary" id="refreshTechBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
+        document.getElementById('refreshTechBtn').onclick = async function() {
+            const checked = Array.from(document.querySelectorAll('#techCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
+            if (!checked.length) {
+                alert('체크된 주제가 없습니다.');
+                return;
+            }
+            resultsDiv.innerHTML = '<div class="text-center my-3">신기술동향 정보갱신 중...</div>';
+            await fetchAndSaveAllTechs(checked);
+            renderTechTrendResults(checked);
+        };
         if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
