@@ -611,15 +611,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const allData = await getRes.json();
         console.log('API 응답 allData', allData);
+        console.log('제휴처탐색 checked', selected);
         const today = new Date().toISOString().slice(0, 10);
         let filtered = [];
         if (selected && selected.length > 0) {
+            const selectedNorm = selected.map(s => s.toLowerCase().trim());
+            console.log('제휴처탐색 selectedNorm', selectedNorm);
             filtered = allData.filter(item => {
                 if (!item.keyword) return false;
-                const newsKeywords = item.keyword.split('|').map(k => k.trim());
-                return newsKeywords.some(k => selected.includes(k));
+                const newsKeywords = item.keyword.split('|').map(k => k.toLowerCase().trim());
+                console.log('제휴처탐색 newsKeywords', newsKeywords, 'item.title', item.title);
+                return newsKeywords.some(k => selectedNorm.includes(k));
             });
         }
+        console.log('제휴처탐색 filtered', filtered);
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         console.log('제휴처탐색 filtered', filtered);
         resultsDiv.innerHTML = '';
@@ -699,10 +704,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const today = new Date().toISOString().slice(0, 10);
         let filtered = [];
         if (selected && selected.length > 0) {
+            const selectedNorm = selected.map(s => s.toLowerCase().trim());
             filtered = allData.filter(item => {
                 if (!item.keyword) return false;
-                const newsKeywords = item.keyword.split('|').map(k => k.trim());
-                return newsKeywords.some(k => selected.includes(k));
+                const newsKeywords = item.keyword.split('|').map(k => k.toLowerCase().trim());
+                return newsKeywords.some(k => selectedNorm.includes(k));
             });
         }
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
