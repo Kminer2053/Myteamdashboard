@@ -1,4 +1,11 @@
 import './styles.css';
+// pubDate에서 YYYY-MM-DD 추출 함수 (전역)
+function extractDate(pubDate) {
+    if (!pubDate) return '';
+    const d = new Date(pubDate);
+    if (isNaN(d)) return '';
+    return d.toISOString().slice(0, 10);
+}
 // 캘린더 초기화
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
@@ -403,29 +410,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const allNews = await getRes.json();
         console.log('API 응답 allNews', allNews);
-        // pubDate에서 YYYY-MM-DD 추출 함수
-        function extractDate(pubDate) {
-            if (!pubDate) return '';
-            const d = new Date(pubDate);
-            if (isNaN(d)) return '';
-            return d.toISOString().slice(0, 10);
-        }
-        let todayNews = [];
-        if (keywords.length > 0) {
-            todayNews = allNews.filter(news => {
-                if (!news.keyword) return false;
-                const newsKeywords = news.keyword.split('|').map(k => k.trim());
-                return newsKeywords.some(k => keywords.includes(k)) && extractDate(news.pubDate) === new Date().toISOString().slice(0, 10);
-            });
-        }
+        const today = new Date().toISOString().slice(0, 10);
+        const todayNews = allNews.filter(news => extractDate(news.pubDate) === today);
         console.log('리스크이슈 todayNews', todayNews);
         newsFeed.innerHTML = '';
         
-        // 상단 건수/갱신 버튼 - '금일: x건, 누적: y건' 형식
+        // 상단 건수/갱신 버튼 - '금일: x건' 형식
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayNews.length}</b>건, 누적: <b>${allNews.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayNews.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshNewsBtn">정보갱신</button>
         `;
         newsFeed.appendChild(topBar);
@@ -454,12 +448,17 @@ document.addEventListener('DOMContentLoaded', function() {
         todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
         todayNews.forEach(item => {
             const card = document.createElement('div');
+            const isToday = extractDate(item.pubDate) === today;
             card.className = 'card mb-2';
+            if (isToday) {
+                card.classList.add('border-primary', 'bg-light');
+            }
             card.innerHTML = `
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
+                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${item.keyword ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
+                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
               </div>
             `;
@@ -618,20 +617,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const allData = await getRes.json();
         console.log('API 응답 allData', allData);
-        let todayNews = [];
+        let filtered = [];
         if (selected && selected.length > 0) {
-            todayNews = allData.filter(item => {
+            filtered = allData.filter(item => {
                 if (!item.keyword) return false;
                 const newsKeywords = item.keyword.split('|').map(k => k.trim());
-                return newsKeywords.some(k => selected.includes(k)) && extractDate(item.pubDate) === new Date().toISOString().slice(0, 10);
+                return newsKeywords.some(k => selected.includes(k));
             });
         }
-        console.log('제휴처탐색 todayNews', todayNews);
+        console.log('제휴처탐색 filtered', filtered);
         resultsDiv.innerHTML = '';
+        // 상단 건수/정보갱신 버튼 - '금일: x건' 형식
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayNews.length}</b>건, 누적: <b>${allData.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${filtered.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshPartnerBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
@@ -648,7 +648,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         
         // 데이터가 없거나 체크박스 선택이 없는 경우
-        if (todayNews.length === 0) {
+        if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
             emptyDiv.textContent = '표시할 정보가 없습니다.';
@@ -657,15 +657,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 최신순으로 정렬하여 표시
-        todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-        todayNews.forEach(item => {
+        filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+        filtered.forEach(item => {
             const card = document.createElement('div');
+            const isToday = extractDate(item.pubDate) === today;
             card.className = 'card mb-2';
+            if (isToday) {
+                card.classList.add('border-primary', 'bg-light');
+            }
             card.innerHTML = `
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
+                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${item.keyword ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
+                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
               </div>
             `;
@@ -710,20 +715,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
         const allData = await getRes.json();
         console.log('API 응답 allData', allData);
-        let todayNews = [];
+        let filtered = [];
         if (selected && selected.length > 0) {
-            todayNews = allData.filter(item => {
+            filtered = allData.filter(item => {
                 if (!item.keyword) return false;
                 const newsKeywords = item.keyword.split('|').map(k => k.trim());
-                return newsKeywords.some(k => selected.includes(k)) && extractDate(item.pubDate) === new Date().toISOString().slice(0, 10);
+                return newsKeywords.some(k => selected.includes(k));
             });
         }
-        console.log('신기술동향 todayNews', todayNews);
+        console.log('신기술동향 filtered', filtered);
         resultsDiv.innerHTML = '';
+        // 상단 건수/정보갱신 버튼 - '금일: x건' 형식
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayNews.length}</b>건, 누적: <b>${allData.length}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${filtered.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshTechBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
@@ -740,7 +746,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         
         // 데이터가 없거나 체크박스 선택이 없는 경우
-        if (todayNews.length === 0) {
+        if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
             emptyDiv.textContent = '표시할 정보가 없습니다.';
@@ -749,15 +755,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 최신순으로 정렬하여 표시
-        todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-        todayNews.forEach(item => {
+        filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+        filtered.forEach(item => {
             const card = document.createElement('div');
+            const isToday = extractDate(item.pubDate) === today;
             card.className = 'card mb-2';
+            if (isToday) {
+                card.classList.add('border-primary', 'bg-light');
+            }
             card.innerHTML = `
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
+                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${item.keyword ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
+                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
               </div>
             `;
