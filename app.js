@@ -410,7 +410,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const keywords = selectedKeywords || await loadKeywords();
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const allNews = await getRes.json();
-        console.log('API 응답 allNews', allNews);
         const today = new Date().toISOString().slice(0, 10);
         let filtered = [];
         if (keywords.length > 0) {
@@ -421,7 +420,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
-        console.log('리스크이슈 filtered', filtered);
         newsFeed.innerHTML = '';
         // === 상단 건수/갱신 버튼 추가 ===
         const topBar = document.createElement('div');
@@ -555,23 +553,17 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 로딩 중...</div></div>';
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const allData = await getRes.json();
-        console.log('API 응답 allData', allData);
-        console.log('제휴처탐색 checked', selected);
         const today = new Date().toISOString().slice(0, 10);
         let filtered = [];
         if (selected && selected.length > 0) {
             const selectedNorm = selected.map(s => s.toLowerCase().trim());
-            console.log('제휴처탐색 selectedNorm', selectedNorm);
             filtered = allData.filter(item => {
                 if (!item.keyword) return false;
                 const newsKeywords = item.keyword.split('|').map(k => k.toLowerCase().trim());
-                console.log('제휴처탐색 newsKeywords', newsKeywords, 'item.title', item.title);
                 return newsKeywords.some(k => selectedNorm.includes(k));
             });
         }
-        console.log('제휴처탐색 filtered', filtered);
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
-        console.log('제휴처탐색 filtered', filtered);
         resultsDiv.innerHTML = '';
         // 제휴처탐색 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
@@ -656,7 +648,6 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 로딩 중...</div></div>';
         const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
         const allData = await getRes.json();
-        console.log('API 응답 allData', allData);
         const today = new Date().toISOString().slice(0, 10);
         let filtered = [];
         if (selected && selected.length > 0) {
@@ -668,7 +659,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
-        console.log('신기술동향 filtered', filtered);
         resultsDiv.innerHTML = '';
         // 신기술동향 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
