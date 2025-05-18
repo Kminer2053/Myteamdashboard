@@ -505,79 +505,10 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem('riskNews_lastUpdate', today);
     }
 
-    function checkAndUpdateNews() {
-        const today = new Date().toISOString().slice(0, 10);
-        const lastUpdate = localStorage.getItem('riskNews_lastUpdate');
-        const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
-        
-        const now = new Date();
-        const [h, m] = updateTime.split(':').map(Number);
-        const updateDate = new Date(today + 'T' + updateTime);
-        
-        if (lastUpdate !== today && now >= updateDate) {
-            fetchAndSaveAllNews().then(() => {
-                renderNewsUI();
-            });
-        } else {
-            renderNewsUI();
-        }
-    }
-
-    function renderNewsUI() {
-        const today = new Date().toISOString().slice(0, 10);
-        const news = JSON.parse(localStorage.getItem(`riskNews_${today}`) || '[]');
-        const newsFeed = document.getElementById('newsFeed');
-        if (!newsFeed) return;
-        newsFeed.innerHTML = '';
-
-        // === 상단 건수/갱신 버튼 추가 ===
-        const topBar = document.createElement('div');
-        topBar.className = 'd-flex justify-content-end align-items-center mb-2';
-        topBar.innerHTML = `
-            <span class="me-2 text-secondary small">표시: <b>${news.length}</b>건</span>
-            <button class="btn btn-sm btn-outline-primary" id="refreshNewsBtn">정보갱신</button>
-        `;
-        newsFeed.appendChild(topBar);
-        document.getElementById('refreshNewsBtn').onclick = async function() {
-            const checked = Array.from(document.querySelectorAll('#keywordCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
-            if (!checked.length) {
-                alert('체크된 키워드가 없습니다.');
-                return;
-            }
-            newsFeed.innerHTML = '<div class="text-center my-3">리스크이슈 정보갱신 중...</div>';
-            await fetchAndSaveAllNews(checked);
-            renderNews(checked);
-        };
-
-        if (news.length === 0) {
-            newsFeed.innerHTML += '<div class="news-item">오늘의 뉴스가 없습니다.</div>';
-            return;
-        }
-        news.forEach(item => {
-            const card = document.createElement('div');
-            const isToday = extractDate(item.pubDate) === today;
-            card.className = 'card mb-2';
-            if (isToday) {
-                card.classList.add('border-primary', 'bg-light');
-            }
-            card.innerHTML = `
-              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-                <div class="flex-grow-1">
-                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
-                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
-                </div>
-              </div>
-            `;
-            newsFeed.appendChild(card);
-        });
-    }
-
     // 대시보드 진입 시 자동 뉴스 갱신 체크 및 체크박스/뉴스 렌더링 순서 보장
     if (document.getElementById('newsFeed')) {
         renderKeywordCheckboxes().then(() => {
             renderNewsByChecked();
-            checkAndUpdateNews();
         });
     }
 
