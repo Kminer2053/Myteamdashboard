@@ -403,10 +403,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 리스크 이슈 모니터링 뉴스 UI 렌더링 (체크박스 기반 필터)
     async function renderNews(selectedKeywords) {
-        console.log('renderNews 실행됨');
-        const keywords = selectedKeywords || await loadKeywords();
         const newsFeed = document.getElementById('newsFeed');
         if (!newsFeed) return;
+        // 최초 로딩/정보갱신 시 로딩 스피너 표시
+        newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 로딩 중...</div></div>';
+        const keywords = selectedKeywords || await loadKeywords();
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const allNews = await getRes.json();
         console.log('API 응답 allNews', allNews);
@@ -426,7 +427,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">표시: <b>${todayCount}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${filtered.length}</b>건</span>
             <button class="btn btn-sm btn-outline-primary" id="refreshNewsBtn">정보갱신</button>
         `;
         newsFeed.appendChild(topBar);
@@ -436,7 +437,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('체크된 키워드가 없습니다.');
                 return;
             }
-            newsFeed.innerHTML = '<div class="text-center my-3">리스크이슈 정보갱신 중...</div>';
+            newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 정보갱신 중...</div></div>';
             await fetchAndSaveAllNews(checked);
             renderNews(checked);
         };
@@ -548,9 +549,10 @@ document.addEventListener('DOMContentLoaded', function() {
         renderPartnerResults(checked);
     }
     async function renderPartnerResults(selected) {
-        console.log('renderPartnerResults 실행됨');
         const resultsDiv = document.getElementById('partnerResults');
         if (!resultsDiv) return;
+        // 최초 로딩/정보갱신 시 로딩 스피너 표시
+        resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 로딩 중...</div></div>';
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const allData = await getRes.json();
         console.log('API 응답 allData', allData);
@@ -585,7 +587,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('체크된 조건이 없습니다.');
                 return;
             }
-            resultsDiv.innerHTML = '<div class="text-center my-3">제휴처탐색 정보갱신 중...</div>';
+            resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 정보갱신 중...</div></div>';
             await fetchAndSaveAllPartners(checked);
             renderPartnerResults(checked);
         };
@@ -648,9 +650,10 @@ document.addEventListener('DOMContentLoaded', function() {
         renderTechTrendResults(checked);
     }
     async function renderTechTrendResults(selected) {
-        console.log('renderTechTrendResults 실행됨');
         const resultsDiv = document.getElementById('techTrendResults');
         if (!resultsDiv) return;
+        // 최초 로딩/정보갱신 시 로딩 스피너 표시
+        resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 로딩 중...</div></div>';
         const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
         const allData = await getRes.json();
         console.log('API 응답 allData', allData);
@@ -681,7 +684,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('체크된 주제가 없습니다.');
                 return;
             }
-            resultsDiv.innerHTML = '<div class="text-center my-3">신기술동향 정보갱신 중...</div>';
+            resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 정보갱신 중...</div></div>';
             await fetchAndSaveAllTechs(checked);
             renderTechTrendResults(checked);
         };
