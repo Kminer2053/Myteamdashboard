@@ -561,12 +561,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 대시보드 진입 시 자동 뉴스 갱신 체크
-    if (document.getElementById('newsFeed')) checkAndUpdateNews();
+    // 대시보드 진입 시 자동 뉴스 갱신 체크 및 체크박스/뉴스 렌더링 순서 보장
+    if (document.getElementById('newsFeed')) {
+        renderKeywordCheckboxes().then(() => {
+            renderNewsByChecked();
+            checkAndUpdateNews();
+        });
+    }
 
-    renderKeywordCheckboxes();
-    renderNewsByChecked();
-    checkAndUpdateNews();
     renderPartnerCheckboxes();
     renderTechCheckboxes();
     renderTechTrendResultsByChecked();
