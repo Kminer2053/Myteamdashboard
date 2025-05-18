@@ -569,9 +569,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    renderPartnerCheckboxes();
-    renderTechCheckboxes();
-    renderTechTrendResultsByChecked();
+    // 제휴처 탐색, 신기술 동향도 체크박스 렌더링 후 필터링 함수 실행
+    renderPartnerCheckboxes().then(() => renderPartnerResultsByChecked());
+    renderTechCheckboxes().then(() => renderTechTrendResultsByChecked());
 
     // 제휴처 탐색 키워드 관리
     async function renderPartnerCheckboxes() {
