@@ -399,7 +399,7 @@ document.addEventListener('DOMContentLoaded', function() {
             label.className = 'form-check-label me-3';
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
-            checkbox.className = 'form-check-input me-1';
+            checkbox.className = 'form-check-input me-1 section-risk';
             checkbox.value = kw;
             checkbox.checked = true;
             checkbox.onchange = renderNewsByChecked;
@@ -475,9 +475,9 @@ document.addEventListener('DOMContentLoaded', function() {
             card.innerHTML = `
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
-                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
+                  ${isToday ? '<span class="badge badge-section-risk me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank"><b class="main-color">${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
+                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge badge-section-risk">${item.keyword}</span></div>
                 </div>
               </div>
             `;
@@ -548,7 +548,7 @@ document.addEventListener('DOMContentLoaded', function() {
             label.className = 'form-check-label me-3';
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
-            checkbox.className = 'form-check-input me-1';
+            checkbox.className = 'form-check-input me-1 section-partner';
             checkbox.value = kw;
             checkbox.checked = true;
             checkbox.onchange = renderPartnerResultsByChecked;
@@ -619,9 +619,9 @@ document.addEventListener('DOMContentLoaded', function() {
             card.innerHTML = `
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
-                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
+                  ${isToday ? '<span class="badge badge-section-partner me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank"><b class="main-color">${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
+                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge badge-section-partner">${item.keyword}</span></div>
                 </div>
               </div>
             `;
@@ -644,7 +644,7 @@ document.addEventListener('DOMContentLoaded', function() {
             label.className = 'form-check-label me-3';
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
-            checkbox.className = 'form-check-input me-1';
+            checkbox.className = 'form-check-input me-1 section-tech';
             checkbox.value = kw;
             checkbox.checked = true;
             checkbox.onchange = renderTechTrendResultsByChecked;
@@ -715,9 +715,9 @@ document.addEventListener('DOMContentLoaded', function() {
             card.innerHTML = `
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
-                  ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
+                  ${isToday ? '<span class="badge badge-section-tech me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank"><b class="main-color">${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
+                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge badge-section-tech">${item.keyword}</span></div>
                 </div>
               </div>
             `;
