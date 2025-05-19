@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node naver-news-proxy.js",
     "dev": "nodemon naver-news-proxy.js",
-    "build": "vite build"
+    "build": "vite build && cp -r public/* dist/"
   },
   "keywords": [],
   "author": "",
