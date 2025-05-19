@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         const keyword = riskKeywordInput.value.trim();
         if (keyword) {
-            addItem('riskKeywords', keyword, riskKeywordsList);
+            addItem('riskKeywords', keyword, riskKeywordsList, '키워드');
             riskKeywordInput.value = '';
         }
     });
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         const condition = partnerConditionInput.value.trim();
         if (condition) {
-            addItem('partnerConditions', condition, partnerConditionsList);
+            addItem('partnerConditions', condition, partnerConditionsList, '조건');
             partnerConditionInput.value = '';
         }
     });
@@ -77,13 +77,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         const topic = techTopicInput.value.trim();
         if (topic) {
-            addItem('techTopics', topic, techTopicsList);
+            addItem('techTopics', topic, techTopicsList, '주제');
             techTopicInput.value = '';
         }
     });
 
     // 공통 함수: 항목 추가 (서버 연동)
-    async function addItem(storageKey, value, listElement) {
+    async function addItem(storageKey, value, listElement, label) {
         if (storageKey === 'riskKeywords') {
             await addKeyword(value);
             await updateList(storageKey, listElement);
@@ -94,26 +94,32 @@ document.addEventListener('DOMContentLoaded', function() {
             await addTechTopic(value);
             await updateList(storageKey, listElement);
         }
+        if (label) showToast(`${label}가 추가되었습니다.`);
     }
 
     // 공통 함수: 항목 삭제 (서버 연동)
     async function removeItem(storageKey, value, listElement) {
+        let label = '';
         if (storageKey === 'riskKeywords') {
+            label = '키워드';
             const keywords = await loadKeywords();
             const item = keywords.find(k => k.value === value);
             if (item) await deleteKeyword(item._id);
             await updateList(storageKey, listElement);
         } else if (storageKey === 'partnerConditions') {
+            label = '조건';
             const conds = await loadPartnerConditions();
             const item = conds.find(c => c.value === value);
             if (item) await deletePartnerCondition(item._id);
             await updateList(storageKey, listElement);
         } else if (storageKey === 'techTopics') {
+            label = '주제';
             const topics = await loadTechTopics();
             const item = topics.find(t => t.value === value);
             if (item) await deleteTechTopic(item._id);
             await updateList(storageKey, listElement);
         }
+        if (label) showToast(`${label}가 삭제되었습니다.`);
     }
 
     // 공통 함수: 목록 업데이트 (서버 연동)
