@@ -443,7 +443,7 @@ document.addEventListener('DOMContentLoaded', function() {
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
             <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${filtered.length}</b>건</span>
-            <button class="btn btn-sm btn-outline-primary" id="refreshNewsBtn">정보갱신</button>
+            <button class="btn btn-sm btn-outline-section-risk" id="refreshNewsBtn">정보갱신</button>
         `;
         newsFeed.appendChild(topBar);
         document.getElementById('refreshNewsBtn').onclick = async function() {
@@ -588,7 +588,7 @@ document.addEventListener('DOMContentLoaded', function() {
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
             <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${filtered.length}</b>건</span>
-            <button class="btn btn-sm btn-outline-primary" id="refreshPartnerBtn">정보갱신</button>
+            <button class="btn btn-sm btn-outline-section-partner" id="refreshPartnerBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
         document.getElementById('refreshPartnerBtn').onclick = async function() {
@@ -684,7 +684,7 @@ document.addEventListener('DOMContentLoaded', function() {
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
             <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${filtered.length}</b>건</span>
-            <button class="btn btn-sm btn-outline-primary" id="refreshTechBtn">정보갱신</button>
+            <button class="btn btn-sm btn-outline-section-tech" id="refreshTechBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
         document.getElementById('refreshTechBtn').onclick = async function() {

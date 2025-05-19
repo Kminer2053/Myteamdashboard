@@ -80,4 +80,57 @@
     text-overflow: ellipsis !important;
     max-width: 100%;
     display: block;
+}
+
+.section-schedule {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+.section-risk {
+  background-color: #e0f7fa;
+  color: #0288d1;
+}
+.section-partner {
+  background-color: #e8eaf6;
+  color: #1565c0;
+}
+.section-tech {
+  background-color: #ede7f6;
+  color: #512da8;
+}
+
+.btn-outline-section-schedule {
+  color: #1976d2;
+  border-color: #1976d2;
+}
+.btn-outline-section-schedule:hover, .btn-outline-section-schedule:active {
+  background-color: #1976d2;
+  color: #fff;
+}
+
+.btn-outline-section-risk {
+  color: #0288d1;
+  border-color: #0288d1;
+}
+.btn-outline-section-risk:hover, .btn-outline-section-risk:active {
+  background-color: #0288d1;
+  color: #fff;
+}
+
+.btn-outline-section-partner {
+  color: #1565c0;
+  border-color: #1565c0;
+}
+.btn-outline-section-partner:hover, .btn-outline-section-partner:active {
+  background-color: #1565c0;
+  color: #fff;
+}
+
+.btn-outline-section-tech {
+  color: #512da8;
+  border-color: #512da8;
+}
+.btn-outline-section-tech:hover, .btn-outline-section-tech:active {
+  background-color: #512da8;
+  color: #fff;
 } 
