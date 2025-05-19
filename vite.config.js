@@ -11,5 +11,15 @@ export default defineConfig({
         rewrite: (path) => path
       }
     }
+  },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: './index.html',
+        admin: './admin.html'
+      }
+    }
   }
 }); 

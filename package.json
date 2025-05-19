@@ -5,7 +5,8 @@
   "main": "naver-news-proxy.js",
   "scripts": {
     "start": "node naver-news-proxy.js",
-    "dev": "nodemon naver-news-proxy.js"
+    "dev": "nodemon naver-news-proxy.js",
+    "build": "vite build"
   },
   "keywords": [],
   "author": "",
