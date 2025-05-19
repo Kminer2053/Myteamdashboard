@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let holidayDates = [];
 
     // API 기본 URL 설정
-    const API_BASE_URL = import.meta.env.VITE_API_URL;
+    const API_BASE_URL = window.VITE_API_URL || '';
 
     // 일정 데이터 서버에서 불러오기
     async function loadUserEvents() {
