@@ -395,8 +395,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         keywords.forEach((kw, idx) => {
-            const label = document.createElement('label');
-            label.className = 'form-check-label me-3';
+            const id = `risk-checkbox-${idx}`;
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.className = 'form-check-input me-1 section-risk';
@@ -404,8 +403,12 @@ document.addEventListener('DOMContentLoaded', function() {
             checkbox.checked = true;
             checkbox.onchange = renderNewsByChecked;
             checkbox.setAttribute('aria-label', `키워드 ${kw} 선택`);
-            label.appendChild(checkbox);
+            checkbox.id = id;
+            const label = document.createElement('label');
+            label.className = 'form-check-label me-3';
+            label.setAttribute('for', id);
             label.appendChild(document.createTextNode(kw));
+            container.appendChild(checkbox);
             container.appendChild(label);
         });
     }
@@ -543,9 +546,8 @@ document.addEventListener('DOMContentLoaded', function() {
             renderPartnerResults([]);
             return;
         }
-        conds.forEach(kw => {
-            const label = document.createElement('label');
-            label.className = 'form-check-label me-3';
+        conds.forEach((kw, idx) => {
+            const id = `partner-checkbox-${idx}`;
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.className = 'form-check-input me-1 section-partner';
@@ -553,8 +555,12 @@ document.addEventListener('DOMContentLoaded', function() {
             checkbox.checked = true;
             checkbox.onchange = renderPartnerResultsByChecked;
             checkbox.setAttribute('aria-label', `조건 ${kw} 선택`);
-            label.appendChild(checkbox);
+            checkbox.id = id;
+            const label = document.createElement('label');
+            label.className = 'form-check-label me-3';
+            label.setAttribute('for', id);
             label.appendChild(document.createTextNode(kw));
+            container.appendChild(checkbox);
             container.appendChild(label);
         });
     }
@@ -639,9 +645,8 @@ document.addEventListener('DOMContentLoaded', function() {
             renderTechTrendResults([]);
             return;
         }
-        topics.forEach(kw => {
-            const label = document.createElement('label');
-            label.className = 'form-check-label me-3';
+        topics.forEach((kw, idx) => {
+            const id = `tech-checkbox-${idx}`;
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.className = 'form-check-input me-1 section-tech';
@@ -649,8 +654,12 @@ document.addEventListener('DOMContentLoaded', function() {
             checkbox.checked = true;
             checkbox.onchange = renderTechTrendResultsByChecked;
             checkbox.setAttribute('aria-label', `주제 ${kw} 선택`);
-            label.appendChild(checkbox);
+            checkbox.id = id;
+            const label = document.createElement('label');
+            label.className = 'form-check-label me-3';
+            label.setAttribute('for', id);
             label.appendChild(document.createTextNode(kw));
+            container.appendChild(checkbox);
             container.appendChild(label);
         });
     }
