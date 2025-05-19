@@ -84,6 +84,18 @@
     display: block;
 }
 
+.section-schedule,
+.section-risk,
+.section-partner,
+.section-tech {
+  background: #fff !important;
+}
+
+.section-schedule .card-header { background: #e3f2fd !important; color: #1976d2 !important; }
+.section-risk .card-header    { background: #e0f7fa !important; color: #0288d1 !important; }
+.section-partner .card-header { background: #e8eaf6 !important; color: #1565c0 !important; }
+.section-tech .card-header    { background: #ede7f6 !important; color: #512da8 !important; }
+
 .section-schedule {
   background-color: #e3f2fd !important;
   color: #1976d2 !important;
