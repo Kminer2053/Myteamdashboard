@@ -1,4 +1,3 @@
-import './styles.css';
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 document.addEventListener('DOMContentLoaded', function() {

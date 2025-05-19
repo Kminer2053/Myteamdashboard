@@ -1,4 +1,3 @@
-import './styles.css';
 // pubDate에서 YYYY-MM-DD 추출 함수 (전역)
 function extractDate(pubDate) {
     if (!pubDate) return '';
