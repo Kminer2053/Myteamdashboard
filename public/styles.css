@@ -1,0 +1,83 @@
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.card-title {
+    margin-bottom: 0;
+    color: #333;
+}
+
+#calendar {
+    height: 500px;
+    width: 100%;
+}
+
+.card-body {
+    overflow: auto;
+}
+
+#newsFeed, #partnerResults, #techTrendResults {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.news-item, .partner-item, .tech-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.news-item:hover, .partner-item:hover, .tech-item:hover {
+    background-color: #f8f9fa;
+}
+
+.keyword-tag {
+    display: inline-block;
+    padding: 5px 10px;
+    margin: 5px;
+    background-color: #e9ecef;
+    border-radius: 15px;
+    font-size: 0.9em;
+}
+
+.keyword-tag .remove {
+    margin-left: 5px;
+    cursor: pointer;
+}
+
+.navbar {
+    margin-bottom: 20px;
+}
+
+.form-control {
+    margin-bottom: 10px;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+/* 모든 이벤트 텍스트에 말줄임표 적용 (공휴일+사용자 일정 모두) */
+.fc-event-title, 
+.fc-event-title-container, 
+.fc-event-main, 
+.fc-daygrid-event, 
+.fc-event-main-frame, 
+.fc-event-title.fc-sticky {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100%;
+    display: block;
+} 

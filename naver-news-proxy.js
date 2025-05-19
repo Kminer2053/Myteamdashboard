@@ -385,14 +385,14 @@ app.get('/api/naver-news', async (req, res) => {
       while (allItems.length < maxNum && start <= 1000) {
         callCount++;
         const params = { query, display: displayNum, start, sort };
-        try {
-          const result = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+  try {
+    const result = await axios.get('https://openapi.naver.com/v1/search/news.json', {
             params,
-            headers: {
-              'X-Naver-Client-Id': NAVER_CLIENT_ID,
-              'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-            }
-          });
+      headers: {
+        'X-Naver-Client-Id': NAVER_CLIENT_ID,
+        'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+      }
+    });
           const items = result.data.items || [];
           if (items.length > 0) {
             items.forEach(item => {
