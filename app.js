@@ -386,6 +386,7 @@ document.addEventListener('DOMContentLoaded', function() {
             checkbox.value = kw;
             checkbox.checked = true;
             checkbox.onchange = renderNewsByChecked;
+            checkbox.setAttribute('aria-label', `키워드 ${kw} 선택`);
             label.appendChild(checkbox);
             label.appendChild(document.createTextNode(kw));
             container.appendChild(label);
@@ -534,6 +535,7 @@ document.addEventListener('DOMContentLoaded', function() {
             checkbox.value = kw;
             checkbox.checked = true;
             checkbox.onchange = renderPartnerResultsByChecked;
+            checkbox.setAttribute('aria-label', `조건 ${kw} 선택`);
             label.appendChild(checkbox);
             label.appendChild(document.createTextNode(kw));
             container.appendChild(label);
@@ -629,6 +631,7 @@ document.addEventListener('DOMContentLoaded', function() {
             checkbox.value = kw;
             checkbox.checked = true;
             checkbox.onchange = renderTechTrendResultsByChecked;
+            checkbox.setAttribute('aria-label', `주제 ${kw} 선택`);
             label.appendChild(checkbox);
             label.appendChild(document.createTextNode(kw));
             container.appendChild(label);

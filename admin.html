@@ -13,18 +13,18 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
             <a class="navbar-brand" href="index.html">
-                <i class="fas fa-arrow-left me-2"></i>미래성장처 대시보드
+                <i class="fas fa-arrow-left me-2" aria-hidden="true"></i>미래성장처 대시보드
             </a>
         </div>
     </nav>
 
     <!-- 비밀번호 확인 모달 -->
-    <div class="modal fade" id="adminPwModal" tabindex="-1">
+    <div class="modal fade" id="adminPwModal" tabindex="-1" aria-labelledby="adminPwModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <form class="modal-content" id="adminPwForm">
                 <div class="modal-header">
-                    <h5 class="modal-title">관리자 인증</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title" id="adminPwModalLabel">관리자 인증</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
                 </div>
                 <div class="modal-body">
                     <input type="password" class="form-control" id="adminPwInput" placeholder="비밀번호 입력" required>
@@ -49,8 +49,8 @@
                             <h6 class="mb-3">리스크 이슈 키워드 관리</h6>
                             <div class="input-group mb-3">
                                 <input type="text" class="form-control" id="riskKeywordInput" placeholder="새 키워드 입력">
-                                <button class="btn btn-outline-primary" type="button" id="addRiskKeyword">
-                                    <i class="fas fa-plus"></i>
+                                <button class="btn btn-outline-primary" type="button" id="addRiskKeyword" aria-label="키워드 추가">
+                                    <i class="fas fa-plus" aria-hidden="true"></i>
                                 </button>
                             </div>
                             <div id="riskKeywordsList" class="list-group mb-2"></div>
@@ -61,8 +61,8 @@
                             <h6 class="mb-3">제휴처 탐색 조건 관리</h6>
                             <div class="input-group mb-3">
                                 <input type="text" class="form-control" id="partnerConditionInput" placeholder="새 조건 입력">
-                                <button class="btn btn-outline-primary" type="button" id="addPartnerCondition">
-                                    <i class="fas fa-plus"></i>
+                                <button class="btn btn-outline-primary" type="button" id="addPartnerCondition" aria-label="조건 추가">
+                                    <i class="fas fa-plus" aria-hidden="true"></i>
                                 </button>
                             </div>
                             <div id="partnerConditionsList" class="list-group"></div>
@@ -73,8 +73,8 @@
                             <h6 class="mb-3">신기술 동향 주제 관리</h6>
                             <div class="input-group mb-3">
                                 <input type="text" class="form-control" id="techTopicInput" placeholder="새 주제 입력">
-                                <button class="btn btn-outline-primary" type="button" id="addTechTopic">
-                                    <i class="fas fa-plus"></i>
+                                <button class="btn btn-outline-primary" type="button" id="addTechTopic" aria-label="주제 추가">
+                                    <i class="fas fa-plus" aria-hidden="true"></i>
                                 </button>
                             </div>
                             <div id="techTopicsList" class="list-group"></div>
@@ -92,7 +92,7 @@
         </div>
     </div>
     </div>
-    <div id="toast" style="display:none; position:fixed; bottom:30px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:10px 20px; border-radius:5px; z-index:9999; font-size:1rem;"></div>
+    <div id="toast" role="alert" aria-live="polite" style="display:none; position:fixed; bottom:30px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:10px 20px; border-radius:5px; z-index:9999; font-size:1rem;"></div>
     <!-- Bootstrap JS (반드시 custom script보다 위에 위치) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script type="module" src="/admin.js"></script>
@@ -129,7 +129,8 @@
                         body: JSON.stringify({ value })
                     });
                     if (res.ok) {
-                        showToast('뉴스갱신 시간이 변경되었습니다.');
+                        const data = await res.json();
+                        showToast(`뉴스갱신 시간이 ${data.value}으로 변경되었습니다.`);
                     } else {
                         alert('저장 실패: ' + (await res.text()));
                     }
