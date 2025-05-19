@@ -476,7 +476,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
                   ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
-                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                  <a href="${item.link}" target="_blank"><b class="main-color">${item.title.replace(/<[^>]+>/g, '')}</b></a>
                   <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
               </div>
@@ -620,7 +620,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
                   ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
-                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                  <a href="${item.link}" target="_blank"><b class="main-color">${item.title.replace(/<[^>]+>/g, '')}</b></a>
                   <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
               </div>
@@ -716,7 +716,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
                 <div class="flex-grow-1">
                   ${isToday ? '<span class="badge bg-primary me-2">Today</span>' : ''}
-                  <a href="${item.link}" target="_blank"><b>${item.title.replace(/<[^>]+>/g, '')}</b></a>
+                  <a href="${item.link}" target="_blank"><b class="main-color">${item.title.replace(/<[^>]+>/g, '')}</b></a>
                   <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge ${isToday ? 'bg-primary' : 'bg-secondary'}">${item.keyword}</span></div>
                 </div>
               </div>
