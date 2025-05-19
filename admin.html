@@ -19,7 +19,7 @@
     </nav>
 
     <!-- 비밀번호 확인 모달 -->
-    <div class="modal fade" id="adminPwModal" tabindex="-1" aria-labelledby="adminPwModalLabel" aria-hidden="true">
+    <div class="modal fade" id="adminPwModal" tabindex="-1" aria-labelledby="adminPwModalLabel">
         <div class="modal-dialog">
             <form class="modal-content" id="adminPwForm">
                 <div class="modal-header">
@@ -85,6 +85,10 @@
                             <h6 class="mb-3">뉴스 갱신 시간 설정</h6>
                             <input type="time" class="form-control" id="newsUpdateTime" value="07:00">
                             <button class="btn btn-primary mt-2" id="saveNewsUpdateTime">저장</button>
+                            <div id="newsUpdateSpinner" style="display:none; margin-top:10px;">
+                                <div class="spinner-border text-primary" role="status" aria-label="로딩 중"></div>
+                                <span class="ms-2">저장 중...</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -122,6 +126,9 @@
             // 저장 버튼 클릭 시 서버로 POST
             saveBtn.onclick = async function() {
                 const value = timeInput.value;
+                const spinner = document.getElementById('newsUpdateSpinner');
+                if (spinner) spinner.style.display = 'inline-block';
+                saveBtn.disabled = true;
                 try {
                     const res = await fetch(`${API_BASE_URL}/api/settings/news-update-time`, {
                         method: 'POST',
@@ -136,6 +143,9 @@
                     }
                 } catch (e) {
                     alert('저장 중 오류: ' + e.message);
+                } finally {
+                    if (spinner) spinner.style.display = 'none';
+                    saveBtn.disabled = false;
                 }
             };
             // 페이지 진입 시 서버에서 GET
