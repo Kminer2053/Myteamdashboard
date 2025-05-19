@@ -287,7 +287,7 @@ async function collectTechNews() {
 }
 
 // === 동적 cron 스케줄 등록 함수 ===
-async function scheduleNewsJob() {
+async function scheduleNewsJob(isInit = false) {
   if (newsCronJob) {
     console.log(`[자동수집][크론] 기존 작업 중지 후 재설정 중...`);
     newsCronJob.stop();
@@ -299,15 +299,17 @@ async function scheduleNewsJob() {
   const cronExp = `${m} ${h} * * *`;
   console.log(`[자동수집][크론] ${cronExp} (매일 ${time})에 자동 뉴스 수집 예약됨`);
   
-  // 디버깅을 위한 즉시 실행 테스트
-  console.log(`[자동수집][크론] 서버 시작 시 테스트 수집 시도...`);
-  try {
-    await collectRiskNews();
-    await collectPartnerNews();
-    await collectTechNews();
-    console.log(`[자동수집][크론] 서버 시작 시 테스트 수집 완료`);
-  } catch (error) {
-    console.error(`[자동수집][크론] 초기 테스트 수집 에러:`, error);
+  // 서버 시작 시에만 테스트 수집 실행
+  if (isInit) {
+    console.log(`[자동수집][크론] 서버 시작 시 테스트 수집 시도...`);
+    try {
+      await collectRiskNews();
+      await collectPartnerNews();
+      await collectTechNews();
+      console.log(`[자동수집][크론] 서버 시작 시 테스트 수집 완료`);
+    } catch (error) {
+      console.error(`[자동수집][크론] 초기 테스트 수집 에러:`, error);
+    }
   }
   
   newsCronJob = cron.schedule(cronExp, async () => {
@@ -629,8 +631,8 @@ app.post('/api/settings/news-update-time', async (req, res) => {
       { value },
       { upsert: true, new: true }
     );
-    // 시간 변경 시 스케줄도 즉시 갱신
-    await scheduleNewsJob();
+    // 시간 변경 시 스케줄도 즉시 갱신 (테스트 수집은 실행하지 않음)
+    await scheduleNewsJob(false);
     res.json(setting);
   } catch (err) {
     res.status(500).json({ error: '설정 저장 실패', message: err.message });
@@ -742,7 +744,7 @@ app.listen(PORT, async () => {
     // 크론 작업 초기화 - 한 번만 실행
     console.log(`[서버] 자동 수집 작업 초기화 중...`);
     if (!newsCronJob) {  // 크론 작업이 없을 때만 초기화
-      await scheduleNewsJob();
+      await scheduleNewsJob(true);
       console.log(`[서버] 서버 초기화 완료`);
     } else {
       console.log(`[서버] 자동 수집 작업이 이미 실행 중입니다`);
