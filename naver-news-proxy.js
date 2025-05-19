@@ -15,7 +15,7 @@ const PartnerNews = require('./models/PartnerNews');
 const TechNews = require('./models/TechNews');
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID || 'e037eF7sxB3VuJHBpay5';
