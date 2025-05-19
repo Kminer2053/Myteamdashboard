@@ -1,10 +1,27 @@
 // pubDate에서 YYYY-MM-DD 추출 함수 (전역)
 function extractDate(pubDate) {
     if (!pubDate) return '';
+    // 예: 2025. 5. 19. 오전 9:02:00
+    const match = pubDate.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\./);
+    if (match) {
+        const [, y, m, d] = match;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    // 기본 Date 파싱
     const d = new Date(pubDate);
     if (isNaN(d)) return '';
     return d.toISOString().slice(0, 10);
 }
+
+// 한국 시간 기준 오늘 날짜 구하기
+function getKoreaToday() {
+    const now = new Date();
+    const koreaOffset = 9 * 60; // 9시간
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const koreaTime = new Date(utc + (koreaOffset * 60000));
+    return koreaTime.toISOString().slice(0, 10);
+}
+
 // 캘린더 초기화
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
@@ -410,7 +427,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const keywords = selectedKeywords || await loadKeywords();
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const allNews = await getRes.json();
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getKoreaToday();
         let filtered = [];
         if (keywords.length > 0) {
             filtered = allNews.filter(news => {
@@ -472,7 +489,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchAndSaveAllNews(keywordsParam) {
         const keywords = keywordsParam || await loadKeywords();
         if (!Array.isArray(keywords) || keywords.length === 0) return;
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getKoreaToday();
         let allNews = [];
         for (const kw of keywords) {
             try {
@@ -554,7 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 로딩 중...</div></div>';
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const allData = await getRes.json();
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getKoreaToday();
         let filtered = [];
         if (selected && selected.length > 0) {
             const selectedNorm = selected.map(s => s.toLowerCase().trim());
@@ -650,7 +667,7 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 로딩 중...</div></div>';
         const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
         const allData = await getRes.json();
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getKoreaToday();
         let filtered = [];
         if (selected && selected.length > 0) {
             const selectedNorm = selected.map(s => s.toLowerCase().trim());
@@ -712,7 +729,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchAndSaveAllPartners(keywordsParam) {
         const keywords = keywordsParam || await loadPartnerConditions();
         if (!Array.isArray(keywords) || keywords.length === 0) return;
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getKoreaToday();
         let allNews = [];
         for (const kw of keywords) {
             try {
@@ -738,7 +755,7 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem('partnerNews_lastUpdate', today);
     }
     function checkAndUpdatePartnerNews() {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getKoreaToday();
         const lastUpdate = localStorage.getItem('partnerNews_lastUpdate');
         const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
         const now = new Date();
@@ -754,7 +771,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchAndSaveAllTechs(keywordsParam) {
         const keywords = keywordsParam || await loadTechTopics();
         if (!Array.isArray(keywords) || keywords.length === 0) return;
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getKoreaToday();
         let allNews = [];
         for (const kw of keywords) {
             try {
@@ -780,7 +797,7 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem('techNews_lastUpdate', today);
     }
     function checkAndUpdateTechNews() {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getKoreaToday();
         const lastUpdate = localStorage.getItem('techNews_lastUpdate');
         const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
         const now = new Date();
