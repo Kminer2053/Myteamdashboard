@@ -90,6 +90,19 @@
                                 <span class="ms-2">저장 중...</span>
                             </div>
                         </div>
+
+                        <!-- 이메일 수신자 관리 -->
+                        <div class="mb-4">
+                            <h6 class="mb-3">이메일 수신자 관리</h6>
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control" id="emailNameInput" placeholder="이름 입력" style="max-width: 150px;">
+                                <input type="email" class="form-control" id="emailInput" placeholder="이메일 주소 입력">
+                                <button class="btn btn-outline-primary" type="button" id="addEmail" aria-label="이메일 추가">
+                                    <i class="fas fa-plus" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                            <div id="emailList" class="list-group mb-2"></div>
+                        </div>
                     </div>
                 </div>
             </div>

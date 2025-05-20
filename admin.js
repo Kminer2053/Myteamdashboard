@@ -82,6 +82,70 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // ===== 이메일 수신자 관리 =====
+    const emailNameInput = document.getElementById('emailNameInput');
+    const emailInput = document.getElementById('emailInput');
+    const addEmailBtn = document.getElementById('addEmail');
+    const emailList = document.getElementById('emailList');
+
+    addEmailBtn.addEventListener('click', function() {
+        if (!isAuthenticated) return;
+        const name = emailNameInput.value.trim();
+        const email = emailInput.value.trim();
+        if (!name) {
+            showToast('이름을 입력하세요.');
+            return;
+        }
+        if (email && validateEmail(email)) {
+            addEmail({ name, email });
+            emailInput.value = '';
+            emailNameInput.value = '';
+        } else {
+            showToast('올바른 이메일 주소를 입력하세요.');
+        }
+    });
+
+    async function addEmail({ name, email }) {
+        await fetch(`${API_BASE_URL}/api/emails`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email })
+        });
+        await updateEmailList();
+        showToast('이메일이 추가되었습니다.');
+    }
+
+    async function removeEmail(email) {
+        await fetch(`${API_BASE_URL}/api/emails/${encodeURIComponent(email)}`, { method: 'DELETE' });
+        await updateEmailList();
+        showToast('이메일이 삭제되었습니다.');
+    }
+
+    async function updateEmailList() {
+        const res = await fetch(`${API_BASE_URL}/api/emails`);
+        const emails = await res.json();
+        emailList.innerHTML = '';
+        emails.forEach(item => {
+            const listItem = document.createElement('div');
+            listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+            listItem.innerHTML = `
+                <span>${item.name} (${item.email})</span>
+                <button class="btn btn-outline-danger btn-sm" onclick="removeEmail('${item.email}')">
+                    <i class="fas fa-minus"></i>
+                </button>
+            `;
+            emailList.appendChild(listItem);
+        });
+    }
+
+    function validateEmail(email) {
+        // 간단한 이메일 형식 체크
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    // 페이지 로드 시 이메일 리스트 불러오기
+    updateEmailList();
+
     // 공통 함수: 항목 추가 (서버 연동)
     async function addItem(storageKey, value, listElement, label) {
         if (storageKey === 'riskKeywords') {

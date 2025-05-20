@@ -907,3 +907,65 @@ function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 }
+
+// ===== 이메일 리스트 API =====
+// GET: 이메일 리스트 조회
+app.get('/api/emails', async (req, res) => {
+  try {
+    let setting = await Setting.findOne({ key: 'emails' });
+    let emails = [];
+    if (setting && setting.value) {
+      emails = JSON.parse(setting.value);
+    }
+    res.json(emails);
+  } catch (err) {
+    res.status(500).json({ error: '이메일 리스트 조회 실패' });
+  }
+});
+
+// POST: 이메일 추가 (name, email)
+app.post('/api/emails', async (req, res) => {
+  try {
+    const { name, email } = req.body;
+    if (!name || !email) return res.status(400).json({ error: '이름과 이메일을 입력하세요.' });
+    let setting = await Setting.findOne({ key: 'emails' });
+    let emails = [];
+    if (setting && setting.value) {
+      emails = JSON.parse(setting.value);
+    }
+    // 중복 방지
+    if (emails.some(e => e.email === email)) {
+      return res.status(400).json({ error: '이미 등록된 이메일입니다.' });
+    }
+    emails.push({ name, email });
+    if (setting) {
+      setting.value = JSON.stringify(emails);
+      await setting.save();
+    } else {
+      await Setting.create({ key: 'emails', value: JSON.stringify(emails) });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: '이메일 추가 실패' });
+  }
+});
+
+// DELETE: 이메일 삭제
+app.delete('/api/emails/:email', async (req, res) => {
+  try {
+    const email = decodeURIComponent(req.params.email);
+    let setting = await Setting.findOne({ key: 'emails' });
+    let emails = [];
+    if (setting && setting.value) {
+      emails = JSON.parse(setting.value);
+    }
+    const newEmails = emails.filter(e => e.email !== email);
+    if (setting) {
+      setting.value = JSON.stringify(newEmails);
+      await setting.save();
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: '이메일 삭제 실패' });
+  }
+});
