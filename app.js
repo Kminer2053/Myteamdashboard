@@ -233,10 +233,33 @@ document.addEventListener('DOMContentLoaded', function() {
     // 임시로 일정 등록 정보 저장
     let pendingEvent = null;
 
+    // === 토스트 메시지 함수 추가 ===
+    function showToast(msg) {
+        let toast = document.getElementById('toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toast';
+            toast.style.display = 'none';
+            toast.style.position = 'fixed';
+            toast.style.top = '50%';
+            toast.style.left = '50%';
+            toast.style.transform = 'translate(-50%,-50%)';
+            toast.style.background = '#333';
+            toast.style.color = '#fff';
+            toast.style.padding = '10px 20px';
+            toast.style.borderRadius = '5px';
+            toast.style.zIndex = '9999';
+            toast.style.fontSize = '1rem';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = msg;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 2000);
+    }
+
     // 일정등록 모달 제출
     modalScheduleForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-        // 수정/신규등록 시 비밀번호 확인
         if (!(pendingEvent && pendingEvent.pwChecked)) {
             pendingEvent.action = pendingEvent && pendingEvent.id ? 'edit' : 'create';
             pwInput.value = '';
@@ -247,7 +270,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const date = modalScheduleDate.value;
         const time = modalScheduleTime.value;
         const content = modalScheduleContent.value;
-        // 항상 YYYY-MM-DDTHH:mm 포맷으로 저장
         const start = date + 'T' + (time ? time : '00:00');
         let events = await loadUserEvents();
         let newEvent = {
@@ -259,29 +281,39 @@ document.addEventListener('DOMContentLoaded', function() {
             borderColor: '#1976d2',
             textColor: '#fff',
         };
-        if (!(pendingEvent && pendingEvent.id)) {
-            newEvent.id = Date.now().toString();
-            events.push(newEvent);
-            await addUserEvent(newEvent);
-            calendar.refetchEvents();
-            scheduleModal.hide();
-            alert('일정이 등록되었습니다.');
-        } else {
-            newEvent.id = pendingEvent.id;
-            // 수정 시 기존 이벤트와 비교
-            const beforeEvent = events.find(ev => ev.id === pendingEvent.id);
-            events = events.map(ev => (ev.id === pendingEvent.id ? newEvent : ev));
-            await updateUserEvent(pendingEvent.id, newEvent);
-            calendar.refetchEvents();
-            scheduleModal.hide();
-            alert('일정이 수정되었습니다.');
+        // === 스피너 표시 ===
+        const submitBtn = modalScheduleForm.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 저장 중...';
+        try {
+            if (!(pendingEvent && pendingEvent.id)) {
+                newEvent.id = Date.now().toString();
+                events.push(newEvent);
+                await addUserEvent(newEvent);
+                calendar.refetchEvents();
+                scheduleModal.hide();
+                showToast('일정이 등록되었습니다.');
+            } else {
+                newEvent.id = pendingEvent.id;
+                const beforeEvent = events.find(ev => ev.id === pendingEvent.id);
+                events = events.map(ev => (ev.id === pendingEvent.id ? newEvent : ev));
+                await updateUserEvent(pendingEvent.id, newEvent);
+                calendar.refetchEvents();
+                scheduleModal.hide();
+                showToast('일정이 수정되었습니다.');
+            }
+        } catch (err) {
+            showToast('오류가 발생했습니다.');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '등록';
+            pendingEvent = null;
         }
-        pendingEvent = null;
     });
 
     // 일정 삭제 기능
-    document.getElementById('deleteScheduleBtn').addEventListener('click', async function() {
-        // 삭제 시 비밀번호 확인
+    const deleteBtn = document.getElementById('deleteScheduleBtn');
+    deleteBtn.addEventListener('click', async function() {
         if (!(pendingEvent && pendingEvent.pwChecked)) {
             pendingEvent.action = 'delete';
             pwInput.value = '';
@@ -289,13 +321,23 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         if (pendingEvent && pendingEvent.id) {
-            let events = await loadUserEvents();
-            events = events.filter(ev => ev.id !== pendingEvent.id);
-            await deleteUserEvent(pendingEvent.id);
-            calendar.refetchEvents();
-            scheduleModal.hide();
-            alert('일정을 삭제했습니다.');
-            pendingEvent = null;
+            // === 스피너 표시 ===
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 삭제 중...';
+            try {
+                let events = await loadUserEvents();
+                events = events.filter(ev => ev.id !== pendingEvent.id);
+                await deleteUserEvent(pendingEvent.id);
+                calendar.refetchEvents();
+                scheduleModal.hide();
+                showToast('일정을 삭제했습니다.');
+                pendingEvent = null;
+            } catch (err) {
+                showToast('오류가 발생했습니다.');
+            } finally {
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = '삭제';
+            }
         }
     });
 
