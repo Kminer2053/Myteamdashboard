@@ -490,78 +490,78 @@ app.get('/api/schedules', async (req, res) => {
 });
 
 // 이메일 발송 함수
-async function sendScheduleEmail(action, schedule) {
+async function sendScheduleEmail(action, schedule, prevSchedule = null) {
     try {
         // 이메일 수신자 목록 가져오기
         const setting = await Setting.findOne({ key: 'emails' });
         if (!setting || !setting.value) return;
-        
         const emails = JSON.parse(setting.value);
         if (emails.length === 0) return;
 
         // 이메일 제목과 내용 설정
         let subject = '';
         let content = '';
-        
+        const nowStr = new Date().toLocaleString();
         switch(action) {
             case 'create':
-                subject = '[일정 등록] 새로운 일정이 등록되었습니다';
+                subject = '[미래성장처] 일정이 등록되었습니다';
                 content = `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-                        <h2 style="color: #333; margin-bottom: 20px;">새로운 일정이 등록되었습니다</h2>
-                        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                            <p style="margin: 5px 0;"><strong>제목:</strong> ${schedule.title}</p>
-                            <p style="margin: 5px 0;"><strong>날짜:</strong> ${new Date(schedule.start).toLocaleString()}</p>
-                            <p style="margin: 5px 0;"><strong>내용:</strong> ${schedule.content || '내용 없음'}</p>
-                        </div>
-                        <p style="color: #666; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
-                    </div>
-                `;
+[업무일정 등록 알림]
+
+제목: ${schedule.title}
+일시: ${new Date(schedule.start).toLocaleString()}
+내용: ${schedule.content || '내용 없음'}
+
+등록일시: ${nowStr}
+`;
                 break;
             case 'update':
-                subject = '[일정 수정] 일정이 수정되었습니다';
+                subject = '[미래성장처] 일정이 변경되었습니다';
                 content = `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-                        <h2 style="color: #333; margin-bottom: 20px;">일정이 수정되었습니다</h2>
-                        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                            <p style="margin: 5px 0;"><strong>제목:</strong> ${schedule.title}</p>
-                            <p style="margin: 5px 0;"><strong>날짜:</strong> ${new Date(schedule.start).toLocaleString()}</p>
-                            <p style="margin: 5px 0;"><strong>내용:</strong> ${schedule.content || '내용 없음'}</p>
-                        </div>
-                        <p style="color: #666; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
-                    </div>
-                `;
+[업무일정 변경 알림]
+
+제목: ${schedule.title}
+변경 전 일시: ${prevSchedule ? new Date(prevSchedule.start).toLocaleString() : '-'}
+변경 후 일시: ${new Date(schedule.start).toLocaleString()}
+변경 전 내용: ${prevSchedule ? (prevSchedule.content || '내용 없음') : '-'}
+변경 후 내용: ${schedule.content || '내용 없음'}
+
+변경일시: ${nowStr}
+`;
                 break;
             case 'delete':
-                subject = '[일정 삭제] 일정이 삭제되었습니다';
+                subject = '[미래성장처] 일정이 취소되었습니다';
                 content = `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-                        <h2 style="color: #333; margin-bottom: 20px;">일정이 삭제되었습니다</h2>
-                        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                            <p style="margin: 5px 0;"><strong>제목:</strong> ${schedule.title}</p>
-                            <p style="margin: 5px 0;"><strong>날짜:</strong> ${new Date(schedule.start).toLocaleString()}</p>
-                        </div>
-                        <p style="color: #666; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
-                    </div>
-                `;
+[업무일정 취소 알림]
+
+제목: ${schedule.title}
+일시: ${new Date(schedule.start).toLocaleString()}
+내용: ${schedule.content || '내용 없음'}
+
+취소일시: ${nowStr}
+`;
                 break;
         }
-
         // 각 수신자에게 이메일 발송
         for (const recipient of emails) {
-            await transporter.sendMail({
-                from: process.env.EMAIL_USER,
-                to: recipient.email,
-                subject: subject,
-                html: content
-            });
+            try {
+                await transporter.sendMail({
+                    from: process.env.EMAIL_USER,
+                    to: recipient.email,
+                    subject: subject,
+                    text: content
+                });
+                console.log(`[이메일 발송 성공] to: ${recipient.email}, subject: ${subject}`);
+            } catch (err) {
+                console.error(`[이메일 발송 실패] to: ${recipient.email}, error: ${err && err.message}`);
+            }
         }
     } catch (error) {
         console.error('이메일 발송 실패:', error);
     }
 }
 
-// 일정 관련 API 수정
+// 일정 등록
 app.post('/api/schedules', async (req, res) => {
     try {
         const schedule = await Schedule.create(req.body);
@@ -572,16 +572,19 @@ app.post('/api/schedules', async (req, res) => {
     }
 });
 
+// 일정 수정
 app.put('/api/schedules/:id', async (req, res) => {
     try {
+        const prevSchedule = await Schedule.findById(req.params.id);
         const schedule = await Schedule.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        await sendScheduleEmail('update', schedule);
+        await sendScheduleEmail('update', schedule, prevSchedule);
         res.json(schedule);
     } catch (err) {
         res.status(500).json({ error: '일정 수정 실패' });
     }
 });
 
+// 일정 삭제
 app.delete('/api/schedules/:id', async (req, res) => {
     try {
         const schedule = await Schedule.findById(req.params.id);
