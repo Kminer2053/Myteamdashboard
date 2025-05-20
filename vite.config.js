@@ -10,6 +10,9 @@ export default defineConfig({
         secure: false,
         rewrite: (path) => path
       }
+    },
+    headers: {
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
     }
   },
   build: {
