@@ -601,7 +601,13 @@ app.post('/api/schedules', async (req, res) => {
 app.put('/api/schedules/:id', async (req, res) => {
     try {
         const prevSchedule = await Schedule.findById(req.params.id);
-        const schedule = await Schedule.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        let updateData = { ...req.body };
+        if (updateData.start) {
+            const kstDate = new Date(updateData.start);
+            const utcDate = new Date(kstDate.getTime() - 9 * 60 * 60 * 1000);
+            updateData.start = utcDate;
+        }
+        const schedule = await Schedule.findByIdAndUpdate(req.params.id, updateData, { new: true });
         await sendScheduleEmail('update', schedule, prevSchedule);
         res.json(schedule);
     } catch (err) {
@@ -881,7 +887,7 @@ app.delete('/api/emails/:email', async (req, res) => {
   }
 });
 
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 app.listen(PORT, async () => {
   console.log(`[서버] http://localhost:${PORT} 에서 실행 중`);
   console.log(`[서버] 시작 시간: ${new Date().toLocaleString()}`);
