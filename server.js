@@ -13,6 +13,7 @@ const Setting = require('./models/Setting');
 const RiskNews = require('./models/RiskNews');
 const PartnerNews = require('./models/PartnerNews');
 const TechNews = require('./models/TechNews');
+const nodemailer = require('nodemailer');
 
 const app = express();
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'], credentials: true }));
@@ -21,6 +22,15 @@ app.use(express.json());
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID || 'e037eF7sxB3VuJHBpay5';
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET || 'qkPfGHxNkN';
+
+// 이메일 발송을 위한 transporter 설정
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
 // === API 문서화 ===
 /**
@@ -479,37 +489,108 @@ app.get('/api/schedules', async (req, res) => {
   }
 });
 
-// 일정 추가
+// 이메일 발송 함수
+async function sendScheduleEmail(action, schedule) {
+    try {
+        // 이메일 수신자 목록 가져오기
+        const setting = await Setting.findOne({ key: 'emails' });
+        if (!setting || !setting.value) return;
+        
+        const emails = JSON.parse(setting.value);
+        if (emails.length === 0) return;
+
+        // 이메일 제목과 내용 설정
+        let subject = '';
+        let content = '';
+        
+        switch(action) {
+            case 'create':
+                subject = '[일정 등록] 새로운 일정이 등록되었습니다';
+                content = `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                        <h2 style="color: #333; margin-bottom: 20px;">새로운 일정이 등록되었습니다</h2>
+                        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                            <p style="margin: 5px 0;"><strong>제목:</strong> ${schedule.title}</p>
+                            <p style="margin: 5px 0;"><strong>날짜:</strong> ${new Date(schedule.start).toLocaleString()}</p>
+                            <p style="margin: 5px 0;"><strong>내용:</strong> ${schedule.content || '내용 없음'}</p>
+                        </div>
+                        <p style="color: #666; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
+                    </div>
+                `;
+                break;
+            case 'update':
+                subject = '[일정 수정] 일정이 수정되었습니다';
+                content = `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                        <h2 style="color: #333; margin-bottom: 20px;">일정이 수정되었습니다</h2>
+                        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                            <p style="margin: 5px 0;"><strong>제목:</strong> ${schedule.title}</p>
+                            <p style="margin: 5px 0;"><strong>날짜:</strong> ${new Date(schedule.start).toLocaleString()}</p>
+                            <p style="margin: 5px 0;"><strong>내용:</strong> ${schedule.content || '내용 없음'}</p>
+                        </div>
+                        <p style="color: #666; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
+                    </div>
+                `;
+                break;
+            case 'delete':
+                subject = '[일정 삭제] 일정이 삭제되었습니다';
+                content = `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                        <h2 style="color: #333; margin-bottom: 20px;">일정이 삭제되었습니다</h2>
+                        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                            <p style="margin: 5px 0;"><strong>제목:</strong> ${schedule.title}</p>
+                            <p style="margin: 5px 0;"><strong>날짜:</strong> ${new Date(schedule.start).toLocaleString()}</p>
+                        </div>
+                        <p style="color: #666; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
+                    </div>
+                `;
+                break;
+        }
+
+        // 각 수신자에게 이메일 발송
+        for (const recipient of emails) {
+            await transporter.sendMail({
+                from: process.env.EMAIL_USER,
+                to: recipient.email,
+                subject: subject,
+                html: content
+            });
+        }
+    } catch (error) {
+        console.error('이메일 발송 실패:', error);
+    }
+}
+
+// 일정 관련 API 수정
 app.post('/api/schedules', async (req, res) => {
-  try {
-    const schedule = new Schedule(req.body);
-    await schedule.save();
-    res.json(schedule);
-  } catch (err) {
-    res.status(400).json({ error: '일정 추가 실패', message: err.message });
-  }
+    try {
+        const schedule = await Schedule.create(req.body);
+        await sendScheduleEmail('create', schedule);
+        res.json(schedule);
+    } catch (err) {
+        res.status(500).json({ error: '일정 등록 실패' });
+    }
 });
 
-// 일정 수정
 app.put('/api/schedules/:id', async (req, res) => {
-  try {
-    const schedule = await Schedule.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!schedule) return res.status(404).json({ error: '일정 없음' });
-    res.json(schedule);
-  } catch (err) {
-    res.status(400).json({ error: '일정 수정 실패', message: err.message });
-  }
+    try {
+        const schedule = await Schedule.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        await sendScheduleEmail('update', schedule);
+        res.json(schedule);
+    } catch (err) {
+        res.status(500).json({ error: '일정 수정 실패' });
+    }
 });
 
-// 일정 삭제
 app.delete('/api/schedules/:id', async (req, res) => {
-  try {
-    const schedule = await Schedule.findByIdAndDelete(req.params.id);
-    if (!schedule) return res.status(404).json({ error: '일정 없음' });
-    res.json({ success: true });
-  } catch (err) {
-    res.status(400).json({ error: '일정 삭제 실패', message: err.message });
-  }
+    try {
+        const schedule = await Schedule.findById(req.params.id);
+        await Schedule.findByIdAndDelete(req.params.id);
+        await sendScheduleEmail('delete', schedule);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: '일정 삭제 실패' });
+    }
 });
 
 // === 리스크 이슈 키워드 CRUD API ===
