@@ -281,4 +281,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const res = await fetch(`${API_BASE_URL}/api/tech-topics/${id}`, { method: 'DELETE' });
         return await res.json();
     }
+
+    window.removeEmail = removeEmail;
 }); 
