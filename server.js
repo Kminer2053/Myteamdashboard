@@ -489,75 +489,91 @@ app.get('/api/schedules', async (req, res) => {
   }
 });
 
-// 이메일 발송 함수
+// 한국시간 기준 포맷 함수
+function formatKST(date) {
+    if (!date) return '-';
+    const d = new Date(date instanceof Date ? date.getTime() : date);
+    // UTC → KST 변환
+    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    const yyyy = kst.getUTCFullYear();
+    const mm = String(kst.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(kst.getUTCDate()).padStart(2, '0');
+    const hh = String(kst.getUTCHours()).padStart(2, '0');
+    const min = String(kst.getUTCMinutes()).padStart(2, '0');
+    return `${yyyy}년 ${mm}월 ${dd}일 ${hh}:${min}`;
+}
+
+// 이메일 발송 함수 (HTML 스타일)
 async function sendScheduleEmail(action, schedule, prevSchedule = null) {
     try {
-        // 이메일 수신자 목록 가져오기
         const setting = await Setting.findOne({ key: 'emails' });
         if (!setting || !setting.value) return;
         const emails = JSON.parse(setting.value);
         if (emails.length === 0) return;
 
-        // 이메일 제목과 내용 설정
         let subject = '';
-        let content = '';
-        const nowStr = new Date().toLocaleString();
-        switch(action) {
-            case 'create':
-                subject = '[미래성장처] 일정이 등록되었습니다';
-                content = `
-[업무일정 등록 알림]
-
-제목: ${schedule.title}
-일시: ${new Date(schedule.start).toLocaleString()}
-내용: ${schedule.content || '내용 없음'}
-
-등록일시: ${nowStr}
-`;
-                break;
-            case 'update':
-                subject = '[미래성장처] 일정이 변경되었습니다';
-                content = `
-[업무일정 변경 알림]
-
-제목: ${schedule.title}
-변경 전 일시: ${prevSchedule ? new Date(prevSchedule.start).toLocaleString() : '-'}
-변경 후 일시: ${new Date(schedule.start).toLocaleString()}
-변경 전 내용: ${prevSchedule ? (prevSchedule.content || '내용 없음') : '-'}
-변경 후 내용: ${schedule.content || '내용 없음'}
-
-변경일시: ${nowStr}
-`;
-                break;
-            case 'delete':
-                subject = '[미래성장처] 일정이 취소되었습니다';
-                content = `
-[업무일정 취소 알림]
-
-제목: ${schedule.title}
-일시: ${new Date(schedule.start).toLocaleString()}
-내용: ${schedule.content || '내용 없음'}
-
-취소일시: ${nowStr}
-`;
-                break;
+        let html = '';
+        const nowStr = formatKST(new Date());
+        if (action === 'create') {
+            subject = '[미래성장처] 일정이 등록되었습니다';
+            html = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                    <h2 style="color: #1976d2; margin-bottom: 20px;">[업무일정 등록 알림]</h2>
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                        <p style="margin: 5px 0;"><strong>제목:</strong> ${schedule.title}</p>
+                        <p style="margin: 5px 0;"><strong>일시:</strong> ${formatKST(schedule.start)}</p>
+                        <p style="margin: 5px 0;"><strong>내용:</strong> ${schedule.content || '내용 없음'}</p>
+                    </div>
+                    <p style="color: #666; font-size: 12px;">등록일시: ${nowStr}</p>
+                    <p style="color: #aaa; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
+                </div>
+            `;
+        } else if (action === 'update') {
+            subject = '[미래성장처] 일정이 변경되었습니다';
+            html = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                    <h2 style="color: #1976d2; margin-bottom: 20px;">[업무일정 변경 알림]</h2>
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                        <p style="margin: 5px 0;"><strong>제목:</strong> ${schedule.title}</p>
+                        <p style="margin: 5px 0;"><strong>변경 전 일시:</strong> ${prevSchedule ? formatKST(prevSchedule.start) : '-'}</p>
+                        <p style="margin: 5px 0;"><strong>변경 후 일시:</strong> ${formatKST(schedule.start)}</p>
+                        <p style="margin: 5px 0;"><strong>변경 전 내용:</strong> ${prevSchedule ? (prevSchedule.content || '내용 없음') : '-'}</p>
+                        <p style="margin: 5px 0;"><strong>변경 후 내용:</strong> ${schedule.content || '내용 없음'}</p>
+                    </div>
+                    <p style="color: #666; font-size: 12px;">변경일시: ${nowStr}</p>
+                    <p style="color: #aaa; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
+                </div>
+            `;
+        } else if (action === 'delete') {
+            subject = '[미래성장처] 일정이 취소되었습니다';
+            html = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                    <h2 style="color: #d32f2f; margin-bottom: 20px;">[업무일정 취소 알림]</h2>
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                        <p style="margin: 5px 0;"><strong>제목:</strong> ${schedule.title}</p>
+                        <p style="margin: 5px 0;"><strong>일시:</strong> ${formatKST(schedule.start)}</p>
+                        <p style="margin: 5px 0;"><strong>내용:</strong> ${schedule.content || '내용 없음'}</p>
+                    </div>
+                    <p style="color: #666; font-size: 12px;">취소일시: ${nowStr}</p>
+                    <p style="color: #aaa; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
+                </div>
+            `;
         }
-        // 각 수신자에게 이메일 발송
         for (const recipient of emails) {
             try {
                 await transporter.sendMail({
                     from: process.env.EMAIL_USER,
                     to: recipient.email,
                     subject: subject,
-                    text: content
+                    html: html
                 });
-                console.log(`[이메일 발송 성공] to: ${recipient.email}, subject: ${subject}`);
+                process.stdout.write(`[이메일 발송 성공] to: ${recipient.email}, subject: ${subject}\n`);
             } catch (err) {
-                console.error(`[이메일 발송 실패] to: ${recipient.email}, error: ${err && err.message}`);
+                process.stdout.write(`[이메일 발송 실패] to: ${recipient.email}, error: ${err && err.message}\n`);
             }
         }
     } catch (error) {
-        console.error('이메일 발송 실패:', error);
+        process.stdout.write(`[이메일 발송 실패] error: ${error && error.message}\n`);
     }
 }
 
