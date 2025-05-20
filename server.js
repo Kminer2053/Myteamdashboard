@@ -580,7 +580,16 @@ async function sendScheduleEmail(action, schedule, prevSchedule = null) {
 // 일정 등록
 app.post('/api/schedules', async (req, res) => {
     try {
-        const schedule = await Schedule.create(req.body);
+        // start 필드가 YYYY-MM-DDTHH:mm 형식의 한국시간 문자열로 들어온다고 가정
+        let scheduleData = { ...req.body };
+        if (scheduleData.start) {
+            // 프론트에서 받은 한국시간 문자열을 Date 객체로 변환
+            const kstDate = new Date(scheduleData.start);
+            // KST → UTC 변환 (KST는 UTC+9)
+            const utcDate = new Date(kstDate.getTime() - 9 * 60 * 60 * 1000);
+            scheduleData.start = utcDate;
+        }
+        const schedule = await Schedule.create(scheduleData);
         await sendScheduleEmail('create', schedule);
         res.json(schedule);
     } catch (err) {
