@@ -520,7 +520,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // 서버에서 최신 데이터 GET
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const news = await getRes.json();
-        localStorage.setItem(`riskNews_${today}`, JSON.stringify(news));
+        
+        // 선택된 키워드에 해당하는 뉴스만 필터링
+        const filteredNews = news.filter(item => keywords.includes(item.keyword));
+        
+        // 최근 일주일 데이터만 필터링
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const recentNews = filteredNews.filter(item => {
+            const pubDate = new Date(item.pubDate);
+            return pubDate >= oneWeekAgo;
+        });
+        
+        localStorage.setItem(`riskNews_${today}`, JSON.stringify(recentNews));
         localStorage.setItem('riskNews_lastUpdate', today);
     }
 
@@ -760,7 +772,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const news = await getRes.json();
-        localStorage.setItem(`partnerNews_${today}`, JSON.stringify(news));
+        
+        // 선택된 조건에 해당하는 뉴스만 필터링
+        const filteredNews = news.filter(item => keywords.includes(item.keyword));
+        
+        // 최근 일주일 데이터만 필터링
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const recentNews = filteredNews.filter(item => {
+            const pubDate = new Date(item.pubDate);
+            return pubDate >= oneWeekAgo;
+        });
+        
+        localStorage.setItem(`partnerNews_${today}`, JSON.stringify(recentNews));
         localStorage.setItem('partnerNews_lastUpdate', today);
     }
     function checkAndUpdatePartnerNews() {
@@ -802,7 +826,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
         const news = await getRes.json();
-        localStorage.setItem(`techNews_${today}`, JSON.stringify(news));
+        
+        // 선택된 키워드에 해당하는 뉴스만 필터링
+        const filteredNews = news.filter(item => keywords.includes(item.keyword));
+        
+        // 최근 일주일 데이터만 필터링
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const recentNews = filteredNews.filter(item => {
+            const pubDate = new Date(item.pubDate);
+            return pubDate >= oneWeekAgo;
+        });
+        
+        localStorage.setItem(`techNews_${today}`, JSON.stringify(recentNews));
         localStorage.setItem('techNews_lastUpdate', today);
     }
     function checkAndUpdateTechNews() {
