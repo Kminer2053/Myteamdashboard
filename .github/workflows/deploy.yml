@@ -1,0 +1,27 @@
+name: Oracle Cloud 자동 배포
+
+on:
+  push:
+    branches: [ main ]   # main 브랜치에 push될 때마다 실행
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 저장소 코드 체크아웃
+        uses: actions/checkout@v3
+
+      - name: SSH 키 준비
+        run: |
+          echo "${{ secrets.ORACLE_KEY }}" > private_key
+          chmod 600 private_key
+
+      - name: 서버에 코드 배포 및 서비스 재시작
+        env:
+          HOST: ${{ secrets.ORACLE_HOST }}
+          USER: ${{ secrets.ORACLE_USER }}
+        run: |
+          rsync -avz -e "ssh -i private_key -o StrictHostKeyChecking=no" --exclude '.git*' ./ $USER@$HOST:~/myteamdashboard_backend/
+          ssh -i private_key -o StrictHostKeyChecking=no $USER@$HOST "cd ~/myteamdashboard_backend && npm install && pm2 restart server || pm2 start server.js --name server"
+
