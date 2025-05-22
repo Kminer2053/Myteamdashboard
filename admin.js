@@ -1,4 +1,4 @@
-const API_BASE_URL = window.VITE_API_URL || 'http://158.180.90.210';
+const API_BASE_URL = window.VITE_API_URL || 'https://myteamdashboard.onrender.com';
 
 document.addEventListener('DOMContentLoaded', function() {
     let isAuthenticated = false;
