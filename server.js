@@ -887,6 +887,10 @@ app.delete('/api/emails/:email', async (req, res) => {
   }
 });
 
+app.get('/', (req, res) => {
+  res.send('OK');
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, async () => {
   console.log(`[서버] http://localhost:${PORT} 에서 실행 중`);
