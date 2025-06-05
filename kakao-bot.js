@@ -51,11 +51,11 @@ function routeMessage(userMessage) {
     return 'default';
 }
 
-// 공인된 KST 기준 오늘 날짜를 가져오는 비동기 함수
+// 공인된 KST 기준 오늘 날짜를 가져오는 비동기 함수 (axios 사용)
 async function getKoreaToday() {
     try {
-        const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Seoul');
-        const data = await res.json();
+        const res = await axios.get('https://worldtimeapi.org/api/timezone/Asia/Seoul');
+        const data = res.data;
         // data.datetime 예시: "2025-06-06T03:49:00.123456+09:00"
         return data.datetime.slice(0, 10); // "YYYY-MM-DD"
     } catch (e) {
