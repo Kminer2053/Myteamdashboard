@@ -15,6 +15,7 @@ const PartnerNews = require('./models/PartnerNews');
 const TechNews = require('./models/TechNews');
 const nodemailer = require('nodemailer');
 const kakaoBotRouter = require('./kakao-bot');
+const path = require('path');
 
 const app = express();
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'], credentials: true }));
@@ -898,6 +899,9 @@ console.log('카카오 라우터 등록됨');
 app.get('/', (req, res) => {
   res.send('OK');
 });
+
+// calendar_images 폴더 static 서빙
+app.use('/calendar_images', express.static(path.join(__dirname, 'calendar_images')));
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, async () => {

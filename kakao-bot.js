@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const { getOrCreateCalendarImage } = require('./calendarImage');
 
 // 카카오톡 봇 설정
 const KAKAO_BOT_TOKEN = process.env.KAKAO_BOT_TOKEN;
@@ -227,10 +228,16 @@ router.post('/message', async (req, res) => {
                 const currentMonth = scheduleDate.getMonth();
                 const currentYear = scheduleDate.getFullYear();
                 
+                // 달력 이미지 생성 및 URL 생성
+                const imagePath = await getOrCreateCalendarImage(currentYear, currentMonth);
+                const imageFileName = imagePath.split('/').pop();
+                const imageUrl = `${process.env.API_BASE_URL || ''}/calendar_images/${imageFileName}`;
+                
                 const futureSchedules = schedules.data.filter(s => new Date(s.start) >= scheduleDate);
                 
-                responseMessage = generateCalendar(currentYear, currentMonth, schedules.data);
-                responseMessage += "\n\n📅 상세 일정 목록 (오늘 이후)\n\n";
+                responseMessage = `📅 ${currentYear}년 ${currentMonth + 1}월\n\n`;
+                responseMessage += `달력 이미지를 확인하세요!\n${imageUrl}\n\n`;
+                responseMessage += "상세 일정 목록 (오늘 이후)\n\n";
                 
                 if (futureSchedules.length === 0) {
                     responseMessage += "등록된 일정이 없습니다.";
@@ -298,6 +305,10 @@ router.post('/message', async (req, res) => {
         }
         
         // 메시지 반환만 수행
+        // 모든 응답 메시지 마지막에 대시보드 링크 추가
+        if (typeof responseMessage === 'string') {
+            responseMessage += "\n\n대시보드 바로가기: https://myteamdashboard.vercel.app/index.html";
+        }
         res.json({ message: responseMessage });
     } catch (error) {
         console.error('메시지 처리 실패:', error);
