@@ -9,6 +9,22 @@ const KAKAO_BOT_SECRET = process.env.KAKAO_BOT_SECRET;
 
 const HOLIDAY_API_KEY = process.env.HOLIDAY_API_KEY || 'DTrcjG%2BXCsB9m%2F6xPK4LmJ%2FG61dwF%2B3h%2FM7Rzv4IbI9ilfsqDRFErvOryzE45LblhwWpU4GSwuoA9W8CxVav5A%3D%3D';
 
+// pubDate에서 YYYY-MM-DD 추출 함수 (app.js와 동일)
+function extractDate(pubDate) {
+    if (!pubDate) return '';
+    // 예: 2025. 5. 19. 오전 9:02:00
+    const match = pubDate.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\./);
+    if (match) {
+        const [, y, m, d] = match;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    // ISO 포맷(UTC)일 경우 9시간 더해서 KST로 변환
+    const d = new Date(pubDate);
+    if (isNaN(d)) return '';
+    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    return kst.toISOString().slice(0, 10);
+}
+
 // 메시지 전송 함수
 // async function sendMessage(roomId, message) {
 //     try {
