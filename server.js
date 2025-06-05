@@ -977,3 +977,13 @@ function extractDate(pubDate) {
     const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
     return kst.toISOString().slice(0, 10);
 }
+
+// 공인된 KST 기준 오늘 날짜 반환 API
+app.get('/api/korea-today', async (req, res) => {
+    try {
+        const today = await getKoreaToday();
+        res.json({ today });
+    } catch (e) {
+        res.status(500).json({ error: '오늘 날짜 조회 실패', message: e.message });
+    }
+});

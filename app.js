@@ -14,13 +14,12 @@ function extractDate(pubDate) {
     return kst.toISOString().slice(0, 10);
 }
 
-// 공인된 KST 기준 오늘 날짜를 가져오는 비동기 함수
+// 서버에서 공인된 KST 기준 오늘 날짜를 받아오는 비동기 함수
 async function getKoreaToday() {
     try {
-        const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Seoul');
+        const res = await fetch('/api/korea-today');
         const data = await res.json();
-        // data.datetime 예시: "2025-06-06T03:49:00.123456+09:00"
-        return data.datetime.slice(0, 10); // "YYYY-MM-DD"
+        return data.today;
     } catch (e) {
         // 네트워크 오류 등 발생 시 fallback: 기존 방식
         const now = new Date();
