@@ -254,10 +254,9 @@ router.post('/message', async (req, res) => {
                     axios.get(`${process.env.API_BASE_URL}/api/tech-news`)
                 ]);
                 
-                const todayStr = getKoreaToday();
-                const todayAllRiskNews = allRiskNews.data.filter(item => item.pubDate.startsWith(todayStr));
-                const todayAllPartnerNews = allPartnerNews.data.filter(item => item.pubDate.startsWith(todayStr));
-                const todayAllTechNews = allTechNews.data.filter(item => item.pubDate.startsWith(todayStr));
+                const todayAllRiskNews = filterTodayNews(allRiskNews.data);
+                const todayAllPartnerNews = filterTodayNews(allPartnerNews.data);
+                const todayAllTechNews = filterTodayNews(allTechNews.data);
                 
                 responseMessage = "📰 오늘의 뉴스 모니터링\n\n";
                 responseMessage += "📊 뉴스 현황\n";
