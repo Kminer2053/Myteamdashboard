@@ -142,7 +142,7 @@ function makeKakaoScheduleLink(title, dateStr) {
     return url;
 }
 
-// 텍스트 달력 생성 함수 (서식 적용)
+// 텍스트 달력 생성 함수 (고정폭 폰트 적용)
 async function generateTextCalendar(year, month, schedules, monthHolidays) {
     const todayStr = await getKoreaToday();
     const firstDay = new Date(year, month, 1);
@@ -173,21 +173,21 @@ async function generateTextCalendar(year, month, schedules, monthHolidays) {
         let week = '';
         for (let j = 0; j < 7; j++) {
             if (i === 0 && j < startingDay) {
-                week += '     ';
+                week += '`     `';
             } else if (day > daysInMonth) {
-                week += '     ';
+                week += '`     `';
             } else {
                 const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
                 let numStr = String(day).padStart(2, ' ');
                 // 우선순위: 오늘 > 공휴일 > 업무일정
                 if (dateStr === todayStr) {
-                    numStr = `*${numStr}*`;
+                    numStr = `[${numStr}]`;
                 } else if (holidayByDay[day]) {
-                    numStr = `~~${numStr}~~`;
+                    numStr = `🗓️${numStr}`;
                 } else if (scheduleByDay[day]) {
-                    numStr = `_${numStr}_`;
+                    numStr = `★${numStr}`;
                 }
-                week += padCell5(numStr);
+                week += '`' + padCell5(numStr) + '`';
                 day++;
             }
             if (j < 6) week += ' ';
@@ -195,7 +195,7 @@ async function generateTextCalendar(year, month, schedules, monthHolidays) {
         cal += week + '\n';
         if (day > daysInMonth) break;
     }
-    cal += '\n오늘: *굵게*  공휴일: ~~취소선~~  업무일정: _밑줄_\n';
+    cal += '\n오늘: [숫자]  공휴일: 🗓️  일정: ★\n';
     return cal;
 }
 
