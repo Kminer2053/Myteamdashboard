@@ -7,21 +7,21 @@ const KAKAO_BOT_TOKEN = process.env.KAKAO_BOT_TOKEN;
 const KAKAO_BOT_SECRET = process.env.KAKAO_BOT_SECRET;
 
 // 메시지 전송 함수
-async function sendMessage(roomId, message) {
-    try {
-        await axios.post('https://openapi.kakaotalk.com/v1/message/send', {
-            room_id: roomId,
-            message: message
-        }, {
-            headers: {
-                'Authorization': `Bearer ${KAKAO_BOT_TOKEN}`,
-                'Content-Type': 'application/json'
-            }
-        });
-    } catch (error) {
-        console.error('메시지 전송 실패:', error);
-    }
-}
+// async function sendMessage(roomId, message) {
+//     try {
+//         await axios.post('https://openapi.kakaotalk.com/v1/message/send', {
+//             room_id: roomId,
+//             message: message
+//         }, {
+//             headers: {
+//                 'Authorization': `Bearer ${KAKAO_BOT_TOKEN}`,
+//                 'Content-Type': 'application/json'
+//             }
+//         });
+//     } catch (error) {
+//         console.error('메시지 전송 실패:', error);
+//     }
+// }
 
 // 메시지 라우팅
 function routeMessage(userMessage) {
@@ -122,9 +122,8 @@ router.post('/message', async (req, res) => {
     try {
         // 요청 로그 추가
         console.log('[카카오봇] /kakao/message 요청:', req.body);
-        const { room_id, message } = req.body;
+        const { message } = req.body;
         const route = routeMessage(message);
-        
         let responseMessage = '';
         
         switch (route) {
@@ -283,8 +282,8 @@ router.post('/message', async (req, res) => {
                 responseMessage = "안녕하세요! 대시보드 봇입니다. 👋\n\n사용 가능한 명령어:\n- 리스크\n- 제휴\n- 기술\n- 일정\n- 뉴스\n- 도움말";
         }
         
-        await sendMessage(room_id, responseMessage);
-        res.json({ success: true });
+        // 메시지 반환만 수행
+        res.json({ message: responseMessage });
     } catch (error) {
         console.error('메시지 처리 실패:', error);
         res.status(500).json({ error: '메시지 처리 실패' });
