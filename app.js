@@ -14,15 +14,22 @@ function extractDate(pubDate) {
     return kst.toISOString().slice(0, 10);
 }
 
-// 한국 시간 기준 오늘 날짜 구하기
-function getKoreaToday() {
-    const now = new Date();
-    // KST 기준으로 년, 월, 일을 직접 추출
-    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-    const year = kst.getUTCFullYear();
-    const month = String(kst.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(kst.getUTCDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+// 공인된 KST 기준 오늘 날짜를 가져오는 비동기 함수
+async function getKoreaToday() {
+    try {
+        const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Seoul');
+        const data = await res.json();
+        // data.datetime 예시: "2025-06-06T03:49:00.123456+09:00"
+        return data.datetime.slice(0, 10); // "YYYY-MM-DD"
+    } catch (e) {
+        // 네트워크 오류 등 발생 시 fallback: 기존 방식
+        const now = new Date();
+        const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+        const year = kst.getUTCFullYear();
+        const month = String(kst.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(kst.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
 }
 
 // 캘린더 초기화
@@ -475,7 +482,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const keywords = selectedKeywords || await loadKeywords();
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const allNews = await getRes.json();
-        const today = getKoreaToday();
+        const today = await getKoreaToday();
         let filtered = [];
         if (keywords.length > 0) {
             filtered = allNews.filter(news => {
@@ -537,7 +544,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchAndSaveAllNews(keywordsParam) {
         const keywords = keywordsParam || await loadKeywords();
         if (!Array.isArray(keywords) || keywords.length === 0) return;
-        const today = getKoreaToday();
+        const today = await getKoreaToday();
         let allNews = [];
         for (const kw of keywords) {
             try {
@@ -634,7 +641,7 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 로딩 중...</div></div>';
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
         const allData = await getRes.json();
-        const today = getKoreaToday();
+        const today = await getKoreaToday();
         let filtered = [];
         if (selected && selected.length > 0) {
             const selectedNorm = selected.map(s => s.toLowerCase().trim());
@@ -733,7 +740,7 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 로딩 중...</div></div>';
         const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
         const allData = await getRes.json();
-        const today = getKoreaToday();
+        const today = await getKoreaToday();
         let filtered = [];
         if (selected && selected.length > 0) {
             const selectedNorm = selected.map(s => s.toLowerCase().trim());
@@ -795,7 +802,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchAndSaveAllPartners(keywordsParam) {
         const keywords = keywordsParam || await loadPartnerConditions();
         if (!Array.isArray(keywords) || keywords.length === 0) return;
-        const today = getKoreaToday();
+        const today = await getKoreaToday();
         let allNews = [];
         for (const kw of keywords) {
             try {
@@ -832,24 +839,25 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem(`partnerNews_${today}`, JSON.stringify(recentNews));
         localStorage.setItem('partnerNews_lastUpdate', today);
     }
-    function checkAndUpdatePartnerNews() {
-        const today = getKoreaToday();
+    async function checkAndUpdatePartnerNews() {
+        const today = await getKoreaToday();
         const lastUpdate = localStorage.getItem('partnerNews_lastUpdate');
         const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
         const now = new Date();
         const [h, m] = updateTime.split(':').map(Number);
         const updateDate = new Date(today + 'T' + updateTime);
         if (lastUpdate !== today && now >= updateDate) {
-            fetchAndSaveAllPartners().then(() => renderPartnerResults(loadPartnerConditions()));
+            await fetchAndSaveAllPartners();
+            await renderPartnerResults(loadPartnerConditions());
         } else {
-            renderPartnerResults(loadPartnerConditions());
+            await renderPartnerResults(loadPartnerConditions());
         }
     }
     // 신기술 동향 정보 수집 및 저장
     async function fetchAndSaveAllTechs(keywordsParam) {
         const keywords = keywordsParam || await loadTechTopics();
         if (!Array.isArray(keywords) || keywords.length === 0) return;
-        const today = getKoreaToday();
+        const today = await getKoreaToday();
         let allNews = [];
         for (const kw of keywords) {
             try {
@@ -886,17 +894,18 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem(`techNews_${today}`, JSON.stringify(recentNews));
         localStorage.setItem('techNews_lastUpdate', today);
     }
-    function checkAndUpdateTechNews() {
-        const today = getKoreaToday();
+    async function checkAndUpdateTechNews() {
+        const today = await getKoreaToday();
         const lastUpdate = localStorage.getItem('techNews_lastUpdate');
         const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
         const now = new Date();
         const [h, m] = updateTime.split(':').map(Number);
         const updateDate = new Date(today + 'T' + updateTime);
         if (lastUpdate !== today && now >= updateDate) {
-            fetchAndSaveAllTechs().then(() => renderTechTrendResults(loadTechTopics()));
+            await fetchAndSaveAllTechs();
+            await renderTechTrendResults(loadTechTopics());
         } else {
-            renderTechTrendResults(loadTechTopics());
+            await renderTechTrendResults(loadTechTopics());
         }
     }
 

@@ -71,7 +71,7 @@ let newsCronJob = null;
 
 // === 자동 뉴스 수집: 리스크이슈 ===
 async function collectRiskNews() {
-  const today = getKoreaToday();
+  const today = await getKoreaToday();
   try {
     const keywords = (await RiskKeyword.find()).map(k => k.value);
     if (keywords.length === 0) {
@@ -149,7 +149,7 @@ async function collectRiskNews() {
 
 // === 자동 뉴스 수집: 제휴처탐색 ===
 async function collectPartnerNews() {
-  const today = getKoreaToday();
+  const today = await getKoreaToday();
   try {
     const conds = (await PartnerCondition.find()).map(c => c.value);
     if (conds.length === 0) {
@@ -227,7 +227,7 @@ async function collectPartnerNews() {
 
 // === 자동 뉴스 수집: 신기술동향 ===
 async function collectTechNews() {
-  const today = getKoreaToday();
+  const today = await getKoreaToday();
   try {
     const topics = (await TechTopic.find()).map(t => t.value);
     if (topics.length === 0) {
@@ -944,13 +944,36 @@ app.listen(PORT, async () => {
   }
 });
 
-// 한국시간 기준 오늘 날짜 구하기
-function getKoreaToday() {
-    const now = new Date();
-    // KST 기준으로 년, 월, 일을 직접 추출
-    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-    const year = kst.getUTCFullYear();
-    const month = String(kst.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(kst.getUTCDate());
-    return `${year}-${month}-${day}`;
+// 공인된 KST 기준 오늘 날짜를 가져오는 비동기 함수
+async function getKoreaToday() {
+    try {
+        const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Seoul');
+        const data = await res.json();
+        // data.datetime 예시: "2025-06-06T03:49:00.123456+09:00"
+        return data.datetime.slice(0, 10); // "YYYY-MM-DD"
+    } catch (e) {
+        // 네트워크 오류 등 발생 시 fallback: 기존 방식
+        const now = new Date();
+        const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+        const year = kst.getUTCFullYear();
+        const month = String(kst.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(kst.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+}
+
+// pubDate에서 YYYY-MM-DD 추출 함수 (kakao-bot.js와 동일하게)
+function extractDate(pubDate) {
+    if (!pubDate) return '';
+    // 예: 2025. 5. 19. 오전 9:02:00
+    const match = pubDate.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\./);
+    if (match) {
+        const [, y, m, d] = match;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    // ISO 포맷(UTC)일 경우 9시간 더해서 KST로 변환
+    const d = new Date(pubDate);
+    if (isNaN(d)) return '';
+    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    return kst.toISOString().slice(0, 10);
 }
