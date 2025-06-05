@@ -106,6 +106,15 @@ function getMonthHolidays(holidays, year, month) {
     });
 }
 
+function padCell(cell) {
+    // 이모지, 숫자, 공백, 대괄호 등 포함 4글자 고정 폭으로 맞춤
+    // 한글, 이모지, 숫자 모두 2글자 폭으로 간주(모노스페이스 기준)
+    // [★ 5], 🗓️ 6 ,  7  등 다양한 조합을 4글자로 맞춤
+    if (cell.length === 4) return cell;
+    if (cell.length > 4) return cell.slice(0, 4);
+    return cell.padEnd(4, ' ');
+}
+
 // 텍스트 달력 생성 함수 (고정간격, 공휴일/업무일정/오늘 표시)
 function generateTextCalendar(year, month, schedules, monthHolidays) {
     const firstDay = new Date(year, month, 1);
@@ -131,15 +140,15 @@ function generateTextCalendar(year, month, schedules, monthHolidays) {
     });
 
     let cal = `📅 ${year}년 ${month + 1}월\n\n`;
-    cal += '일 월 화 수 목 금 토\n';
+    cal += '일   월   화   수   목   금   토\n';
     let day = 1;
     for (let i = 0; i < 6; i++) {
         let week = '';
         for (let j = 0; j < 7; j++) {
             if (i === 0 && j < startingDay) {
-                week += '   ';
+                week += '    ';
             } else if (day > daysInMonth) {
-                week += '   ';
+                week += '    ';
             } else {
                 let mark = '';
                 if (holidayByDay[day]) mark = '🗓️';
@@ -148,7 +157,7 @@ function generateTextCalendar(year, month, schedules, monthHolidays) {
                 let cell = mark ? mark + String(day).padStart(2, ' ') : String(day).padStart(2, ' ');
                 if (dateStr === todayStr) cell = `[${cell}]`;
                 else cell = ' ' + cell + ' ';
-                week += cell;
+                week += padCell(cell);
                 day++;
             }
             if (j < 6) week += ' ';
@@ -170,27 +179,38 @@ function generateDetailList(year, month, schedules, monthHolidays) {
     let holiStr = '🗓️ 공휴일\n';
     let holiIdx = 1;
     holiList.forEach(h => {
-        holiStr += `${holiIdx}. ${h.date.slice(5)} : ${h.title}\n`;
+        // 날짜를 M월 D일 형식으로 변환
+        const [y, m, d] = h.date.split('-');
+        holiStr += `${holiIdx}. ${parseInt(m)}월 ${parseInt(d)}일 : ${h.title}\n`;
         holiIdx++;
     });
     if (holiIdx === 1) holiStr += '해당월 공휴일 없음\n';
 
-    // 업무일정: 오늘 시점 이후(현재 시각 이후)만
+    // 업무일정: 지난 일정 + 미래 일정 모두 표기, 구분선은 현재 시점 이후 첫 일정 앞에만
     let workList = schedules
         .filter(sch => {
             const d = new Date(sch.start);
-            return d.getFullYear() === year && d.getMonth() === month && d >= kstNow;
+            return d.getFullYear() === year && d.getMonth() === month;
         })
         .sort((a, b) => new Date(a.start) - new Date(b.start));
 
     let workStr = '★ 업무일정\n';
+    let insertedDivider = false;
     if (workList.length > 0) {
-        workStr += '-------- 현  재 --------\n';
         workList.forEach((sch, idx) => {
+            const d = new Date(sch.start);
+            if (!insertedDivider && d >= kstNow) {
+                workStr += '-------- 현  재 --------\n';
+                insertedDivider = true;
+            }
             workStr += `${idx+1}. ${sch.title}\n⏰ ${formatKST(sch.start)}\n`;
         });
+        if (!insertedDivider) {
+            // 모든 일정이 과거라면 마지막에 구분선 추가
+            workStr += '-------- 현  재 --------\n';
+        }
     } else {
-        workStr += '해당월 남은 일정 없음\n';
+        workStr += '해당월 일정 없음\n';
     }
 
     return holiStr + '\n' + workStr;
