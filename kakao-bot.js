@@ -205,6 +205,20 @@ function formatKST(date) {
     return `${yyyy}년 ${mm}월 ${dd}일 ${hh}:${min}`;
 }
 
+// HTML 태그 제거 및 엔티티 디코딩 함수
+function cleanHtml(str) {
+    if (!str) return '';
+    // 태그 제거
+    let text = str.replace(/<[^>]+>/g, '');
+    // 엔티티 디코딩 (대표적인 것만)
+    text = text.replace(/&quot;/g, '"')
+               .replace(/&apos;/g, "'")
+               .replace(/&amp;/g, '&')
+               .replace(/&lt;/g, '<')
+               .replace(/&gt;/g, '>');
+    return text;
+}
+
 // 메시지 처리 엔드포인트
 router.post('/message', async (req, res) => {
     try {
@@ -232,7 +246,9 @@ router.post('/message', async (req, res) => {
                 
                 if (todayRiskNews.length > 0) {
                     todayRiskNews.forEach((item, index) => {
-                        responseMessage += `[${index + 1}] ${item.title}\n`;
+                        const cleanTitle = cleanHtml(item.title);
+                        responseMessage += `[${index + 1}] ${cleanTitle}\n`;
+                        if (item.link) responseMessage += `🔗 ${item.link}\n`;
                         responseMessage += `📅 ${formatKST(item.pubDate)}\n`;
                         responseMessage += `🔍 키워드: ${item.keyword}\n\n`;
                     });
@@ -258,7 +274,9 @@ router.post('/message', async (req, res) => {
                 
                 if (todayPartnerNews.length > 0) {
                     todayPartnerNews.forEach((item, index) => {
-                        responseMessage += `[${index + 1}] ${item.title}\n`;
+                        const cleanTitle = cleanHtml(item.title);
+                        responseMessage += `[${index + 1}] ${cleanTitle}\n`;
+                        if (item.link) responseMessage += `🔗 ${item.link}\n`;
                         responseMessage += `📅 ${formatKST(item.pubDate)}\n`;
                         responseMessage += `🔍 조건: ${item.keyword}\n\n`;
                     });
@@ -284,7 +302,9 @@ router.post('/message', async (req, res) => {
                 
                 if (todayTechNews.length > 0) {
                     todayTechNews.forEach((item, index) => {
-                        responseMessage += `[${index + 1}] ${item.title}\n`;
+                        const cleanTitle = cleanHtml(item.title);
+                        responseMessage += `[${index + 1}] ${cleanTitle}\n`;
+                        if (item.link) responseMessage += `🔗 ${item.link}\n`;
                         responseMessage += `📅 ${formatKST(item.pubDate)}\n`;
                         responseMessage += `🔍 주제: ${item.keyword}\n\n`;
                     });
@@ -328,7 +348,9 @@ router.post('/message', async (req, res) => {
                 if (todayAllRiskNews.length > 0) {
                     responseMessage += "📰 리스크 이슈\n";
                     todayAllRiskNews.slice(0, 3).forEach((item, index) => {
-                        responseMessage += `[${index + 1}] ${item.title}\n`;
+                        const cleanTitle = cleanHtml(item.title);
+                        responseMessage += `[${index + 1}] ${cleanTitle}\n`;
+                        if (item.link) responseMessage += `🔗 ${item.link}\n`;
                         responseMessage += `📅 ${formatKST(item.pubDate)}\n\n`;
                     });
                 }
@@ -336,7 +358,9 @@ router.post('/message', async (req, res) => {
                 if (todayAllPartnerNews.length > 0) {
                     responseMessage += "\n🤝 제휴처 탐색\n";
                     todayAllPartnerNews.slice(0, 3).forEach((item, index) => {
-                        responseMessage += `[${index + 1}] ${item.title}\n`;
+                        const cleanTitle = cleanHtml(item.title);
+                        responseMessage += `[${index + 1}] ${cleanTitle}\n`;
+                        if (item.link) responseMessage += `🔗 ${item.link}\n`;
                         responseMessage += `📅 ${formatKST(item.pubDate)}\n\n`;
                     });
                 }
@@ -344,7 +368,9 @@ router.post('/message', async (req, res) => {
                 if (todayAllTechNews.length > 0) {
                     responseMessage += "\n🔬 신기술 동향\n";
                     todayAllTechNews.slice(0, 3).forEach((item, index) => {
-                        responseMessage += `[${index + 1}] ${item.title}\n`;
+                        const cleanTitle = cleanHtml(item.title);
+                        responseMessage += `[${index + 1}] ${cleanTitle}\n`;
+                        if (item.link) responseMessage += `🔗 ${item.link}\n`;
                         responseMessage += `📅 ${formatKST(item.pubDate)}\n\n`;
                     });
                 }
@@ -370,5 +396,4 @@ router.post('/message', async (req, res) => {
     }
 });
 
-module.exports = router; 
 module.exports = router; 
