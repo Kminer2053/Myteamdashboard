@@ -54,8 +54,12 @@ function routeMessage(userMessage) {
 // 한국시간 기준 오늘 날짜 구하기
 function getKoreaToday() {
     const now = new Date();
-    const koreaTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-    return koreaTime.toISOString().split('T')[0];
+    // KST 기준으로 년, 월, 일을 직접 추출
+    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const year = kst.getUTCFullYear();
+    const month = String(kst.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(kst.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 // 오늘 날짜의 뉴스만 필터링
@@ -102,29 +106,15 @@ function getMonthHolidays(holidays, year, month) {
     });
 }
 
-function padCell(str) {
-    // 이모지+숫자 조합을 4칸으로 고정 (이모지 2칸, 숫자 2칸)
-    if (!str) return '    ';
-    // 이모지+숫자(1자리)
-    if (/^[^\d]+\d$/.test(str)) return str + '  ';
-    // 이모지+숫자(2자리)
-    if (/^[^\d]+\d{2}$/.test(str)) return str + ' ';
-    // 숫자(1자리)
-    if (/^\d$/.test(str)) return '  ' + str + ' ';
-    // 숫자(2자리)
-    if (/^\d{2}$/.test(str)) return ' ' + str + ' ';
-    // 이모지만
-    if (/^[^\d]+$/.test(str)) return str + '  ';
-    // 기타
-    return (str + '    ').slice(0, 4);
-}
-
+// 텍스트 달력 생성 함수 (고정간격, 공휴일/업무일정/오늘 표시)
 function generateTextCalendar(year, month, schedules, monthHolidays) {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startingDay = firstDay.getDay();
     const todayStr = new Date().toISOString().slice(0, 10);
+
+    // 날짜별 표시 정보
     const scheduleByDay = {};
     schedules.forEach(sch => {
         const d = new Date(sch.start);
@@ -139,24 +129,25 @@ function generateTextCalendar(year, month, schedules, monthHolidays) {
         const d = Number(h.date.split('-')[2]);
         holidayByDay[d] = h.title;
     });
+
     let cal = `📅 ${year}년 ${month + 1}월\n\n`;
-    cal += '일  월  화  수  목  금  토\n';
+    cal += '일 월 화 수 목 금 토\n';
     let day = 1;
     for (let i = 0; i < 6; i++) {
         let week = '';
         for (let j = 0; j < 7; j++) {
             if (i === 0 && j < startingDay) {
-                week += '    ';
+                week += '   ';
             } else if (day > daysInMonth) {
-                week += '    ';
+                week += '   ';
             } else {
                 let mark = '';
                 if (holidayByDay[day]) mark = '🗓️';
                 else if (scheduleByDay[day]) mark = '★';
                 const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                let cell = mark ? mark + String(day) : String(day);
-                cell = padCell(cell);
-                if (dateStr === todayStr) cell = '[' + cell.trim() + ']';
+                let cell = mark ? mark + String(day).padStart(2, ' ') : String(day).padStart(2, ' ');
+                if (dateStr === todayStr) cell = `[${cell}]`;
+                else cell = ' ' + cell + ' ';
                 week += cell;
                 day++;
             }
@@ -169,15 +160,11 @@ function generateTextCalendar(year, month, schedules, monthHolidays) {
     return cal;
 }
 
-function formatMMDD(dateStr) {
-    const [y, m, d] = dateStr.split('-');
-    return `${m}월 ${d}일`;
-}
-
+// 세부 목록 생성 함수
 function generateDetailList(year, month, schedules, monthHolidays) {
     const todayStr = new Date().toISOString().slice(0, 10);
     // 공휴일
-    let holiList = monthHolidays.map(h => ({...h, isToday: h.date === todayStr, isPast: h.date < todayStr}));
+    let holiList = monthHolidays.map(h => ({...h, isToday: h.date === todayStr}));
     // 업무일정
     let workList = schedules
         .filter(sch => {
@@ -186,39 +173,26 @@ function generateDetailList(year, month, schedules, monthHolidays) {
         })
         .map(sch => ({
             ...sch,
-            isToday: sch.start.slice(0,10) === todayStr,
-            isPast: sch.start.slice(0,10) < todayStr
+            isToday: sch.start.slice(0,10) === todayStr
         }));
-    // 공휴일 목록
     let holiStr = '🗓️ 공휴일\n';
     let holiIdx = 1;
-    let holiPast = holiList.filter(h => h.isPast);
-    let holiCurrent = holiList.filter(h => !h.isPast);
-    holiPast.forEach(h => {
-        holiStr += `${holiIdx}. ${formatMMDD(h.date)} : ${h.title}\n`;
-        holiIdx++;
-    });
-    if (holiCurrent.length > 0) holiStr += '-------- 현 재 --------\n';
-    holiCurrent.forEach(h => {
-        holiStr += `${holiIdx}. ${formatMMDD(h.date)} : ${h.title}\n`;
+    holiList.forEach(h => {
+        if (h.isToday && holiIdx === 1) holiStr += '------금일--------\n';
+        holiStr += `${holiIdx}. ${h.date.slice(5)} : ${h.title}\n`;
         holiIdx++;
     });
     if (holiIdx === 1) holiStr += '해당월 공휴일 없음\n';
-    // 업무일정 목록
+
     let workStr = '★ 업무일정\n';
     let workIdx = 1;
-    let workPast = workList.filter(sch => sch.isPast);
-    let workCurrent = workList.filter(sch => !sch.isPast);
-    workPast.forEach(sch => {
-        workStr += `${workIdx}. ${sch.title}\n⏰ ${formatKST(sch.start)}\n`;
-        workIdx++;
-    });
-    if (workCurrent.length > 0) workStr += '-------- 현 재 --------\n';
-    workCurrent.forEach(sch => {
+    workList.forEach(sch => {
+        if (sch.isToday && workIdx === 1) workStr += '------금일--------\n';
         workStr += `${workIdx}. ${sch.title}\n⏰ ${formatKST(sch.start)}\n`;
         workIdx++;
     });
     if (workIdx === 1) workStr += '해당월 업무일정 없음\n';
+
     return holiStr + '\n' + workStr;
 }
 

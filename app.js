@@ -17,10 +17,12 @@ function extractDate(pubDate) {
 // 한국 시간 기준 오늘 날짜 구하기
 function getKoreaToday() {
     const now = new Date();
-    const koreaOffset = 9 * 60; // 9시간
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const koreaTime = new Date(utc + (koreaOffset * 60000));
-    return koreaTime.toISOString().slice(0, 10);
+    // KST 기준으로 년, 월, 일을 직접 추출
+    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const year = kst.getUTCFullYear();
+    const month = String(kst.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(kst.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 // 캘린더 초기화
