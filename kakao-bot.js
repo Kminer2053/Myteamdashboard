@@ -131,7 +131,18 @@ function padCell5(cell) {
     return cell.padEnd(5, ' ');
 }
 
-// 텍스트 달력 생성 함수 (고정간격, 공휴일/업무일정/오늘 표시)
+// 카카오 일정 등록 하이퍼링크 생성 함수
+function makeKakaoScheduleLink(title, dateStr) {
+    // dateStr: "2025년 06월 10일 09:00" → "2025-06-10T09:00"
+    const match = dateStr.match(/(\d{4})년 (\d{2})월 (\d{2})일 (\d{2}):(\d{2})/);
+    if (!match) return dateStr;
+    const [, y, m, d, h, min] = match;
+    const iso = `${y}-${m}-${d}T${h}:${min}`;
+    const url = `https://calendar.kakao.com/create?title=${encodeURIComponent(title)}&start=${iso}`;
+    return `[${dateStr}](${url})`;
+}
+
+// 텍스트 달력 생성 함수 (서식 적용)
 async function generateTextCalendar(year, month, schedules, monthHolidays) {
     const todayStr = await getKoreaToday();
     const firstDay = new Date(year, month, 1);
@@ -166,14 +177,17 @@ async function generateTextCalendar(year, month, schedules, monthHolidays) {
             } else if (day > daysInMonth) {
                 week += '     ';
             } else {
-                let mark = '';
-                if (holidayByDay[day]) mark = '🗓️';
-                else if (scheduleByDay[day]) mark = '★';
                 const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                let cell = mark ? mark + String(day).padStart(2, ' ') : String(day).padStart(2, ' ');
-                if (dateStr === todayStr) cell = `[${cell}]`;
-                else cell = ' ' + cell + ' ';
-                week += padCell5(cell);
+                let numStr = String(day).padStart(2, ' ');
+                // 우선순위: 오늘 > 공휴일 > 업무일정
+                if (dateStr === todayStr) {
+                    numStr = `*${numStr}*`;
+                } else if (holidayByDay[day]) {
+                    numStr = `~~${numStr}~~`;
+                } else if (scheduleByDay[day]) {
+                    numStr = `_${numStr}_`;
+                }
+                week += padCell5(numStr);
                 day++;
             }
             if (j < 6) week += ' ';
@@ -181,11 +195,11 @@ async function generateTextCalendar(year, month, schedules, monthHolidays) {
         cal += week + '\n';
         if (day > daysInMonth) break;
     }
-    cal += '\n🗓️: 공휴일, ★: 업무일정\n';
+    cal += '\n오늘: *굵게*  공휴일: ~~취소선~~  업무일정: _밑줄_\n';
     return cal;
 }
 
-// 세부 목록 생성 함수
+// 세부 목록 생성 함수 (미래 일정만 하이퍼링크)
 async function generateDetailList(year, month, schedules, monthHolidays) {
     const now = new Date();
     // KST 기준 현재 시각
@@ -215,11 +229,16 @@ async function generateDetailList(year, month, schedules, monthHolidays) {
     if (workList.length > 0) {
         workList.forEach((sch, idx) => {
             const d = new Date(sch.start);
+            const dateStr = formatKST(sch.start);
+            let dateOut = dateStr;
             if (!insertedDivider && d >= kstNow) {
                 workStr += '-------- 현  재 --------\n';
                 insertedDivider = true;
             }
-            workStr += `${idx+1}. ${sch.title}\n⏰ ${formatKST(sch.start)}\n`;
+            if (d >= kstNow) {
+                dateOut = makeKakaoScheduleLink(sch.title, dateStr);
+            }
+            workStr += `${idx+1}. ${sch.title}\n⏰ ${dateOut}\n`;
         });
         if (!insertedDivider) {
             // 모든 일정이 과거라면 마지막에 구분선 추가
