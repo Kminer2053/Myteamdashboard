@@ -7,6 +7,8 @@ const { getOrCreateCalendarImage } = require('./calendarImage');
 const KAKAO_BOT_TOKEN = process.env.KAKAO_BOT_TOKEN;
 const KAKAO_BOT_SECRET = process.env.KAKAO_BOT_SECRET;
 
+const HOLIDAY_API_KEY = process.env.HOLIDAY_API_KEY || 'DTrcjG%2BXCsB9m%2F6xPK4LmJ%2FG61dwF%2B3h%2FM7Rzv4IbI9ilfsqDRFErvOryzE45LblhwWpU4GSwuoA9W8CxVav5A%3D%3D';
+
 // 메시지 전송 함수
 // async function sendMessage(roomId, message) {
 //     try {
@@ -71,54 +73,123 @@ function filterTodayNews(news) {
     });
 }
 
-// 캘린더 생성 함수
-function generateCalendar(year, month, schedules) {
+// 연도별 공휴일 데이터 가져오기 (공공데이터포털)
+async function fetchHolidays(year) {
+    try {
+        const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${HOLIDAY_API_KEY}&solYear=${year}&_type=json&numOfRows=100`;
+        const response = await axios.get(url);
+        const data = response.data;
+        if (data.response && data.response.body && data.response.body.items) {
+            let items = data.response.body.items.item;
+            if (!Array.isArray(items)) items = [items];
+            return items.map(holiday => ({
+                date: `${holiday.locdate}`.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
+                title: holiday.dateName
+            }));
+        }
+        return [];
+    } catch (error) {
+        console.error('공휴일 데이터를 가져오는데 실패했습니다:', error);
+        return [];
+    }
+}
+
+// 월별 공휴일만 반환
+function getMonthHolidays(holidays, year, month) {
+    return holidays.filter(h => {
+        const [y, m, d] = h.date.split('-').map(Number);
+        return y === year && (m - 1) === month;
+    });
+}
+
+// 텍스트 달력 생성 함수 (고정간격, 공휴일/업무일정/오늘 표시)
+function generateTextCalendar(year, month, schedules, monthHolidays) {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startingDay = firstDay.getDay();
-    
-    const schedulesByDate = {};
-    schedules.forEach(schedule => {
-        const scheduleDate = new Date(schedule.start);
-        if (scheduleDate.getMonth() === month && scheduleDate.getFullYear() === year) {
-            const day = scheduleDate.getDate();
-            if (!schedulesByDate[day]) {
-                schedulesByDate[day] = [];
-            }
-            schedulesByDate[day].push(schedule);
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // 날짜별 표시 정보
+    const scheduleByDay = {};
+    schedules.forEach(sch => {
+        const d = new Date(sch.start);
+        if (d.getFullYear() === year && d.getMonth() === month) {
+            const day = d.getDate();
+            if (!scheduleByDay[day]) scheduleByDay[day] = [];
+            scheduleByDay[day].push(sch);
         }
     });
-    
-    let calendar = `📅 ${year}년 ${month + 1}월\n\n`;
-    calendar += "일  월  화  수  목  금  토\n";
-    
+    const holidayByDay = {};
+    monthHolidays.forEach(h => {
+        const d = Number(h.date.split('-')[2]);
+        holidayByDay[d] = h.title;
+    });
+
+    let cal = `📅 ${year}년 ${month + 1}월\n\n`;
+    cal += '일 월 화 수 목 금 토\n';
     let day = 1;
     for (let i = 0; i < 6; i++) {
-        let week = "";
+        let week = '';
         for (let j = 0; j < 7; j++) {
             if (i === 0 && j < startingDay) {
-                week += "    ";
+                week += '   ';
             } else if (day > daysInMonth) {
-                break;
+                week += '   ';
             } else {
-                const currentDate = new Date(year, month, day);
-                const isToday = currentDate.toDateString() === new Date().toDateString();
-                const hasSchedule = schedulesByDate[day] && schedulesByDate[day].length > 0;
-                
-                if (hasSchedule) {
-                    week += isToday ? `[●${day}]` : `●${day} `;
-                } else {
-                    week += isToday ? `[${day}] ` : `${day}  `;
-                }
+                let mark = '';
+                if (holidayByDay[day]) mark = '🗓️';
+                else if (scheduleByDay[day]) mark = '★';
+                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                let cell = mark ? mark + String(day).padStart(2, ' ') : String(day).padStart(2, ' ');
+                if (dateStr === todayStr) cell = `[${cell}]`;
+                else cell = ' ' + cell + ' ';
+                week += cell;
                 day++;
             }
+            if (j < 6) week += ' ';
         }
-        calendar += week + "\n";
+        cal += week + '\n';
+        if (day > daysInMonth) break;
     }
-    
-    calendar += "\n● : 일정 있음";
-    return calendar;
+    cal += '\n🗓️: 공휴일, ★: 업무일정\n';
+    return cal;
+}
+
+// 세부 목록 생성 함수
+function generateDetailList(year, month, schedules, monthHolidays) {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    // 공휴일
+    let holiList = monthHolidays.map(h => ({...h, isToday: h.date === todayStr}));
+    // 업무일정
+    let workList = schedules
+        .filter(sch => {
+            const d = new Date(sch.start);
+            return d.getFullYear() === year && d.getMonth() === month;
+        })
+        .map(sch => ({
+            ...sch,
+            isToday: sch.start.slice(0,10) === todayStr
+        }));
+    let holiStr = '🗓️ 공휴일\n';
+    let holiIdx = 1;
+    holiList.forEach(h => {
+        if (h.isToday && holiIdx === 1) holiStr += '------금일--------\n';
+        holiStr += `${holiIdx}. ${h.date.slice(5)} : ${h.title}\n`;
+        holiIdx++;
+    });
+    if (holiIdx === 1) holiStr += '해당월 공휴일 없음\n';
+
+    let workStr = '★ 업무일정\n';
+    let workIdx = 1;
+    workList.forEach(sch => {
+        if (sch.isToday && workIdx === 1) workStr += '------금일--------\n';
+        workStr += `${workIdx}. ${sch.title}\n⏰ ${formatKST(sch.start)}\n`;
+        workIdx++;
+    });
+    if (workIdx === 1) workStr += '해당월 업무일정 없음\n';
+
+    return holiStr + '\n' + workStr;
 }
 
 // 한국시간 기준 포맷 함수
@@ -227,31 +298,14 @@ router.post('/message', async (req, res) => {
                 const scheduleDate = new Date();
                 const currentMonth = scheduleDate.getMonth();
                 const currentYear = scheduleDate.getFullYear();
-                
-                // 달력 이미지 생성 및 URL 생성
-                const imagePath = await getOrCreateCalendarImage(currentYear, currentMonth);
-                const imageFileName = imagePath.split('/').pop();
-                const imageUrl = `${process.env.API_BASE_URL || ''}/calendar_images/${imageFileName}`;
-                
-                const futureSchedules = schedules.data.filter(s => new Date(s.start) >= scheduleDate);
-                
-                responseMessage = `📅 ${currentYear}년 ${currentMonth + 1}월\n\n`;
-                responseMessage += `달력 이미지를 확인하세요!\n${imageUrl}\n\n`;
-                responseMessage += "상세 일정 목록 (오늘 이후)\n\n";
-                
-                if (futureSchedules.length === 0) {
-                    responseMessage += "등록된 일정이 없습니다.";
-                } else {
-                    responseMessage += `총 ${futureSchedules.length}개의 일정이 있습니다.\n\n`;
-                    futureSchedules.forEach((item, index) => {
-                        responseMessage += `[${index + 1}] ${item.title}\n`;
-                        responseMessage += `⏰ ${formatKST(item.start)}\n`;
-                        if (item.description) {
-                            responseMessage += `📝 ${item.description}\n`;
-                        }
-                        responseMessage += '\n';
-                    });
-                }
+                // 공휴일 데이터 가져오기
+                const holidays = await fetchHolidays(currentYear);
+                const monthHolidays = getMonthHolidays(holidays, currentYear, currentMonth);
+                // 텍스트 달력 생성
+                const textCalendar = generateTextCalendar(currentYear, currentMonth, schedules.data, monthHolidays);
+                // 세부 목록 생성
+                const detailList = generateDetailList(currentYear, currentMonth, schedules.data, monthHolidays);
+                responseMessage = textCalendar + '\n' + detailList;
                 break;
                 
             case 'all':
@@ -316,4 +370,5 @@ router.post('/message', async (req, res) => {
     }
 });
 
+module.exports = router; 
 module.exports = router; 
