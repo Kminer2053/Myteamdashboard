@@ -120,6 +120,8 @@ function formatKST(date) {
 // 메시지 처리 엔드포인트
 router.post('/message', async (req, res) => {
     try {
+        // 요청 로그 추가
+        console.log('[카카오봇] /kakao/message 요청:', req.body);
         const { room_id, message } = req.body;
         const route = routeMessage(message);
         
