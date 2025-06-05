@@ -131,15 +131,15 @@ function padCell5(cell) {
     return cell.padEnd(5, ' ');
 }
 
-// 카카오 일정 등록 하이퍼링크 생성 함수
+// 카카오 일정 등록 URL 생성 함수 (마크다운 링크 X, URL만 반환)
 function makeKakaoScheduleLink(title, dateStr) {
     // dateStr: "2025년 06월 10일 09:00" → "2025-06-10T09:00"
     const match = dateStr.match(/(\d{4})년 (\d{2})월 (\d{2})일 (\d{2}):(\d{2})/);
-    if (!match) return dateStr;
+    if (!match) return '';
     const [, y, m, d, h, min] = match;
     const iso = `${y}-${m}-${d}T${h}:${min}`;
     const url = `https://calendar.kakao.com/create?title=${encodeURIComponent(title)}&start=${iso}`;
-    return `[${dateStr}](${url})`;
+    return url;
 }
 
 // 텍스트 달력 생성 함수 (서식 적용)
@@ -199,7 +199,7 @@ async function generateTextCalendar(year, month, schedules, monthHolidays) {
     return cal;
 }
 
-// 세부 목록 생성 함수 (미래 일정만 하이퍼링크)
+// 세부 목록 생성 함수 (미래 일정 날짜 아래에 URL 노출)
 async function generateDetailList(year, month, schedules, monthHolidays) {
     const now = new Date();
     // KST 기준 현재 시각
@@ -230,15 +230,16 @@ async function generateDetailList(year, month, schedules, monthHolidays) {
         workList.forEach((sch, idx) => {
             const d = new Date(sch.start);
             const dateStr = formatKST(sch.start);
-            let dateOut = dateStr;
             if (!insertedDivider && d >= kstNow) {
                 workStr += '-------- 현  재 --------\n';
                 insertedDivider = true;
             }
+            workStr += `${idx+1}. ${sch.title}\n⏰ ${dateStr}`;
             if (d >= kstNow) {
-                dateOut = makeKakaoScheduleLink(sch.title, dateStr);
+                const kakaoUrl = makeKakaoScheduleLink(sch.title, dateStr);
+                if (kakaoUrl) workStr += `\n${kakaoUrl}`;
             }
-            workStr += `${idx+1}. ${sch.title}\n⏰ ${dateOut}\n`;
+            workStr += '\n';
         });
         if (!insertedDivider) {
             // 모든 일정이 과거라면 마지막에 구분선 추가
