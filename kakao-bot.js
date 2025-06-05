@@ -162,36 +162,36 @@ function generateTextCalendar(year, month, schedules, monthHolidays) {
 
 // 세부 목록 생성 함수
 function generateDetailList(year, month, schedules, monthHolidays) {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    // KST 기준 현재 시각
+    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
     // 공휴일
-    let holiList = monthHolidays.map(h => ({...h, isToday: h.date === todayStr}));
-    // 업무일정
-    let workList = schedules
-        .filter(sch => {
-            const d = new Date(sch.start);
-            return d.getFullYear() === year && d.getMonth() === month;
-        })
-        .map(sch => ({
-            ...sch,
-            isToday: sch.start.slice(0,10) === todayStr
-        }));
+    let holiList = monthHolidays.map(h => ({...h, isToday: false}));
     let holiStr = '🗓️ 공휴일\n';
     let holiIdx = 1;
     holiList.forEach(h => {
-        if (h.isToday && holiIdx === 1) holiStr += '------금일--------\n';
         holiStr += `${holiIdx}. ${h.date.slice(5)} : ${h.title}\n`;
         holiIdx++;
     });
     if (holiIdx === 1) holiStr += '해당월 공휴일 없음\n';
 
+    // 업무일정: 오늘 시점 이후(현재 시각 이후)만
+    let workList = schedules
+        .filter(sch => {
+            const d = new Date(sch.start);
+            return d.getFullYear() === year && d.getMonth() === month && d >= kstNow;
+        })
+        .sort((a, b) => new Date(a.start) - new Date(b.start));
+
     let workStr = '★ 업무일정\n';
-    let workIdx = 1;
-    workList.forEach(sch => {
-        if (sch.isToday && workIdx === 1) workStr += '------금일--------\n';
-        workStr += `${workIdx}. ${sch.title}\n⏰ ${formatKST(sch.start)}\n`;
-        workIdx++;
-    });
-    if (workIdx === 1) workStr += '해당월 업무일정 없음\n';
+    if (workList.length > 0) {
+        workStr += '-------- 현  재 --------\n';
+        workList.forEach((sch, idx) => {
+            workStr += `${idx+1}. ${sch.title}\n⏰ ${formatKST(sch.start)}\n`;
+        });
+    } else {
+        workStr += '해당월 남은 일정 없음\n';
+    }
 
     return holiStr + '\n' + workStr;
 }
