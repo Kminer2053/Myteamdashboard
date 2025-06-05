@@ -17,7 +17,7 @@ function extractDate(pubDate) {
 // 서버에서 공인된 KST 기준 오늘 날짜를 받아오는 비동기 함수
 async function getKoreaToday() {
     try {
-        const res = await fetch('/api/korea-today');
+        const res = await fetch(`${API_BASE_URL}/api/korea-today`);
         const data = await res.json();
         return data.today;
     } catch (e) {
