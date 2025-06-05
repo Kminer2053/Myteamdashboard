@@ -7,10 +7,11 @@ function extractDate(pubDate) {
         const [, y, m, d] = match;
         return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
     }
-    // 기본 Date 파싱
+    // ISO 포맷(UTC)일 경우 9시간 더해서 KST로 변환
     const d = new Date(pubDate);
     if (isNaN(d)) return '';
-    return d.toISOString().slice(0, 10);
+    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    return kst.toISOString().slice(0, 10);
 }
 
 // 한국 시간 기준 오늘 날짜 구하기
