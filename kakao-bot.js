@@ -48,9 +48,16 @@ function routeMessage(userMessage) {
     return 'default';
 }
 
+// 한국시간 기준 오늘 날짜 구하기
+function getKoreaToday() {
+    const now = new Date();
+    const koreaTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    return koreaTime.toISOString().split('T')[0];
+}
+
 // 오늘 날짜의 뉴스만 필터링
 function filterTodayNews(news) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getKoreaToday();
     return news.filter(item => item.pubDate.startsWith(today));
 }
 
@@ -238,7 +245,7 @@ router.post('/message', async (req, res) => {
                     axios.get(`${process.env.API_BASE_URL}/api/tech-news`)
                 ]);
                 
-                const todayStr = new Date().toISOString().split('T')[0];
+                const todayStr = getKoreaToday();
                 const todayAllRiskNews = allRiskNews.data.filter(item => item.pubDate.startsWith(todayStr));
                 const todayAllPartnerNews = allPartnerNews.data.filter(item => item.pubDate.startsWith(todayStr));
                 const todayAllTechNews = allTechNews.data.filter(item => item.pubDate.startsWith(todayStr));

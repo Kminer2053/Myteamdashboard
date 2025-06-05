@@ -70,7 +70,7 @@ let newsCronJob = null;
 
 // === 자동 뉴스 수집: 리스크이슈 ===
 async function collectRiskNews() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getKoreaToday();
   try {
     const keywords = (await RiskKeyword.find()).map(k => k.value);
     if (keywords.length === 0) {
@@ -148,7 +148,7 @@ async function collectRiskNews() {
 
 // === 자동 뉴스 수집: 제휴처탐색 ===
 async function collectPartnerNews() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getKoreaToday();
   try {
     const conds = (await PartnerCondition.find()).map(c => c.value);
     if (conds.length === 0) {
@@ -226,7 +226,7 @@ async function collectPartnerNews() {
 
 // === 자동 뉴스 수집: 신기술동향 ===
 async function collectTechNews() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getKoreaToday();
   try {
     const topics = (await TechTopic.find()).map(t => t.value);
     if (topics.length === 0) {
@@ -939,3 +939,10 @@ app.listen(PORT, async () => {
     console.error(`[서버] 초기화 중 오류 발생:`, error);
   }
 });
+
+// 한국시간 기준 오늘 날짜 구하기
+function getKoreaToday() {
+    const now = new Date();
+    const koreaTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    return koreaTime.toISOString().slice(0, 10);
+}
