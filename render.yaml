@@ -16,4 +16,11 @@ services:
       - key: EMAIL_PASS
         sync: false
     healthCheckPath: /
-    autoDeploy: true 
+    autoDeploy: true
+    packages:
+      - build-essential
+      - libcairo2-dev
+      - libpango1.0-dev
+      - libjpeg-dev
+      - libgif-dev
+      - librsvg2-dev 

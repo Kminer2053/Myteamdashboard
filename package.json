@@ -6,7 +6,6 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "prebuild": "apt-get update && apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev",
     "build": "vite build && cp index.html admin.html app.js admin.js styles.css dist/"
   },
   "keywords": [],
