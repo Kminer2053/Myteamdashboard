@@ -199,7 +199,7 @@ async function generateTextCalendar(year, month, schedules, monthHolidays) {
     return cal;
 }
 
-// 세부 목록 생성 함수 (미래 일정 날짜 아래에 URL 노출)
+// 세부 목록 생성 함수 (미래 일정 날짜를 카카오톡 인식 포맷으로만 출력)
 async function generateDetailList(year, month, schedules, monthHolidays) {
     const now = new Date();
     // KST 기준 현재 시각
@@ -231,19 +231,19 @@ async function generateDetailList(year, month, schedules, monthHolidays) {
             const d = new Date(sch.start);
             const dateStr = formatKST(sch.start);
             if (!insertedDivider && d >= kstNow) {
-                workStr += '-------- 현  재 --------\n';
+                workStr += '--------금일--------\n';
                 insertedDivider = true;
             }
-            workStr += `${idx+1}. ${sch.title}\n⏰ ${dateStr}`;
+            workStr += `${idx+1}. ${sch.title}\n`;
             if (d >= kstNow) {
-                const kakaoUrl = makeKakaoScheduleLink(sch.title, dateStr);
-                if (kakaoUrl) workStr += `\n${kakaoUrl}`;
+                workStr += `🕒 ${dateStr}\n`;
+            } else {
+                workStr += `🕒 ${dateStr}\n`;
             }
-            workStr += '\n';
         });
         if (!insertedDivider) {
             // 모든 일정이 과거라면 마지막에 구분선 추가
-            workStr += '-------- 현  재 --------\n';
+            workStr += '--------금일--------\n';
         }
     } else {
         workStr += '해당월 일정 없음\n';
