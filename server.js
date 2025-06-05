@@ -14,6 +14,7 @@ const RiskNews = require('./models/RiskNews');
 const PartnerNews = require('./models/PartnerNews');
 const TechNews = require('./models/TechNews');
 const nodemailer = require('nodemailer');
+const kakaoBotRouter = require('./kakao-bot');
 
 const app = express();
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'], credentials: true }));
@@ -22,6 +23,10 @@ app.use(express.json());
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID || 'e037eF7sxB3VuJHBpay5';
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET || 'qkPfGHxNkN';
+
+// 카카오톡 봇 설정
+const KAKAO_BOT_TOKEN = process.env.KAKAO_BOT_TOKEN;
+const KAKAO_BOT_SECRET = process.env.KAKAO_BOT_SECRET;
 
 // 이메일 발송을 위한 transporter 설정
 const transporter = nodemailer.createTransport({
@@ -886,6 +891,9 @@ app.delete('/api/emails/:email', async (req, res) => {
     res.status(500).json({ error: '이메일 삭제 실패' });
   }
 });
+
+app.use('/kakao', kakaoBotRouter);
+console.log('카카오 라우터 등록됨');
 
 app.get('/', (req, res) => {
   res.send('OK');
