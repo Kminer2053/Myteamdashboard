@@ -113,11 +113,11 @@ function getMonthHolidays(holidays, year, month) {
     });
 }
 
-function padCell6(cell) {
-    // 이모지, 숫자, 대괄호 등 포함 6글자 고정 폭으로 맞춤
-    if (cell.length === 6) return cell;
-    if (cell.length > 6) return cell.slice(0, 6);
-    return cell.padEnd(6, ' ');
+function padCell5(cell) {
+    // 이모지, 숫자, 대괄호 등 포함 5글자 고정 폭으로 맞춤
+    if (cell.length === 5) return cell;
+    if (cell.length > 5) return cell.slice(0, 5);
+    return cell.padEnd(5, ' ');
 }
 
 // 텍스트 달력 생성 함수 (고정간격, 공휴일/업무일정/오늘 표시)
@@ -145,24 +145,24 @@ async function generateTextCalendar(year, month, schedules, monthHolidays) {
     });
 
     let cal = `📅 ${year}년 ${month + 1}월\n\n`;
-    cal += '일     월     화     수     목     금     토\n';
+    cal += '일    월    화    수    목    금    토\n';
     let day = 1;
     for (let i = 0; i < 6; i++) {
         let week = '';
         for (let j = 0; j < 7; j++) {
             if (i === 0 && j < startingDay) {
-                week += '      ';
+                week += '     ';
             } else if (day > daysInMonth) {
-                week += '      ';
+                week += '     ';
             } else {
                 let mark = '';
                 if (holidayByDay[day]) mark = '🗓️';
                 else if (scheduleByDay[day]) mark = '★';
                 const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                let cell = mark ? mark + String(day).padStart(3, ' ') : String(day).padStart(3, ' ');
+                let cell = mark ? mark + String(day).padStart(2, ' ') : String(day).padStart(2, ' ');
                 if (dateStr === todayStr) cell = `[${cell}]`;
-                else cell = '  ' + cell + '  ';
-                week += padCell6(cell);
+                else cell = ' ' + cell + ' ';
+                week += padCell5(cell);
                 day++;
             }
             if (j < 6) week += ' ';
