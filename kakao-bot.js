@@ -58,7 +58,16 @@ function getKoreaToday() {
 // 오늘 날짜의 뉴스만 필터링
 function filterTodayNews(news) {
     const today = getKoreaToday();
-    return news.filter(item => item.pubDate.startsWith(today));
+    return news.filter(item => {
+        if (!item.pubDate) return false;
+        const date = new Date(item.pubDate);
+        // pubDate가 유효하지 않으면 필터 제외
+        if (isNaN(date.getTime())) return false;
+        // 한국 시간으로 변환
+        const koreaDate = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+        const dateStr = koreaDate.toISOString().slice(0, 10);
+        return dateStr === today;
+    });
 }
 
 // 캘린더 생성 함수
