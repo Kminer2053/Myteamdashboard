@@ -51,15 +51,22 @@ function routeMessage(userMessage) {
     return 'default';
 }
 
-// 한국시간 기준 오늘 날짜 구하기
-function getKoreaToday() {
-    const now = new Date();
-    // KST 기준으로 년, 월, 일을 직접 추출
-    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-    const year = kst.getUTCFullYear();
-    const month = String(kst.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(kst.getUTCDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+// 공인된 KST 기준 오늘 날짜를 가져오는 비동기 함수
+async function getKoreaToday() {
+    try {
+        const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Seoul');
+        const data = await res.json();
+        // data.datetime 예시: "2025-06-06T03:49:00.123456+09:00"
+        return data.datetime.slice(0, 10); // "YYYY-MM-DD"
+    } catch (e) {
+        // 네트워크 오류 등 발생 시 fallback: 기존 방식
+        const now = new Date();
+        const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+        const year = kst.getUTCFullYear();
+        const month = String(kst.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(kst.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
 }
 
 // 오늘 날짜의 뉴스만 필터링
@@ -114,12 +121,8 @@ function padCell6(cell) {
 }
 
 // 텍스트 달력 생성 함수 (고정간격, 공휴일/업무일정/오늘 표시)
-function generateTextCalendar(year, month, schedules, monthHolidays) {
-    const now = new Date();
-    // KST 기준 오늘 날짜
-    const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-    const todayStr = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, '0')}-${String(kstNow.getUTCDate()).padStart(2, '0')}`;
-
+async function generateTextCalendar(year, month, schedules, monthHolidays) {
+    const todayStr = await getKoreaToday();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
@@ -172,7 +175,7 @@ function generateTextCalendar(year, month, schedules, monthHolidays) {
 }
 
 // 세부 목록 생성 함수
-function generateDetailList(year, month, schedules, monthHolidays) {
+async function generateDetailList(year, month, schedules, monthHolidays) {
     const now = new Date();
     // KST 기준 현재 시각
     const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -348,9 +351,9 @@ router.post('/message', async (req, res) => {
                 const holidays = await fetchHolidays(currentYear);
                 const monthHolidays = getMonthHolidays(holidays, currentYear, currentMonth);
                 // 텍스트 달력 생성
-                const textCalendar = generateTextCalendar(currentYear, currentMonth, schedules.data, monthHolidays);
+                const textCalendar = await generateTextCalendar(currentYear, currentMonth, schedules.data, monthHolidays);
                 // 세부 목록 생성
-                const detailList = generateDetailList(currentYear, currentMonth, schedules.data, monthHolidays);
+                const detailList = await generateDetailList(currentYear, currentMonth, schedules.data, monthHolidays);
                 responseMessage = textCalendar + '\n' + detailList;
                 break;
                 
