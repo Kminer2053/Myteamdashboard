@@ -404,33 +404,24 @@ app.get('/api/naver-news', async (req, res) => {
       while (allItems.length < maxNum && start <= 1000) {
         callCount++;
         const params = { query, display: displayNum, start, sort };
-  try {
-    const result = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-            params,
-      headers: {
-        'X-Naver-Client-Id': NAVER_CLIENT_ID,
-        'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-      }
-    });
-          const items = result.data.items || [];
-          if (items.length > 0) {
-            items.forEach(item => {
-              if (!allItems.some(n => n.link === item.link)) {
-                allItems.push(item);
-              }
-            });
-            if (items.length < displayNum) break;
-            start += displayNum;
-          } else {
-            break;
+        const result = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+          params,
+          headers: {
+            'X-Naver-Client-Id': NAVER_CLIENT_ID,
+            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
           }
-        } catch (apiError) {
-          console.error('[프록시] 네이버 API 호출 실패:', apiError.message);
-          return res.status(500).json({
-            error: '네이버 API 호출 실패',
-            message: apiError.message,
-            details: apiError.response?.data || '알 수 없는 오류'
+        });
+        const items = result.data.items || [];
+        if (items.length > 0) {
+          items.forEach(item => {
+            if (!allItems.some(n => n.link === item.link)) {
+              allItems.push(item);
+            }
           });
+          if (items.length < displayNum) break;
+          start += displayNum;
+        } else {
+          break;
         }
       }
     }
@@ -906,20 +897,15 @@ app.use('/calendar_images', express.static(path.join(__dirname, 'calendar_images
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, async () => {
   console.log(`[서버] http://localhost:${PORT} 에서 실행 중`);
-  console.log(`[서버] 시작 시간: ${new Date().toLocaleString()}`);
-  console.log(`[서버] 환경: ${process.env.NODE_ENV || 'development'}`);
   
   try {
     // MongoDB 연결 상태 확인
     if (mongoose.connection.readyState !== 1) {
-      console.log(`[서버] MongoDB 연결 중... (현재 상태: ${mongoose.connection.readyState})`);
-      // 연결이 완료될 때까지 대기
       await new Promise((resolve) => {
         if (mongoose.connection.readyState === 1) resolve();
         else mongoose.connection.once('connected', resolve);
       });
     }
-    console.log(`[서버] MongoDB 연결 확인됨`);
     
     // 뉴스 키워드 데이터 확인
     const riskKeywords = await RiskKeyword.countDocuments();
@@ -932,12 +918,8 @@ app.listen(PORT, async () => {
     console.log(`[서버] - 신기술동향 주제: ${techTopics}개`);
     
     // 크론 작업 초기화 - 한 번만 실행
-    console.log(`[서버] 자동 수집 작업 초기화 중...`);
     if (!newsCronJob) {  // 크론 작업이 없을 때만 초기화
       await scheduleNewsJob(true);
-      console.log(`[서버] 서버 초기화 완료`);
-    } else {
-      console.log(`[서버] 자동 수집 작업이 이미 실행 중입니다`);
     }
   } catch (error) {
     console.error(`[서버] 초기화 중 오류 발생:`, error);

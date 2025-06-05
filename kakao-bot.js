@@ -85,15 +85,13 @@ async function getKoreaToday() {
     }
 }
 
-// 오늘 날짜의 뉴스만 필터링 (extractDate 사용, 디버깅 로그 추가)
+// 오늘 날짜의 뉴스만 필터링 (extractDate 사용)
 async function filterTodayNews(news) {
     const today = await getKoreaToday();
     return news.filter(item => {
         if (!item.pubDate) return false;
         const extracted = extractDate(item.pubDate);
-        const isToday = extracted === today;
-        console.log('뉴스 pubDate:', item.pubDate, '→ extractDate:', extracted, '오늘:', today, '→ today와 같은가?', isToday);
-        return isToday;
+        return extracted === today;
     });
 }
 
