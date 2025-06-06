@@ -124,11 +124,11 @@ function getMonthHolidays(holidays, year, month) {
     });
 }
 
-function padCell5(cell) {
-    // 이모지, 숫자, 대괄호 등 포함 5글자 고정 폭으로 맞춤
-    if (cell.length === 5) return cell;
-    if (cell.length > 5) return cell.slice(0, 5);
-    return cell.padEnd(5, ' ');
+// 6글자 고정 폭으로 맞추는 함수
+function padCell6(cell) {
+    if (cell.length === 6) return cell;
+    if (cell.length > 6) return cell.slice(0, 6);
+    return cell.padEnd(6, ' ');
 }
 
 // 카카오 일정 등록 URL 생성 함수 (마크다운 링크 X, URL만 반환)
@@ -142,7 +142,7 @@ function makeKakaoScheduleLink(title, dateStr) {
     return url;
 }
 
-// 텍스트 달력 생성 함수 (고정폭 폰트 적용)
+// 텍스트 달력 생성 함수 (6자 고정폭, 기호만 표기)
 async function generateTextCalendar(year, month, schedules, monthHolidays) {
     const todayStr = await getKoreaToday();
     const firstDay = new Date(year, month, 1);
@@ -167,27 +167,25 @@ async function generateTextCalendar(year, month, schedules, monthHolidays) {
     });
 
     let cal = `📅 ${year}년 ${month + 1}월\n\n`;
-    cal += '일    월    화    수    목    금    토\n';
+    cal += '일     월     화     수     목     금     토\n';
     let day = 1;
     for (let i = 0; i < 6; i++) {
         let week = '';
         for (let j = 0; j < 7; j++) {
             if (i === 0 && j < startingDay) {
-                week += '`     `';
+                week += padCell6('');
             } else if (day > daysInMonth) {
-                week += '`     `';
+                week += padCell6('');
             } else {
-                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                let numStr = String(day).padStart(2, ' ');
-                // 우선순위: 오늘 > 공휴일 > 업무일정
-                if (dateStr === todayStr) {
-                    numStr = `[${numStr}]`;
-                } else if (holidayByDay[day]) {
-                    numStr = `🗓️${numStr}`;
+                let cell = '';
+                if (holidayByDay[day]) {
+                    cell = '🗓️';
                 } else if (scheduleByDay[day]) {
-                    numStr = `★${numStr}`;
+                    cell = '★';
+                } else {
+                    cell = String(day);
                 }
-                week += '`' + padCell5(numStr) + '`';
+                week += padCell6(cell);
                 day++;
             }
             if (j < 6) week += ' ';
@@ -195,7 +193,7 @@ async function generateTextCalendar(year, month, schedules, monthHolidays) {
         cal += week + '\n';
         if (day > daysInMonth) break;
     }
-    cal += '\n오늘: [숫자]  공휴일: 🗓️  일정: ★\n';
+    cal += '\n공휴일: 🗓️  일정: ★\n';
     return cal;
 }
 
