@@ -8,10 +8,10 @@ jobs:
   drive-update:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout with history
+      - name: Checkout with full history
         uses: actions/checkout@v3
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Install rclone
         run: |
@@ -33,20 +33,27 @@ jobs:
             echo "exists=false" >> $GITHUB_ENV
           fi
 
-      - name: Generate summary files (conditional logic)
+      - name: Generate summary files (optimized append)
         run: |
           if [ "$exists" = "true" ]; then
-            echo "📌 변경분만 추가합니다."
-            echo "$(git log -1 --pretty=format:'%h - %s (%an, %ad)' --date=short)" >> Myteamdashboard_summary.txt
+            LAST_HASH=$(tail -n 1 Myteamdashboard_summary.txt | awk '{print $1}')
+            if [ -z "$LAST_HASH" ]; then
+              git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
+            else
+              git log ${LAST_HASH}..HEAD --pretty=format:"%h - %s (%an, %ad)" --date=short | grep -v "^$" >> Myteamdashboard_summary.txt
+            fi
+          else
+            git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
+          fi
 
+          # detail 파일은 기존 방식 유지
+          if [ "$exists" = "true" ]; then
             echo -e "\n\n# $(date '+%Y-%m-%d %H:%M') 변경분" >> Myteamdashboard_summary_detail.txt
             git log -1 --pretty=format:"%h - %s (%an, %ad)" --date=short >> Myteamdashboard_summary_detail.txt
             echo -e "\nChanges:" >> Myteamdashboard_summary_detail.txt
             git diff HEAD^ >> Myteamdashboard_summary_detail.txt
           else
-            echo "📌 최초 실행: 전체 커밋 내역 생성"
-            git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
-            echo -e "\n\n# 전체 변경 이력" > Myteamdashboard_summary_detail.txt
+            echo "📌 최초 실행: 전체 커밋 내역 생성" > Myteamdashboard_summary_detail.txt
             git log --pretty=format:"%h - %s (%an, %ad)" --date=short >> Myteamdashboard_summary_detail.txt
             echo -e "\n\n# 전체 코드 diff" >> Myteamdashboard_summary_detail.txt
             git diff $(git rev-list --max-parents=0 HEAD)..HEAD >> Myteamdashboard_summary_detail.txt
