@@ -33,17 +33,24 @@ jobs:
             echo "exists=false" >> $GITHUB_ENV
           fi
 
-      - name: Generate summary files (optimized append)
+      - name: Generate summary files (smart append or overwrite)
         run: |
-          if [ "$exists" = "true" ]; then
-            LAST_HASH=$(tail -n 1 Myteamdashboard_summary.txt | awk '{print $1}')
-            if [ -z "$LAST_HASH" ]; then
-              git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
-            else
-              git log ${LAST_HASH}..HEAD --pretty=format:"%h - %s (%an, %ad)" --date=short | grep -v "^$" >> Myteamdashboard_summary.txt
-            fi
-          else
+          if [ "$exists" = "false" ] || [ ! -f Myteamdashboard_summary.txt ]; then
+            # 최초 실행: 전체 로그 생성
             git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
+          else
+            LAST_HASH=$(tail -n 1 Myteamdashboard_summary.txt | awk '{print $1}')
+            HEAD_HASH=$(git log -1 --pretty=format:"%h")
+            if git merge-base --is-ancestor $LAST_HASH $HEAD_HASH; then
+              if [ "$LAST_HASH" = "$HEAD_HASH" ]; then
+                echo "Already up to date."
+              else
+                git log ${LAST_HASH}..HEAD --pretty=format:"%h - %s (%an, %ad)" --date=short | grep -v "^$" >> Myteamdashboard_summary.txt
+              fi
+            else
+              # LAST_HASH가 HEAD에 포함되지 않으면 전체 로그로 덮어쓰기
+              git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
+            fi
           fi
 
           # detail 파일은 기존 방식 유지
