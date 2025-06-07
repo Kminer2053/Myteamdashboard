@@ -8,20 +8,6 @@ jobs:
   drive-update:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 2
-
-      - name: Generate summary files (append latest commit only)
-        run: |
-          echo "$(git log -1 --pretty=format:"%h - %s (%an, %ad)" --date=short)" >> Myteamdashboard_summary.txt
-
-          echo -e "\n\n# $(date '+%Y-%m-%d %H:%M') 변경분" >> Myteamdashboard_summary_detail.txt
-          git log -1 --pretty=format:"%h - %s (%an, %ad)" --date=short >> Myteamdashboard_summary_detail.txt
-          echo -e "\nChanges:" >> Myteamdashboard_summary_detail.txt
-          git diff HEAD^ >> Myteamdashboard_summary_detail.txt
-
       - name: Install rclone
         run: |
           sudo apt update && sudo apt install -y rclone
@@ -30,6 +16,36 @@ jobs:
         run: |
           echo "$GDRIVE_CREDENTIALS" > credentials.json
           rclone config create gdrive drive scope=drive service_account_file=credentials.json root_folder_id=${{ secrets.GDRIVE_FOLDER_ID }}
+
+      - name: Try downloading existing summary files
+        id: check_files
+        run: |
+          rclone copy gdrive:Myteamdashboard_summary.txt . && echo "found=true" >> $GITHUB_OUTPUT || echo "found=false" >> $GITHUB_OUTPUT
+
+      - name: Checkout with conditional fetch-depth
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: ${{ steps.check_files.outputs.found == 'true' && '2' || '0' }}
+
+      - name: Generate summary files
+        run: |
+          if [ "${{ steps.check_files.outputs.found }}" = "true" ]; then
+            echo "📌 기존 파일 있음 → 커밋 1개만 추가"
+            rclone copy gdrive:Myteamdashboard_summary_detail.txt . || true
+            echo "$(git log -1 --pretty=format:'%h - %s (%an, %ad)' --date=short)" >> Myteamdashboard_summary.txt
+
+            echo -e "\n\n# $(date '+%Y-%m-%d %H:%M') 변경분" >> Myteamdashboard_summary_detail.txt
+            git log -1 --pretty=format:"%h - %s (%an, %ad)" --date=short >> Myteamdashboard_summary_detail.txt
+            echo -e "\nChanges:" >> Myteamdashboard_summary_detail.txt
+            git diff HEAD^ >> Myteamdashboard_summary_detail.txt
+          else
+            echo "📌 최초 실행 → 전체 커밋 기록 생성"
+            git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
+            echo -e "\n\n# 전체 변경 이력" > Myteamdashboard_summary_detail.txt
+            git log --pretty=format:"%h - %s (%an, %ad)" --date=short >> Myteamdashboard_summary_detail.txt
+            echo -e "\n\n# 전체 코드 diff" >> Myteamdashboard_summary_detail.txt
+            git diff $(git rev-list --max-parents=0 HEAD)..HEAD >> Myteamdashboard_summary_detail.txt
+          fi
 
       - name: Upload summary file to Google Drive
         run: rclone -v copyto Myteamdashboard_summary.txt gdrive:Myteamdashboard_summary.txt
