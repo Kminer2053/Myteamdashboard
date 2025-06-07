@@ -27,31 +27,14 @@ jobs:
         run: |
           if rclone ls gdrive:Myteamdashboard_summary.txt > /dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_ENV
-            rclone copyto gdrive:Myteamdashboard_summary.txt Myteamdashboard_summary.txt
             rclone copyto gdrive:Myteamdashboard_summary_detail.txt Myteamdashboard_summary_detail.txt
           else
             echo "exists=false" >> $GITHUB_ENV
           fi
 
-      - name: Generate summary files (smart append or overwrite)
+      - name: Generate summary files (always overwrite)
         run: |
-          if [ "$exists" = "false" ] || [ ! -f Myteamdashboard_summary.txt ]; then
-            # 최초 실행: 전체 로그 생성
-            git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
-          else
-            LAST_HASH=$(tail -n 1 Myteamdashboard_summary.txt | awk '{print $1}')
-            HEAD_HASH=$(git log -1 --pretty=format:"%h")
-            if git merge-base --is-ancestor $LAST_HASH $HEAD_HASH; then
-              if [ "$LAST_HASH" = "$HEAD_HASH" ]; then
-                echo "Already up to date."
-              else
-                git log ${LAST_HASH}..HEAD --pretty=format:"%h - %s (%an, %ad)" --date=short | grep -v "^$" >> Myteamdashboard_summary.txt
-              fi
-            else
-              # LAST_HASH가 HEAD에 포함되지 않으면 전체 로그로 덮어쓰기
-              git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
-            fi
-          fi
+          git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
 
           # detail 파일은 기존 방식 유지
           if [ "$exists" = "true" ]; then
