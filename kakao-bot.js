@@ -46,6 +46,9 @@ function extractDate(pubDate) {
 function routeMessage(userMessage) {
     const message = userMessage.toLowerCase().trim();
     
+    if (message.includes('스케줄공지') || message.includes('자동공지')) {
+        return 'auto_announce';
+    }
     if (message.includes('리스크') || message.includes('위험')) {
         return 'risk';
     }
@@ -287,6 +290,63 @@ router.post('/message', async (req, res) => {
         let responseMessage = '';
         
         switch (route) {
+            case 'auto_announce': {
+                // ① 일정(캘린더+목록)
+                const schedules = await axios.get(`${process.env.API_BASE_URL}/api/schedules`);
+                const scheduleDate = new Date();
+                const currentMonth = scheduleDate.getMonth();
+                const currentYear = scheduleDate.getFullYear();
+                // 공휴일 데이터 가져오기
+                const holidays = await fetchHolidays(currentYear);
+                const monthHolidays = getMonthHolidays(holidays, currentYear, currentMonth);
+                // 텍스트 달력 생성
+                const textCalendar = await generateTextCalendar(currentYear, currentMonth, schedules.data, monthHolidays);
+                // 세부 일정 목록 생성
+                const detailList = await generateDetailList(currentYear, currentMonth, schedules.data, monthHolidays);
+                // ③ 오늘 뉴스 요약
+                const [riskNews, partnerNews, techNews] = await Promise.all([
+                    axios.get(`${process.env.API_BASE_URL}/api/risk-news`),
+                    axios.get(`${process.env.API_BASE_URL}/api/partner-news`),
+                    axios.get(`${process.env.API_BASE_URL}/api/tech-news`)
+                ]);
+                const today = await getKoreaToday();
+                const todayRiskNews = riskNews.data.filter(item => extractDate(item.pubDate) === today);
+                const todayPartnerNews = partnerNews.data.filter(item => extractDate(item.pubDate) === today);
+                const todayTechNews = techNews.data.filter(item => extractDate(item.pubDate) === today);
+                let newsStr = '📰 오늘의 뉴스 요약\n';
+                newsStr += `- 리스크 이슈: ${todayRiskNews.length}건\n`;
+                newsStr += `- 제휴처 탐색: ${todayPartnerNews.length}건\n`;
+                newsStr += `- 신기술 동향: ${todayTechNews.length}건\n`;
+                if (todayRiskNews.length > 0) {
+                    newsStr += '\n[리스크 이슈 주요 뉴스]\n';
+                    todayRiskNews.slice(0, 2).forEach((item, idx) => {
+                        newsStr += `${idx + 1}. ${cleanHtml(item.title)}\n`;
+                    });
+                }
+                if (todayPartnerNews.length > 0) {
+                    newsStr += '\n[제휴처 탐색 주요 뉴스]\n';
+                    todayPartnerNews.slice(0, 2).forEach((item, idx) => {
+                        newsStr += `${idx + 1}. ${cleanHtml(item.title)}\n`;
+                    });
+                }
+                if (todayTechNews.length > 0) {
+                    newsStr += '\n[신기술 동향 주요 뉴스]\n';
+                    todayTechNews.slice(0, 2).forEach((item, idx) => {
+                        newsStr += `${idx + 1}. ${cleanHtml(item.title)}\n`;
+                    });
+                }
+                // 안내문구 보장
+                if (todayRiskNews.length === 0 && todayPartnerNews.length === 0 && todayTechNews.length === 0) {
+                    newsStr += '\n오늘 등록된 뉴스가 없습니다.\n';
+                }
+                // 최종 조합 (3000자 제한 없음)
+                let responseMessage = '📢 스케줄+뉴스 자동공지\n\n';
+                responseMessage += textCalendar + '\n';
+                responseMessage += detailList + '\n';
+                responseMessage += newsStr + '\n';
+                responseMessage += '\n대시보드 바로가기: https://myteamdashboard.vercel.app/index.html';
+                break;
+            }
             case 'risk':
                 const [riskNews, riskKeywords] = await Promise.all([
                     axios.get(`${process.env.API_BASE_URL}/api/risk-news`),
