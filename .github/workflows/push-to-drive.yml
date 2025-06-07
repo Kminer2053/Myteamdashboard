@@ -11,9 +11,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
-      - name: Generate summary files (initial full commit log)
+      - name: Generate summary files (full commit history)
         run: |
           git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
           echo -e "\n\n# 전체 변경 이력" > Myteamdashboard_summary_detail.txt
