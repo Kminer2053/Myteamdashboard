@@ -13,17 +13,13 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Generate summary files
+      - name: Generate summary files (initial full commit log)
         run: |
-          echo "\n---" >> Myteamdashboard_summary.txt
-          echo "$(date '+%Y-%m-%d %H:%M')" >> Myteamdashboard_summary.txt
-          git log -1 --pretty=format:"%h - %s (%an)" >> Myteamdashboard_summary.txt
-
-          echo "\n---" >> Myteamdashboard_summary_detail.txt
-          echo "$(date '+%Y-%m-%d %H:%M')" >> Myteamdashboard_summary_detail.txt
-          git log -1 --pretty=format:"%h - %s (%an)" >> Myteamdashboard_summary_detail.txt
-          echo -e "\nChanges:" >> Myteamdashboard_summary_detail.txt
-          git diff HEAD^ >> Myteamdashboard_summary_detail.txt
+          git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
+          echo -e "\n\n# 전체 변경 이력" > Myteamdashboard_summary_detail.txt
+          git log --pretty=format:"%h - %s (%an, %ad)" --date=short >> Myteamdashboard_summary_detail.txt
+          echo -e "\n\n# 전체 코드 diff" >> Myteamdashboard_summary_detail.txt
+          git diff $(git rev-list --max-parents=0 HEAD)..HEAD >> Myteamdashboard_summary_detail.txt
 
       - name: Install rclone
         run: |
