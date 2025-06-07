@@ -35,10 +35,10 @@ jobs:
           rclone config create gdrive drive scope=drive service_account_file=credentials.json
 
       - name: Upload summary file to Google Drive
-        run: rclone copy Myteamdashboard_summary.txt gdrive:${{ secrets.GDRIVE_FOLDER_ID }}/ --drive-root-folder-id ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: rclone copyto Myteamdashboard_summary.txt gdrive:${{ secrets.GDRIVE_FOLDER_ID }}/Myteamdashboard_summary.txt
 
       - name: Upload detailed summary file to Google Drive
-        run: rclone copy Myteamdashboard_summary_detail.txt gdrive:${{ secrets.GDRIVE_FOLDER_ID }}/ --drive-root-folder-id ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: rclone copyto Myteamdashboard_summary_detail.txt gdrive:${{ secrets.GDRIVE_FOLDER_ID }}/Myteamdashboard_summary_detail.txt
 
     env:
       GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
