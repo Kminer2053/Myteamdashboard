@@ -17,21 +17,26 @@ jobs:
           echo "$GDRIVE_CREDENTIALS" > credentials.json
           rclone config create gdrive drive scope=drive service_account_file=credentials.json root_folder_id=${{ secrets.GDRIVE_FOLDER_ID }}
 
-      - name: Try downloading existing summary files
-        id: check_files
+      - name: Check if summary file exists and download if available
+        id: check
         run: |
-          rclone copy gdrive:Myteamdashboard_summary.txt . && echo "found=true" >> $GITHUB_OUTPUT || echo "found=false" >> $GITHUB_OUTPUT
+          if rclone ls gdrive:Myteamdashboard_summary.txt > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            rclone copyto gdrive:Myteamdashboard_summary.txt Myteamdashboard_summary.txt
+            rclone copyto gdrive:Myteamdashboard_summary_detail.txt Myteamdashboard_summary_detail.txt
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Checkout with conditional fetch-depth
+      - name: Checkout with fetch-depth 2 (always)
         uses: actions/checkout@v3
         with:
-          fetch-depth: ${{ steps.check_files.outputs.found == 'true' && '2' || '0' }}
+          fetch-depth: 2
 
-      - name: Generate summary files
+      - name: Generate summary files based on existence
         run: |
-          if [ "${{ steps.check_files.outputs.found }}" = "true" ]; then
+          if [ "${{ steps.check.outputs.exists }}" = "true" ]; then
             echo "📌 기존 파일 있음 → 커밋 1개만 추가"
-            rclone copy gdrive:Myteamdashboard_summary_detail.txt . || true
             echo "$(git log -1 --pretty=format:'%h - %s (%an, %ad)' --date=short)" >> Myteamdashboard_summary.txt
 
             echo -e "\n\n# $(date '+%Y-%m-%d %H:%M') 변경분" >> Myteamdashboard_summary_detail.txt
