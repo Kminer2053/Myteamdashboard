@@ -22,32 +22,12 @@ jobs:
           echo "$GDRIVE_CREDENTIALS" > credentials.json
           rclone config create gdrive drive scope=drive service_account_file=credentials.json root_folder_id=${{ secrets.GDRIVE_FOLDER_ID }}
 
-      - name: Check for existing summary file
-        id: check
-        run: |
-          if rclone ls gdrive:Myteamdashboard_summary.txt > /dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_ENV
-            rclone copyto gdrive:Myteamdashboard_summary_detail.txt Myteamdashboard_summary_detail.txt
-          else
-            echo "exists=false" >> $GITHUB_ENV
-          fi
-
-      - name: Generate summary files (always overwrite)
+      - name: Generate summary files (overwrite with details)
         run: |
           git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
-
-          # detail 파일은 기존 방식 유지
-          if [ "$exists" = "true" ]; then
-            echo -e "\n\n# $(date '+%Y-%m-%d %H:%M') 변경분" >> Myteamdashboard_summary_detail.txt
-            git log -1 --pretty=format:"%h - %s (%an, %ad)" --date=short >> Myteamdashboard_summary_detail.txt
-            echo -e "\nChanges:" >> Myteamdashboard_summary_detail.txt
-            git diff HEAD^ >> Myteamdashboard_summary_detail.txt
-          else
-            echo "📌 최초 실행: 전체 커밋 내역 생성" > Myteamdashboard_summary_detail.txt
-            git log --pretty=format:"%h - %s (%an, %ad)" --date=short >> Myteamdashboard_summary_detail.txt
-            echo -e "\n\n# 전체 코드 diff" >> Myteamdashboard_summary_detail.txt
-            git diff $(git rev-list --max-parents=0 HEAD)..HEAD >> Myteamdashboard_summary_detail.txt
-          fi
+          git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary_detail.txt
+          echo -e "\n\n# 전체 코드 diff" >> Myteamdashboard_summary_detail.txt
+          git diff $(git rev-list --max-parents=0 HEAD)..HEAD >> Myteamdashboard_summary_detail.txt
 
       - name: Upload summary file to Google Drive
         run: rclone -v copyto Myteamdashboard_summary.txt gdrive:Myteamdashboard_summary.txt
