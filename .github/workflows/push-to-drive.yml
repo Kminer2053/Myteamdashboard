@@ -21,6 +21,13 @@ jobs:
           echo -e "\n\n# 전체 코드 diff" >> Myteamdashboard_summary_detail.txt
           git diff $(git rev-list --max-parents=0 HEAD)..HEAD >> Myteamdashboard_summary_detail.txt
 
+      - name: Show file contents (debug)
+        run: |
+          echo "==== summary.txt ===="
+          cat Myteamdashboard_summary.txt
+          echo "==== summary_detail.txt ===="
+          cat Myteamdashboard_summary_detail.txt
+
       - name: Install rclone
         run: |
           sudo apt update && sudo apt install -y rclone
@@ -31,10 +38,10 @@ jobs:
           rclone config create gdrive drive scope=drive service_account_file=credentials.json
 
       - name: Upload summary file to Google Drive
-        run: rclone copyto Myteamdashboard_summary.txt gdrive:${{ secrets.GDRIVE_FOLDER_ID }}/Myteamdashboard_summary.txt
+        run: rclone -v copyto Myteamdashboard_summary.txt gdrive:/Myteamdashboard_summary.txt
 
       - name: Upload detailed summary file to Google Drive
-        run: rclone copyto Myteamdashboard_summary_detail.txt gdrive:${{ secrets.GDRIVE_FOLDER_ID }}/Myteamdashboard_summary_detail.txt
+        run: rclone -v copyto Myteamdashboard_summary_detail.txt gdrive:/Myteamdashboard_summary_detail.txt
 
     env:
       GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
