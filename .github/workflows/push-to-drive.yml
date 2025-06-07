@@ -1,0 +1,40 @@
+name: Push Summary to Google Drive
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  drive-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Generate summary files
+        run: |
+          echo "\n---" >> Myteamdashboard_summary.txt
+          echo "$(date '+%Y-%m-%d %H:%M')" >> Myteamdashboard_summary.txt
+          git log -1 --pretty=format:"%h - %s (%an)" >> Myteamdashboard_summary.txt
+
+          echo "\n---" >> Myteamdashboard_summary_detail.txt
+          echo "$(date '+%Y-%m-%d %H:%M')" >> Myteamdashboard_summary_detail.txt
+          git log -1 --pretty=format:"%h - %s (%an)" >> Myteamdashboard_summary_detail.txt
+          echo -e "\nChanges:" >> Myteamdashboard_summary_detail.txt
+          git diff HEAD^ >> Myteamdashboard_summary_detail.txt
+
+      - name: Upload summary file to Google Drive
+        uses: jfloff/google-drive-upload-action@v1
+        with:
+          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
+          filename: Myteamdashboard_summary.txt
+          folderId: ${{ secrets.GDRIVE_FOLDER_ID }}
+          overwrite: true
+
+      - name: Upload detailed summary file to Google Drive
+        uses: jfloff/google-drive-upload-action@v1
+        with:
+          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
+          filename: Myteamdashboard_summary_detail.txt
+          folderId: ${{ secrets.GDRIVE_FOLDER_ID }}
+          overwrite: true
