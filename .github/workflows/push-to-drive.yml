@@ -11,22 +11,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          fetch-depth: 2
 
-      - name: Generate summary files (full commit history)
+      - name: Generate summary files (append latest commit only)
         run: |
-          git log --pretty=format:"%h - %s (%an, %ad)" --date=short > Myteamdashboard_summary.txt
-          echo -e "\n\n# 전체 변경 이력" > Myteamdashboard_summary_detail.txt
-          git log --pretty=format:"%h - %s (%an, %ad)" --date=short >> Myteamdashboard_summary_detail.txt
-          echo -e "\n\n# 전체 코드 diff" >> Myteamdashboard_summary_detail.txt
-          git diff $(git rev-list --max-parents=0 HEAD)..HEAD >> Myteamdashboard_summary_detail.txt
+          echo "$(git log -1 --pretty=format:"%h - %s (%an, %ad)" --date=short)" >> Myteamdashboard_summary.txt
 
-      - name: Show file contents (debug)
-        run: |
-          echo "==== summary.txt ===="
-          cat Myteamdashboard_summary.txt
-          echo "==== summary_detail.txt ===="
-          cat Myteamdashboard_summary_detail.txt
+          echo -e "\n\n# $(date '+%Y-%m-%d %H:%M') 변경분" >> Myteamdashboard_summary_detail.txt
+          git log -1 --pretty=format:"%h - %s (%an, %ad)" --date=short >> Myteamdashboard_summary_detail.txt
+          echo -e "\nChanges:" >> Myteamdashboard_summary_detail.txt
+          git diff HEAD^ >> Myteamdashboard_summary_detail.txt
 
       - name: Install rclone
         run: |
