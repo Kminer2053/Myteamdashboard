@@ -292,11 +292,11 @@ router.post('/message', async (req, res) => {
     try {
         // 요청 로그 추가
         console.log('[카카오봇] /kakao/message 요청:', req.body);
-        const { message } = req.body;
-        const route = routeMessage(message);
+        const userMessage = req.body.userRequest?.utterance || req.body.message || '';
+        const action = routeMessage(userMessage);
         let responseMessage = '';
         
-        switch (route) {
+        switch (action) {
             case 'auto_announce': {
                 // ① 일정(캘린더+목록)
                 const schedules = await axios.get(`${process.env.API_BASE_URL}/api/schedules`);
