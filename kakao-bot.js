@@ -317,7 +317,6 @@ router.post('/message', async (req, res) => {
                 responseMessage += textCalendar + '\n';
                 responseMessage += detailList + '\n';
                 responseMessage += newsSummary + '\n';
-                responseMessage += '\n대시보드 바로가기: https://myteamdashboard.vercel.app/index.html';
                 break;
             }
             case 'risk':
@@ -382,17 +381,20 @@ router.post('/message', async (req, res) => {
                     axios.get(`${process.env.API_BASE_URL}/api/tech-topics`)
                 ]);
                 
-                const todayTechNews = await filterTodayNews(techNews.data);
+                const todayTechNews = techNews.data.filter(item => extractDate(item.pubDate) === today);
+                console.log('todayTechNews:', todayTechNews);
+                
+                const todayTechNewsFiltered = await filterTodayNews(todayTechNews);
                 
                 responseMessage = "🔬 신기술 동향\n\n";
                 responseMessage += "🔍 검색 주제:\n";
                 techTopics.data.forEach(topic => {
                     responseMessage += `- ${topic.value}\n`;
                 });
-                responseMessage += `\n📊 오늘 등록된 뉴스: ${todayTechNews.length}건\n\n`;
+                responseMessage += `\n📊 오늘 등록된 뉴스: ${todayTechNewsFiltered.length}건\n\n`;
                 
-                if (todayTechNews.length > 0) {
-                    todayTechNews.forEach((item, index) => {
+                if (todayTechNewsFiltered.length > 0) {
+                    todayTechNewsFiltered.forEach((item, index) => {
                         const cleanTitle = cleanHtml(item.title);
                         responseMessage += `[${index + 1}] ${cleanTitle}\n`;
                         if (item.link) responseMessage += `🔗 ${item.link}\n`;
@@ -487,51 +489,45 @@ router.post('/message', async (req, res) => {
     }
 });
 
+// 📰 오늘의 뉴스 요약 생성 함수
 async function generateNewsSummary() {
     const today = await getKoreaToday();
     let summary = '📰 오늘의 뉴스 요약\n';
-    
     try {
         // 리스크 이슈 뉴스
         const riskNews = await axios.get(`${process.env.API_BASE_URL}/api/risk-news`);
         const todayRiskNews = riskNews.data.filter(item => extractDate(item.pubDate) === today);
-        
         // 제휴처 탐색 뉴스
         const partnerNews = await axios.get(`${process.env.API_BASE_URL}/api/partner-news`);
         const todayPartnerNews = partnerNews.data.filter(item => extractDate(item.pubDate) === today);
-        
         // 신기술 동향 뉴스
         const techNews = await axios.get(`${process.env.API_BASE_URL}/api/tech-news`);
         const todayTechNews = techNews.data.filter(item => extractDate(item.pubDate) === today);
-        
         summary += `- 리스크 이슈: ${todayRiskNews.length}건\n`;
         summary += `- 제휴처 탐색: ${todayPartnerNews.length}건\n`;
         summary += `- 신기술 동향: ${todayTechNews.length}건\n\n`;
-        
-        // 리스크 이슈 뉴스 상세
+        // 리스크 이슈 뉴스 상세 (제한 없이 모두 표기)
         if (todayRiskNews.length > 0) {
             summary += '[리스크 이슈 주요 뉴스]\n';
-            todayRiskNews.slice(0, 3).forEach((news, idx) => {
+            todayRiskNews.forEach((news, idx) => {
                 summary += `${idx + 1}. ${cleanHtml(news.title)}\n`;
                 summary += `   ${news.link}\n`;
             });
             summary += '\n';
         }
-        
-        // 제휴처 탐색 뉴스 상세
+        // 제휴처 탐색 뉴스 상세 (제한 없이 모두 표기)
         if (todayPartnerNews.length > 0) {
             summary += '[제휴처 탐색 주요 뉴스]\n';
-            todayPartnerNews.slice(0, 3).forEach((news, idx) => {
+            todayPartnerNews.forEach((news, idx) => {
                 summary += `${idx + 1}. ${cleanHtml(news.title)}\n`;
                 summary += `   ${news.link}\n`;
             });
             summary += '\n';
         }
-        
-        // 신기술 동향 뉴스 상세
-        if (techNews.length > 0) {
+        // 신기술 동향 뉴스 상세 (1건이라도 있으면 모두 표기)
+        if (todayTechNews.length > 0) {
             summary += '[신기술 동향 주요 뉴스]\n';
-            todayTechNews.slice(0, 3).forEach((news, idx) => {
+            todayTechNews.forEach((news, idx) => {
                 summary += `${idx + 1}. ${cleanHtml(news.title)}\n`;
                 summary += `   ${news.link}\n`;
             });
@@ -541,7 +537,6 @@ async function generateNewsSummary() {
         console.error('뉴스 요약 생성 중 에러 발생:', error);
         summary += '\n뉴스 데이터를 가져오는 중 오류가 발생했습니다.';
     }
-    
     return summary;
 }
 
