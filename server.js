@@ -16,9 +16,10 @@ const TechNews = require('./models/TechNews');
 const nodemailer = require('nodemailer');
 const kakaoBotRouter = require('./kakao-bot');
 const path = require('path');
-const router = require('./routes');
 
 const app = express();
+
+// 미들웨어 설정
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'], credentials: true }));
 app.options('*', cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'], credentials: true }));
 app.use(express.json());
@@ -889,7 +890,7 @@ app.use('/kakao', kakaoBotRouter);
 console.log('카카오 라우터 등록됨');
 
 app.get('/', (req, res) => {
-  res.send('OK');
+  res.send('API 서버가 정상적으로 실행 중입니다.');
 });
 
 // calendar_images 폴더 static 서빙
