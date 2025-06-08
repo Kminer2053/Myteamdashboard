@@ -476,11 +476,11 @@ document.addEventListener('DOMContentLoaded', function() {
     async function renderNews(selectedKeywords) {
         const newsFeed = document.getElementById('newsFeed');
         if (!newsFeed) return;
-        // 최초 로딩/정보갱신 시 로딩 스피너 표시
         newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 로딩 중...</div></div>';
         const keywords = selectedKeywords || await loadKeywords();
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const allNews = await getRes.json();
+        console.log('서버에서 받아온 전체 뉴스:', allNews);
         const today = await getKoreaToday();
         let filtered = [];
         if (keywords.length > 0) {
@@ -490,6 +490,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return newsKeywords.some(k => keywords.includes(k));
             });
         }
+        console.log('필터링 후 뉴스:', filtered);
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         newsFeed.innerHTML = '';
         // === 상단 건수/갱신 버튼 추가 ===
