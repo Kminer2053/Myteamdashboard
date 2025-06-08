@@ -181,12 +181,16 @@ async function generateTextCalendar(year, month, schedules, monthHolidays) {
                 week += padCell6('');
             } else {
                 let cell = '';
+                const isToday = (year === Number(todayStr.split('-')[0]) && month + 1 === Number(todayStr.split('-')[1]) && day === Number(todayStr.split('-')[2]));
                 if (holidayByDay[day]) {
                     cell = '🗓️';
                 } else if (scheduleByDay[day]) {
                     cell = '★';
                 } else {
                     cell = String(day);
+                }
+                if (isToday) {
+                    cell = `[${cell}]`;
                 }
                 week += padCell6(cell);
                 day++;
@@ -340,7 +344,7 @@ router.post('/message', async (req, res) => {
                     newsStr += '\n오늘 등록된 뉴스가 없습니다.\n';
                 }
                 // 최종 조합 (3000자 제한 없음)
-                let responseMessage = '📢 스케줄+뉴스 자동공지\n\n';
+                responseMessage = '📢 금일일정 및 뉴스\n\n';
                 responseMessage += textCalendar + '\n';
                 responseMessage += detailList + '\n';
                 responseMessage += newsStr + '\n';
