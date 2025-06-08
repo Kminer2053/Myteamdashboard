@@ -308,46 +308,12 @@ router.post('/message', async (req, res) => {
                 // 세부 일정 목록 생성
                 const detailList = await generateDetailList(currentYear, currentMonth, schedules.data, monthHolidays);
                 // ③ 오늘 뉴스 요약
-                const [riskNews, partnerNews, techNews] = await Promise.all([
-                    axios.get(`${process.env.API_BASE_URL}/api/risk-news`),
-                    axios.get(`${process.env.API_BASE_URL}/api/partner-news`),
-                    axios.get(`${process.env.API_BASE_URL}/api/tech-news`)
-                ]);
-                const today = await getKoreaToday();
-                const todayRiskNews = riskNews.data.filter(item => extractDate(item.pubDate) === today);
-                const todayPartnerNews = partnerNews.data.filter(item => extractDate(item.pubDate) === today);
-                const todayTechNews = techNews.data.filter(item => extractDate(item.pubDate) === today);
-                let newsStr = '📰 오늘의 뉴스 요약\n';
-                newsStr += `- 리스크 이슈: ${todayRiskNews.length}건\n`;
-                newsStr += `- 제휴처 탐색: ${todayPartnerNews.length}건\n`;
-                newsStr += `- 신기술 동향: ${todayTechNews.length}건\n`;
-                if (todayRiskNews.length > 0) {
-                    newsStr += '\n[리스크 이슈 주요 뉴스]\n';
-                    todayRiskNews.slice(0, 2).forEach((item, idx) => {
-                        newsStr += `${idx + 1}. ${cleanHtml(item.title)}\n`;
-                    });
-                }
-                if (todayPartnerNews.length > 0) {
-                    newsStr += '\n[제휴처 탐색 주요 뉴스]\n';
-                    todayPartnerNews.slice(0, 2).forEach((item, idx) => {
-                        newsStr += `${idx + 1}. ${cleanHtml(item.title)}\n`;
-                    });
-                }
-                if (todayTechNews.length > 0) {
-                    newsStr += '\n[신기술 동향 주요 뉴스]\n';
-                    todayTechNews.slice(0, 2).forEach((item, idx) => {
-                        newsStr += `${idx + 1}. ${cleanHtml(item.title)}\n`;
-                    });
-                }
-                // 안내문구 보장
-                if (todayRiskNews.length === 0 && todayPartnerNews.length === 0 && todayTechNews.length === 0) {
-                    newsStr += '\n오늘 등록된 뉴스가 없습니다.\n';
-                }
+                const newsSummary = await generateNewsSummary();
                 // 최종 조합 (3000자 제한 없음)
                 responseMessage = '📢 금일일정 및 뉴스\n\n';
                 responseMessage += textCalendar + '\n';
                 responseMessage += detailList + '\n';
-                responseMessage += newsStr + '\n';
+                responseMessage += newsSummary + '\n';
                 responseMessage += '\n대시보드 바로가기: https://myteamdashboard.vercel.app/index.html';
                 break;
             }
@@ -517,5 +483,62 @@ router.post('/message', async (req, res) => {
         res.status(500).json({ error: '메시지 처리 실패' });
     }
 });
+
+async function generateNewsSummary() {
+    const today = await getKoreaToday();
+    let summary = '📰 오늘의 뉴스 요약\n';
+    
+    // 리스크 이슈 뉴스
+    const riskNews = await RiskNews.find({
+        pubDate: { $regex: new RegExp(today.replace(/-/g, '\\. ')) }
+    });
+    
+    // 제휴처 탐색 뉴스
+    const partnerNews = await PartnerNews.find({
+        pubDate: { $regex: new RegExp(today.replace(/-/g, '\\. ')) }
+    });
+    
+    // 신기술 동향 뉴스
+    const techNews = await TechNews.find({
+        pubDate: { $regex: new RegExp(today.replace(/-/g, '\\. ')) }
+    });
+    
+    summary += `- 리스크 이슈: ${riskNews.length}건\n`;
+    summary += `- 제휴처 탐색: ${partnerNews.length}건\n`;
+    summary += `- 신기술 동향: ${techNews.length}건\n\n`;
+    
+    // 리스크 이슈 뉴스 상세
+    if (riskNews.length > 0) {
+        summary += '[리스크 이슈 주요 뉴스]\n';
+        riskNews.slice(0, 3).forEach((news, idx) => {
+            summary += `${idx + 1}. ${news.title}\n`;
+            summary += `   ${news.link}\n`;
+        });
+        summary += '\n';
+    }
+    
+    // 제휴처 탐색 뉴스 상세
+    if (partnerNews.length > 0) {
+        summary += '[제휴처 탐색 주요 뉴스]\n';
+        partnerNews.slice(0, 3).forEach((news, idx) => {
+            summary += `${idx + 1}. ${news.title}\n`;
+            summary += `   ${news.link}\n`;
+        });
+        summary += '\n';
+    }
+    
+    // 신기술 동향 뉴스 상세
+    if (techNews.length > 0) {
+        summary += '[신기술 동향 주요 뉴스]\n';
+        techNews.slice(0, 3).forEach((news, idx) => {
+            summary += `${idx + 1}. ${news.title}\n`;
+            summary += `   ${news.link}\n`;
+        });
+        summary += '\n';
+    }
+    
+    summary += '\n대시보드 바로가기: https://myteamdashboard.vercel.app/index.html';
+    return summary;
+}
 
 module.exports = router; 
