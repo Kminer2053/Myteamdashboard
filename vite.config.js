@@ -13,6 +13,15 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: 'dist'
-  }
+    outDir: 'dist',
+    assetsDir: 'assets',
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: 'public/index.html',
+        admin: 'public/admin.html'
+      }
+    }
+  },
+  publicDir: 'public'
 }); 
