@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { getOrCreateCalendarImage } = require('./calendarImage');
+const { RiskNews, PartnerNews, TechNews } = require('./models');
 
 // 카카오톡 봇 설정
 const KAKAO_BOT_TOKEN = process.env.KAKAO_BOT_TOKEN;
@@ -537,7 +538,6 @@ async function generateNewsSummary() {
         summary += '\n';
     }
     
-    summary += '\n대시보드 바로가기: https://myteamdashboard.vercel.app/index.html';
     return summary;
 }
 
