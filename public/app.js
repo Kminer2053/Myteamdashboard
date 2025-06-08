@@ -480,7 +480,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const keywords = selectedKeywords || await loadKeywords();
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const allNews = await getRes.json();
-        console.log('서버에서 받아온 전체 뉴스:', allNews);
         const today = await getKoreaToday();
         let filtered = [];
         if (keywords.length > 0) {
@@ -497,7 +496,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return newsKeywords.some(k => normalizedKeywords.includes(k));
             });
         }
-        console.log('필터링 후 뉴스:', filtered);
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         newsFeed.innerHTML = '';
         // === 상단 건수/갱신 버튼 추가 ===
@@ -1004,4 +1002,6 @@ function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 }
+
+// force redeploy
 
