@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { getOrCreateCalendarImage } = require('./calendarImage');
-const { RiskNews, PartnerNews, TechNews } = require('./models');
+const RiskNews = require('./models/RiskNews');
+const PartnerNews = require('./models/PartnerNews');
+const TechNews = require('./models/TechNews');
 
 // 카카오톡 봇 설정
 const KAKAO_BOT_TOKEN = process.env.KAKAO_BOT_TOKEN;
@@ -489,53 +491,55 @@ async function generateNewsSummary() {
     const today = await getKoreaToday();
     let summary = '📰 오늘의 뉴스 요약\n';
     
-    // 리스크 이슈 뉴스
-    const riskNews = await RiskNews.find({
-        pubDate: { $regex: new RegExp(today.replace(/-/g, '\\. ')) }
-    });
-    
-    // 제휴처 탐색 뉴스
-    const partnerNews = await PartnerNews.find({
-        pubDate: { $regex: new RegExp(today.replace(/-/g, '\\. ')) }
-    });
-    
-    // 신기술 동향 뉴스
-    const techNews = await TechNews.find({
-        pubDate: { $regex: new RegExp(today.replace(/-/g, '\\. ')) }
-    });
-    
-    summary += `- 리스크 이슈: ${riskNews.length}건\n`;
-    summary += `- 제휴처 탐색: ${partnerNews.length}건\n`;
-    summary += `- 신기술 동향: ${techNews.length}건\n\n`;
-    
-    // 리스크 이슈 뉴스 상세
-    if (riskNews.length > 0) {
-        summary += '[리스크 이슈 주요 뉴스]\n';
-        riskNews.slice(0, 3).forEach((news, idx) => {
-            summary += `${idx + 1}. ${news.title}\n`;
-            summary += `   ${news.link}\n`;
-        });
-        summary += '\n';
-    }
-    
-    // 제휴처 탐색 뉴스 상세
-    if (partnerNews.length > 0) {
-        summary += '[제휴처 탐색 주요 뉴스]\n';
-        partnerNews.slice(0, 3).forEach((news, idx) => {
-            summary += `${idx + 1}. ${news.title}\n`;
-            summary += `   ${news.link}\n`;
-        });
-        summary += '\n';
-    }
-    
-    // 신기술 동향 뉴스 상세
-    if (techNews.length > 0) {
-        summary += '[신기술 동향 주요 뉴스]\n';
-        techNews.slice(0, 3).forEach((news, idx) => {
-            summary += `${idx + 1}. ${news.title}\n`;
-            summary += `   ${news.link}\n`;
-        });
-        summary += '\n';
+    try {
+        // 리스크 이슈 뉴스
+        const riskNews = await axios.get(`${process.env.API_BASE_URL}/api/risk-news`);
+        const todayRiskNews = riskNews.data.filter(item => extractDate(item.pubDate) === today);
+        
+        // 제휴처 탐색 뉴스
+        const partnerNews = await axios.get(`${process.env.API_BASE_URL}/api/partner-news`);
+        const todayPartnerNews = partnerNews.data.filter(item => extractDate(item.pubDate) === today);
+        
+        // 신기술 동향 뉴스
+        const techNews = await axios.get(`${process.env.API_BASE_URL}/api/tech-news`);
+        const todayTechNews = techNews.data.filter(item => extractDate(item.pubDate) === today);
+        
+        summary += `- 리스크 이슈: ${todayRiskNews.length}건\n`;
+        summary += `- 제휴처 탐색: ${todayPartnerNews.length}건\n`;
+        summary += `- 신기술 동향: ${todayTechNews.length}건\n\n`;
+        
+        // 리스크 이슈 뉴스 상세
+        if (todayRiskNews.length > 0) {
+            summary += '[리스크 이슈 주요 뉴스]\n';
+            todayRiskNews.slice(0, 3).forEach((news, idx) => {
+                summary += `${idx + 1}. ${cleanHtml(news.title)}\n`;
+                summary += `   ${news.link}\n`;
+            });
+            summary += '\n';
+        }
+        
+        // 제휴처 탐색 뉴스 상세
+        if (todayPartnerNews.length > 0) {
+            summary += '[제휴처 탐색 주요 뉴스]\n';
+            todayPartnerNews.slice(0, 3).forEach((news, idx) => {
+                summary += `${idx + 1}. ${cleanHtml(news.title)}\n`;
+                summary += `   ${news.link}\n`;
+            });
+            summary += '\n';
+        }
+        
+        // 신기술 동향 뉴스 상세
+        if (techNews.length > 0) {
+            summary += '[신기술 동향 주요 뉴스]\n';
+            todayTechNews.slice(0, 3).forEach((news, idx) => {
+                summary += `${idx + 1}. ${cleanHtml(news.title)}\n`;
+                summary += `   ${news.link}\n`;
+            });
+            summary += '\n';
+        }
+    } catch (error) {
+        console.error('뉴스 요약 생성 중 에러 발생:', error);
+        summary += '\n뉴스 데이터를 가져오는 중 오류가 발생했습니다.';
     }
     
     return summary;
