@@ -1,0 +1,148 @@
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.card-title {
+    margin-bottom: 0;
+    color: #333;
+}
+
+#calendar {
+    height: 500px;
+    width: 100%;
+}
+
+.card-body {
+    overflow: auto;
+    background: #fff !important;
+    color: #222;
+}
+
+#newsFeed, #partnerResults, #techTrendResults {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.news-item, .partner-item, .tech-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.news-item:hover, .partner-item:hover, .tech-item:hover {
+    background-color: #f8f9fa;
+}
+
+.keyword-tag {
+    display: inline-block;
+    padding: 5px 10px;
+    margin: 5px;
+    background-color: #e9ecef;
+    border-radius: 15px;
+    font-size: 0.9em;
+}
+
+.keyword-tag .remove {
+    margin-left: 5px;
+    cursor: pointer;
+}
+
+.navbar {
+    margin-bottom: 20px;
+}
+
+.form-control {
+    margin-bottom: 10px;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+/* 모든 이벤트 텍스트에 말줄임표 적용 (공휴일+사용자 일정 모두) */
+.fc-event-title, 
+.fc-event-title-container, 
+.fc-event-main, 
+.fc-daygrid-event, 
+.fc-event-main-frame, 
+.fc-event-title.fc-sticky {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100%;
+    display: block;
+}
+
+.card-header.section-schedule { background: #e3f2fd !important; color: #1976d2 !important; }
+.card-header.section-risk    { background: #e0f7fa !important; color: #0288d1 !important; }
+.card-header.section-partner { background: #e8eaf6 !important; color: #1565c0 !important; }
+.card-header.section-tech    { background: #ede7f6 !important; color: #512da8 !important; }
+
+.btn-outline-section-schedule {
+  color: #1976d2;
+  border-color: #1976d2;
+}
+.btn-outline-section-schedule:hover, .btn-outline-section-schedule:active {
+  background-color: #1976d2;
+  color: #fff;
+}
+
+.btn-outline-section-risk {
+  color: #0288d1;
+  border-color: #0288d1;
+}
+.btn-outline-section-risk:hover, .btn-outline-section-risk:active {
+  background-color: #0288d1;
+  color: #fff;
+}
+
+.btn-outline-section-partner {
+  color: #1565c0;
+  border-color: #1565c0;
+}
+.btn-outline-section-partner:hover, .btn-outline-section-partner:active {
+  background-color: #1565c0;
+  color: #fff;
+}
+
+.btn-outline-section-tech {
+  color: #512da8;
+  border-color: #512da8;
+}
+.btn-outline-section-tech:hover, .btn-outline-section-tech:active {
+  background-color: #512da8;
+  color: #fff;
+}
+
+.section-schedule .form-check-label { color: #1976d2; }
+.section-risk .form-check-label     { color: #0288d1; }
+.section-partner .form-check-label  { color: #1565c0; }
+.section-tech .form-check-label     { color: #512da8; }
+
+.section-schedule .main-color { color: #1976d2; }
+.section-risk .main-color     { color: #0288d1; }
+.section-partner .main-color  { color: #1565c0; }
+.section-tech .main-color     { color: #512da8; }
+
+.badge-section-schedule { background: #e3f2fd; color: #1976d2; }
+.badge-section-risk     { background: #e0f7fa; color: #0288d1; }
+.badge-section-partner  { background: #e8eaf6; color: #1565c0; }
+.badge-section-tech     { background: #ede7f6; color: #512da8; }
+
+.form-check-input.section-schedule:checked { background-color: #1976d2; border-color: #1976d2; }
+.form-check-input.section-risk:checked     { background-color: #0288d1; border-color: #0288d1; }
+.form-check-input.section-partner:checked  { background-color: #1565c0; border-color: #1565c0; }
+.form-check-input.section-tech:checked     { background-color: #512da8; border-color: #512da8; }
+
+.form-check-label { color: #222 !important; } 
