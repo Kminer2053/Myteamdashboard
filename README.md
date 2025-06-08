@@ -1,1 +1,77 @@
-# test trigger
+# 팀 대시보드 프로젝트
+
+## 프로젝트 소개
+이 프로젝트는 팀의 일정, 뉴스, 리스크 이슈 등을 한눈에 볼 수 있는 대시보드 시스템입니다.
+
+### 주요 기능
+- 일정 관리 및 공지
+- 뉴스 모니터링 (제휴처, 리스크이슈, 신기술동향)
+- 관리자 페이지
+- 카카오톡 봇 연동
+
+### 기술 스택
+- Frontend: HTML, CSS, JavaScript
+- Backend: Node.js, Express
+- Database: MongoDB
+- Deployment: Vercel, Render
+
+## 설치 및 실행 방법
+
+### 필수 요구사항
+- Node.js 14.x 이상
+- MongoDB
+
+### 설치
+```bash
+# 의존성 설치
+npm install
+
+# 환경 변수 설정
+# .env 파일 생성 및 필요한 환경 변수 설정
+```
+
+### 실행
+```bash
+# 개발 서버 실행
+npm run dev
+
+# 프로덕션 빌드
+npm run build
+```
+
+## 주요 기능 설명
+
+### 뉴스 모니터링
+- 제휴처 뉴스: 파트너사 관련 뉴스 모니터링
+- 리스크이슈: 산업 전반의 리스크 관련 뉴스
+- 신기술동향: 최신 기술 트렌드 뉴스
+
+### 관리자 기능
+- 뉴스 데이터 관리
+- 일정 관리
+- 시스템 설정
+
+### 카카오톡 봇
+- 일정 조회
+- 뉴스 요약
+- 알림 설정
+
+## 배포 정보
+
+### 환경 변수
+- `MONGODB_URI`: MongoDB 연결 문자열
+- `KAKAO_BOT_TOKEN`: 카카오톡 봇 토큰
+- `ADMIN_PASSWORD`: 관리자 페이지 비밀번호
+
+### 배포 환경
+- Frontend: Vercel
+- Backend: Render
+
+## 프로젝트 구조
+```
+├── public/          # 프론트엔드 정적 파일
+├── routes/          # API 라우트
+├── models/          # 데이터베이스 모델
+├── server.js        # 메인 서버 파일
+└── package.json     # 프로젝트 설정
+```
