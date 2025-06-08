@@ -484,10 +484,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const today = await getKoreaToday();
         let filtered = [];
         if (keywords.length > 0) {
+            // 네이버 뉴스 특성상 공백(&), |(or) 모두 분리해서 비교
+            // 대소문자 구분 유지
+            let normalizedKeywords = [];
+            keywords.forEach(kw => {
+                normalizedKeywords.push(...kw.split(/\s+|\|/).map(k => k.trim()).filter(Boolean));
+            });
             filtered = allNews.filter(news => {
                 if (!news.keyword) return false;
-                const newsKeywords = news.keyword.split('|').map(k => k.trim());
-                return newsKeywords.some(k => keywords.includes(k));
+                // 뉴스 keyword도 공백, | 모두 분리
+                const newsKeywords = news.keyword.split(/\s+|\|/).map(k => k.trim()).filter(Boolean);
+                return newsKeywords.some(k => normalizedKeywords.includes(k));
             });
         }
         console.log('필터링 후 뉴스:', filtered);
