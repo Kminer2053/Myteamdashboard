@@ -25,6 +25,29 @@ router.get('/stats/summary', async (req, res) => {
       match.timestamp.$lte = new Date(end);
     }
     if (type) match.type = type;
+
+    // 전체 명령어/액션 목록 (고정값)
+    const ALL_ACTIONS = [
+      { type: 'kakao', action: '스케줄공지' },
+      { type: 'kakao', action: '리스크' },
+      { type: 'kakao', action: '제휴' },
+      { type: 'kakao', action: '기술' },
+      { type: 'kakao', action: '일정' },
+      { type: 'kakao', action: '뉴스' },
+      { type: 'kakao', action: '도움말' },
+      { type: 'kakao', action: '기타' },
+      { type: 'dashboard', action: '리스크이슈정보갱신' },
+      { type: 'dashboard', action: '제휴처탐색정보갱신' },
+      { type: 'dashboard', action: '신기술동향정보갱신' },
+      { type: 'admin', action: '리스크키워드추가' },
+      { type: 'admin', action: '제휴조건추가' },
+      { type: 'admin', action: '신기술주제추가' },
+      { type: 'admin', action: '뉴스갱신시간변경' },
+      { type: 'admin', action: 'DB설정저장' },
+      { type: 'admin', action: '통계메일저장' },
+      { type: 'db', action: '자동삭제' }
+    ];
+
     const group = {
       _id: { type: '$type', action: '$action' },
       count: { $sum: 1 }
@@ -34,7 +57,14 @@ router.get('/stats/summary', async (req, res) => {
       { $group: group },
       { $sort: { 'count': -1 } }
     ]);
-    res.json(result);
+
+    // 누락된 명령어/액션은 count:0으로 추가
+    const merged = ALL_ACTIONS.map(item => {
+      const found = result.find(r => r._id.type === item.type && r._id.action === item.action);
+      return found || { _id: item, count: 0 };
+    });
+
+    res.json(merged);
   } catch (err) {
     res.status(500).json({ error: '집계 실패', detail: err.message });
   }
