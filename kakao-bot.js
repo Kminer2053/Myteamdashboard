@@ -287,6 +287,20 @@ function cleanHtml(str) {
     return text;
 }
 
+const logUserAction = async (action, userId = '', meta = {}) => {
+  try {
+    await axios.post(`${process.env.API_BASE_URL}/api/log/action`, {
+      type: 'kakao',
+      action,
+      userId,
+      userAgent: 'kakao-bot',
+      meta
+    });
+  } catch (e) {
+    // 무시
+  }
+};
+
 // 메시지 처리 엔드포인트
 router.post('/message', async (req, res) => {
     try {
@@ -295,9 +309,11 @@ router.post('/message', async (req, res) => {
         const userMessage = req.body.userRequest?.utterance || req.body.message || '';
         const action = routeMessage(userMessage);
         let responseMessage = '';
+        const userId = req.body.userRequest?.user?.id || '';
         
         switch (action) {
             case 'auto_announce': {
+                await logUserAction('스케줄공지', userId);
                 // ① 일정(캘린더+목록)
                 const schedules = await axios.get(`${process.env.API_BASE_URL}/api/schedules`);
                 const scheduleDate = new Date();
@@ -319,7 +335,8 @@ router.post('/message', async (req, res) => {
                 responseMessage += newsSummary + '\n';
                 break;
             }
-            case 'risk':
+            case 'risk': {
+                await logUserAction('리스크', userId);
                 const [riskNews, riskKeywords] = await Promise.all([
                     axios.get(`${process.env.API_BASE_URL}/api/risk-news`),
                     axios.get(`${process.env.API_BASE_URL}/api/risk-keywords`)
@@ -346,8 +363,9 @@ router.post('/message', async (req, res) => {
                     responseMessage += "오늘 등록된 뉴스가 없습니다.\n";
                 }
                 break;
-                
-            case 'partner':
+            }
+            case 'partner': {
+                await logUserAction('제휴', userId);
                 const [partnerNews, partnerConditions] = await Promise.all([
                     axios.get(`${process.env.API_BASE_URL}/api/partner-news`),
                     axios.get(`${process.env.API_BASE_URL}/api/partner-conditions`)
@@ -374,8 +392,9 @@ router.post('/message', async (req, res) => {
                     responseMessage += "오늘 등록된 정보가 없습니다.\n";
                 }
                 break;
-                
-            case 'tech':
+            }
+            case 'tech': {
+                await logUserAction('기술', userId);
                 const [techNews, techTopics] = await Promise.all([
                     axios.get(`${process.env.API_BASE_URL}/api/tech-news`),
                     axios.get(`${process.env.API_BASE_URL}/api/tech-topics`)
@@ -405,8 +424,9 @@ router.post('/message', async (req, res) => {
                     responseMessage += "오늘 등록된 뉴스가 없습니다.\n";
                 }
                 break;
-                
-            case 'schedule':
+            }
+            case 'schedule': {
+                await logUserAction('일정', userId);
                 const schedules = await axios.get(`${process.env.API_BASE_URL}/api/schedules`);
                 const scheduleDate = new Date();
                 const currentMonth = scheduleDate.getMonth();
@@ -420,8 +440,9 @@ router.post('/message', async (req, res) => {
                 const detailList = await generateDetailList(currentYear, currentMonth, schedules.data, monthHolidays);
                 responseMessage = textCalendar + '\n' + detailList;
                 break;
-                
-            case 'all':
+            }
+            case 'all': {
+                await logUserAction('뉴스', userId);
                 const [allRiskNews, allPartnerNews, allTechNews] = await Promise.all([
                     axios.get(`${process.env.API_BASE_URL}/api/risk-news`),
                     axios.get(`${process.env.API_BASE_URL}/api/partner-news`),
@@ -468,13 +489,16 @@ router.post('/message', async (req, res) => {
                     });
                 }
                 break;
-                
-            case 'help':
+            }
+            case 'help': {
+                await logUserAction('도움말', userId);
                 responseMessage = `📱 대시보드 봇 사용법\n\n1. 리스크 이슈 조회\n   - \"리스크\" 입력\n   - 검색 키워드 기반 필터링\n   - 오늘 등록된 뉴스만 표시\n\n2. 제휴처 탐색\n   - \"제휴\" 입력\n   - 검색 조건 기반 필터링\n   - 오늘 등록된 정보만 표시\n\n3. 신기술 동향\n   - \"기술\" 입력\n   - 검색 주제 기반 필터링\n   - 오늘 등록된 뉴스만 표시\n\n4. 일정 조회\n   - \"일정\" 입력\n   - 월간 캘린더와 일정 목록 표시\n   - 오늘 이후의 일정만 표시\n\n5. 뉴스 모니터링\n   - \"뉴스\" 입력\n   - 모든 카테고리의 오늘의 뉴스 표시\n   - 카테고리별 최신 3개 뉴스 표시\n\n6. 도움말\n   - \"도움말\" 입력\n   - 사용 가능한 명령어 목록 표시`;
                 break;
-                
-            default:
+            }
+            default: {
+                await logUserAction('기타', userId, { message: userMessage });
                 responseMessage = "안녕하세요! 대시보드 봇입니다. 👋\n\n사용 가능한 명령어:\n- 리스크\n- 제휴\n- 기술\n- 일정\n- 뉴스\n- 도움말";
+            }
         }
         
         // 메시지 반환만 수행

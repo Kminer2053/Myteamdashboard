@@ -19,6 +19,9 @@ const TechNews = require('./models/TechNews');
 const nodemailer = require('nodemailer');
 const kakaoBotRouter = require('./kakao-bot');
 const path = require('path');
+const logRouter = require('./routes/log');
+const { router: dbRouter, autoDeleteOldData } = require('./routes/db');
+const { router: mailRouter, sendMonthlyStatMail } = require('./routes/mail');
 
 const app = express();
 
@@ -344,6 +347,7 @@ async function scheduleNewsJob(isInit = false) {
       await collectRiskNews();
       await collectPartnerNews();
       await collectTechNews();
+      await autoDeleteOldData(); // DB 자동 삭제 호출
       console.log(`[자동수집][크론] ${new Date().toLocaleString()} 자동 뉴스 수집 완료`);
     } catch (error) {
       console.error(`[자동수집][크론] 수집 중 에러 발생:`, error);
@@ -532,6 +536,7 @@ async function sendScheduleEmail(action, schedule, prevSchedule = null) {
                     </div>
                     <p style="color: #666; font-size: 12px;">등록일시: ${nowStr}</p>
                     <p style="color: #aaa; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
+                    <div style="margin-top:20px;"><a href='https://myteamdashboard.vercel.app/index.html' style='color:#1976d2;'>대시보드 바로가기</a></div>
                 </div>
             `;
         } else if (action === 'update') {
@@ -548,6 +553,7 @@ async function sendScheduleEmail(action, schedule, prevSchedule = null) {
                     </div>
                     <p style="color: #666; font-size: 12px;">변경일시: ${nowStr}</p>
                     <p style="color: #aaa; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
+                    <div style="margin-top:20px;"><a href='https://myteamdashboard.vercel.app/index.html' style='color:#1976d2;'>대시보드 바로가기</a></div>
                 </div>
             `;
         } else if (action === 'delete') {
@@ -562,6 +568,7 @@ async function sendScheduleEmail(action, schedule, prevSchedule = null) {
                     </div>
                     <p style="color: #666; font-size: 12px;">취소일시: ${nowStr}</p>
                     <p style="color: #aaa; font-size: 12px;">이 메일은 자동으로 발송되었습니다.</p>
+                    <div style="margin-top:20px;"><a href='https://myteamdashboard.vercel.app/index.html' style='color:#1976d2;'>대시보드 바로가기</a></div>
                 </div>
             `;
         }
@@ -977,4 +984,19 @@ app.get('/api/korea-today', async (req, res) => {
     } catch (e) {
         res.status(500).json({ error: '오늘 날짜 조회 실패', message: e.message });
     }
+});
+
+app.use('/api', logRouter);
+app.use('/api', dbRouter);
+app.use('/api', mailRouter);
+
+// === 월말 통계 메일 발송 크론 ===
+cron.schedule('50 23 28-31 * *', async () => {
+  const now = new Date();
+  // 말일만 실행
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  if (tomorrow.getDate() === 1) {
+    await sendMonthlyStatMail();
+    console.log('[크론] 월말 통계 메일 발송 완료');
+  }
 });

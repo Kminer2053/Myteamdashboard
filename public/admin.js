@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const keyword = riskKeywordInput.value.trim();
         if (keyword) {
             addItem('riskKeywords', keyword, riskKeywordsList, '키워드');
+            logUserAction('리스크키워드추가', { keyword });
             riskKeywordInput.value = '';
         }
     });
@@ -62,6 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const condition = partnerConditionInput.value.trim();
         if (condition) {
             addItem('partnerConditions', condition, partnerConditionsList, '조건');
+            logUserAction('제휴조건추가', { condition });
             partnerConditionInput.value = '';
         }
     });
@@ -78,6 +80,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topic = techTopicInput.value.trim();
         if (topic) {
             addItem('techTopics', topic, techTopicsList, '주제');
+            logUserAction('신기술주제추가', { topic });
             techTopicInput.value = '';
         }
     });
@@ -113,12 +116,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         await updateEmailList();
         showToast('이메일이 추가되었습니다.');
+        logUserAction('이메일추가', { name, email });
     }
 
     async function removeEmail(email) {
         await fetch(`${API_BASE_URL}/api/emails/${encodeURIComponent(email)}`, { method: 'DELETE' });
         await updateEmailList();
         showToast('이메일이 삭제되었습니다.');
+        logUserAction('이메일삭제', { email });
     }
 
     async function updateEmailList() {
@@ -283,4 +288,151 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     window.removeEmail = removeEmail;
+
+    // 로그 기록 함수
+    async function logUserAction(action, meta = {}) {
+        try {
+            await fetch(`${API_BASE_URL}/api/log/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'admin',
+                    action,
+                    userAgent: navigator.userAgent,
+                    meta
+                })
+            });
+        } catch (e) {}
+    }
+
+    // 뉴스 갱신 시간 저장/불러오기
+    const saveBtn = document.getElementById('saveNewsUpdateTime');
+    const timeInput = document.getElementById('newsUpdateTime');
+    if (saveBtn && timeInput) {
+        // 저장 버튼 클릭 시 서버로 POST
+        saveBtn.onclick = async function() {
+            const value = timeInput.value;
+            const spinner = document.getElementById('newsUpdateSpinner');
+            if (spinner) spinner.style.display = 'inline-block';
+            saveBtn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/settings/news-update-time`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    showToast(`뉴스갱신 시간이 ${data.value}으로 변경되었습니다.`);
+                    logUserAction('뉴스갱신시간변경', { value });
+                } else {
+                    alert('저장 실패: ' + (await res.text()));
+                }
+            } catch (e) {
+                alert('저장 중 오류: ' + e.message);
+            } finally {
+                if (spinner) spinner.style.display = 'none';
+                saveBtn.disabled = false;
+            }
+        };
+    }
+
+    // === DB 사용량 관리 ===
+    const dbUsageEl = document.getElementById('dbUsage');
+    const dbLimitMBEl = document.getElementById('dbLimitMB');
+    const dbDeleteMBEl = document.getElementById('dbDeleteMB');
+    const saveDbSettingBtn = document.getElementById('saveDbSetting');
+    const dbSettingSpinner = document.getElementById('dbSettingSpinner');
+
+    async function loadDbUsage() {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/db/usage`);
+            const data = await res.json();
+            dbUsageEl.textContent = data.usedMB;
+        } catch (e) {
+            dbUsageEl.textContent = '-';
+        }
+    }
+    async function loadDbSetting() {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/db/setting`);
+            const data = await res.json();
+            if (data.limitMB) dbLimitMBEl.value = data.limitMB;
+            if (data.deleteMB) dbDeleteMBEl.value = data.deleteMB;
+        } catch (e) {}
+    }
+    if (dbUsageEl && dbLimitMBEl && dbDeleteMBEl && saveDbSettingBtn) {
+        loadDbUsage();
+        loadDbSetting();
+        saveDbSettingBtn.onclick = async function() {
+            const limitMB = Number(dbLimitMBEl.value);
+            const deleteMB = Number(dbDeleteMBEl.value);
+            if (!limitMB || !deleteMB) {
+                showToast('제한용량과 삭제량을 모두 입력하세요.');
+                return;
+            }
+            dbSettingSpinner.style.display = 'inline-block';
+            saveDbSettingBtn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/db/setting`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ limitMB, deleteMB })
+                });
+                if (res.ok) {
+                    showToast('DB 설정이 저장되었습니다.');
+                    logUserAction('DB설정저장', { limitMB, deleteMB });
+                } else {
+                    alert('저장 실패: ' + (await res.text()));
+                }
+            } catch (e) {
+                alert('저장 중 오류: ' + e.message);
+            } finally {
+                dbSettingSpinner.style.display = 'none';
+                saveDbSettingBtn.disabled = false;
+            }
+        };
+    }
+
+    // === 통계 메일링 관리 ===
+    const statMailInput = document.getElementById('statMailInput');
+    const saveStatMailBtn = document.getElementById('saveStatMail');
+    const statMailSpinner = document.getElementById('statMailSpinner');
+    async function loadStatMail() {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/mail/stat-setting`);
+            const data = await res.json();
+            if (data.email) statMailInput.value = data.email;
+        } catch (e) {}
+    }
+    if (statMailInput && saveStatMailBtn) {
+        loadStatMail();
+        saveStatMailBtn.onclick = async function() {
+            const email = statMailInput.value.trim();
+            if (!email) {
+                showToast('이메일을 입력하세요.');
+                return;
+            }
+            statMailSpinner.style.display = 'inline-block';
+            saveStatMailBtn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/mail/stat-setting`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                if (res.ok) {
+                    showToast('통계 메일이 저장되었습니다.');
+                    logUserAction('통계메일저장', { email });
+                } else {
+                    alert('저장 실패: ' + (await res.text()));
+                }
+            } catch (e) {
+                alert('저장 중 오류: ' + e.message);
+            } finally {
+                statMailSpinner.style.display = 'none';
+                saveStatMailBtn.disabled = false;
+            }
+        };
+    }
 }); 

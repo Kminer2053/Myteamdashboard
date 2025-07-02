@@ -15,6 +15,9 @@
             <a class="navbar-brand" href="index.html">
                 <i class="fas fa-arrow-left me-2" aria-hidden="true"></i>미래성장처 대시보드
             </a>
+            <div class="ms-auto">
+                <a href="stats.html" class="btn btn-outline-light">이용통계</a>
+            </div>
         </div>
     </nav>
 
@@ -102,6 +105,49 @@
                                 </button>
                             </div>
                             <div id="emailList" class="list-group mb-2"></div>
+                        </div>
+
+                        <!-- DB 사용량 관리 -->
+                        <div class="mb-4">
+                            <h6 class="mb-3">DB 사용량 관리</h6>
+                            <div class="mb-2">
+                                <span>현재 사용량: <b id="dbUsage">-</b> MB</span>
+                            </div>
+                            <div class="row g-2 align-items-center mb-2">
+                                <div class="col-auto">
+                                    <label for="dbLimitMB" class="col-form-label">제한용량(MB)</label>
+                                </div>
+                                <div class="col-auto">
+                                    <input type="number" class="form-control" id="dbLimitMB" min="1" style="width:100px;">
+                                </div>
+                                <div class="col-auto">
+                                    <label for="dbDeleteMB" class="col-form-label">삭제량(MB)</label>
+                                </div>
+                                <div class="col-auto">
+                                    <input type="number" class="form-control" id="dbDeleteMB" min="1" style="width:100px;">
+                                </div>
+                                <div class="col-auto">
+                                    <button class="btn btn-primary" id="saveDbSetting">저장</button>
+                                </div>
+                            </div>
+                            <div id="dbSettingSpinner" style="display:none; margin-top:10px;">
+                                <div class="spinner-border text-primary" role="status" aria-label="로딩 중"></div>
+                                <span class="ms-2">저장 중...</span>
+                            </div>
+                        </div>
+
+                        <!-- 통계 메일링 관리 -->
+                        <div class="mb-4">
+                            <h6 class="mb-3">통계 메일링</h6>
+                            <div class="input-group mb-2" style="max-width:400px;">
+                                <input type="email" class="form-control" id="statMailInput" placeholder="통계 수신 이메일 입력">
+                                <button class="btn btn-primary" id="saveStatMail">저장</button>
+                            </div>
+                            <div class="text-secondary small">매월 말일, 입력된 메일로 월간 이용통계가 발송됩니다.</div>
+                            <div id="statMailSpinner" style="display:none; margin-top:10px;">
+                                <div class="spinner-border text-primary" role="status" aria-label="로딩 중"></div>
+                                <span class="ms-2">저장 중...</span>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(event)
         });
+        await logUserAction('일정등록', { event });
         return await res.json();
     }
     // 일정 수정
@@ -72,11 +73,13 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(event)
         });
+        await logUserAction('일정수정', { id, event });
         return await res.json();
     }
     // 일정 삭제
     async function deleteUserEvent(id) {
         const res = await fetch(`${API_BASE_URL}/api/schedules/${id}`, { method: 'DELETE' });
+        await logUserAction('일정삭제', { id });
         return await res.json();
     }
 
@@ -988,6 +991,19 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         updateTechList();
     }
+
+    // 리스크이슈/제휴처탐색/신기술동향 정보갱신 버튼 클릭 시 로그 기록
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.id === 'refreshNewsBtn') {
+            logUserAction('리스크이슈정보갱신');
+        }
+        if (e.target && e.target.id === 'refreshPartnerBtn') {
+            logUserAction('제휴처탐색정보갱신');
+        }
+        if (e.target && e.target.id === 'refreshTechBtn') {
+            logUserAction('신기술동향정보갱신');
+        }
+    });
 });
 
 // 디바운스 유틸리티 함수
