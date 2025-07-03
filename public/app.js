@@ -39,6 +39,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // API 기본 URL 설정
     const API_BASE_URL = window.VITE_API_URL || 'https://myteamdashboard.onrender.com';
 
+    // 대시보드 방문자수 기록
+    fetch(`${API_BASE_URL}/api/visit`, { method: 'POST' });
+
     // 일정 데이터 서버에서 불러오기
     async function loadUserEvents() {
         const res = await fetch(`${API_BASE_URL}/api/schedules`);

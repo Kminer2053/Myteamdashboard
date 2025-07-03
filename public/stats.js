@@ -73,9 +73,24 @@ async function updateStats() {
     renderChart(data);
 }
 
+async function fetchVisitStats() {
+    const res = await fetch(`${API_BASE_URL}/api/stats/visit`);
+    return await res.json();
+}
+
+async function updateVisitStats() {
+    const data = await fetchVisitStats();
+    document.getElementById('visitToday').textContent = data.today ?? '-';
+    document.getElementById('visitMonth').textContent = data.month ?? '-';
+    document.getElementById('visitTotal').textContent = data.total ?? '-';
+}
+
 periodSelect.addEventListener('change', updateStats);
 typeSelect.addEventListener('change', updateStats);
-window.addEventListener('DOMContentLoaded', updateStats);
+window.addEventListener('DOMContentLoaded', () => {
+    updateStats();
+    updateVisitStats();
+});
 
 downloadBtn.addEventListener('click', async () => {
     const data = await fetchStats();

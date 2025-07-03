@@ -22,6 +22,7 @@ const path = require('path');
 const logRouter = require('./routes/log');
 const { router: dbRouter, autoDeleteOldData } = require('./routes/db');
 const { router: mailRouter, sendMonthlyStatMail } = require('./routes/mail');
+const UserActionLog = require('./models/UserActionLog');
 
 const app = express();
 
@@ -998,5 +999,39 @@ cron.schedule('50 23 28-31 * *', async () => {
   if (tomorrow.getDate() === 1) {
     await sendMonthlyStatMail();
     console.log('[크론] 월말 통계 메일 발송 완료');
+  }
+});
+
+// === 대시보드 방문자수 기록 API ===
+app.post('/api/visit', async (req, res) => {
+  try {
+    const userAgent = req.headers['user-agent'] || '';
+    await UserActionLog.create({
+      type: 'dashboard',
+      action: 'visit',
+      userAgent,
+      timestamp: new Date(),
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: '방문 기록 실패', message: err.message });
+  }
+});
+
+// === 대시보드 방문자수 통계 API ===
+app.get('/api/stats/visit', async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [today, month, total] = await Promise.all([
+      UserActionLog.countDocuments({ type: 'dashboard', action: 'visit', timestamp: { $gte: startOfDay } }),
+      UserActionLog.countDocuments({ type: 'dashboard', action: 'visit', timestamp: { $gte: startOfMonth } }),
+      UserActionLog.countDocuments({ type: 'dashboard', action: 'visit' }),
+    ]);
+    res.json({ today, month, total });
+  } catch (err) {
+    res.status(500).json({ error: '방문자수 통계 조회 실패', message: err.message });
   }
 });

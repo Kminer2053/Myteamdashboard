@@ -38,6 +38,32 @@
                 <button id="downloadBtn" class="btn btn-outline-secondary">엑셀 다운로드</button>
             </div>
         </div>
+        <div class="row mb-3" id="visitStatsRow">
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-title">오늘 방문자수</h6>
+                        <p class="card-text" id="visitToday">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-title">이번달 방문자수</h6>
+                        <p class="card-text" id="visitMonth">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h6 class="card-title">누적 방문자수</h6>
+                        <p class="card-text" id="visitTotal">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="row mb-4">
             <div class="col-12">
                 <canvas id="statsChart" height="100"></canvas>
