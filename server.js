@@ -1411,7 +1411,9 @@ app.get('/api/rate-limit-status', async (req, res) => {
       openai: {
         status: 'unknown',
         lastError: null,
-        retryCount: 0
+        retryCount: 0,
+        usage: null,
+        billing: null
       },
       perplexity: {
         status: 'unknown',
@@ -1421,8 +1423,9 @@ app.get('/api/rate-limit-status', async (req, res) => {
       recommendations: []
     };
     
-    // OpenAI Rate Limit 테스트
+    // OpenAI Rate Limit 및 사용량 테스트
     try {
+      // 기본 API 테스트
       const testResponse = await axios.post(OPENAI_API_URL, {
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: 'test' }],
@@ -1434,9 +1437,28 @@ app.get('/api/rate-limit-status', async (req, res) => {
         }
       });
       status.openai.status = 'available';
+      
+      // 사용량 정보 확인 (선택적)
+      try {
+        const usageResponse = await axios.get('https://api.openai.com/v1/usage', {
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`
+          }
+        });
+        status.openai.usage = usageResponse.data;
+      } catch (usageError) {
+        console.log('OpenAI 사용량 정보 조회 실패:', usageError.message);
+      }
+      
     } catch (error) {
       status.openai.status = error.response?.status === 429 ? 'rate_limited' : 'error';
       status.openai.lastError = error.message;
+      
+      // 429 오류 시 과금 관련 안내
+      if (error.response?.status === 429) {
+        status.recommendations.push('OpenAI Rate Limit 도달. 과금 상태를 확인하세요: https://platform.openai.com/account/billing');
+        status.recommendations.push('무료 크레딧이 소진되었을 수 있습니다. 결제 방법을 추가하세요.');
+      }
     }
     
     // Perplexity Rate Limit 테스트
@@ -1473,5 +1495,81 @@ app.get('/api/rate-limit-status', async (req, res) => {
   } catch (error) {
     console.error('Rate Limit 상태 확인 실패:', error);
     res.status(500).json({ error: 'Rate Limit 상태 확인 중 오류가 발생했습니다.' });
+  }
+});
+
+// === OpenAI 과금 상태 확인 API ===
+app.get('/api/openai-billing-status', async (req, res) => {
+  try {
+    const billingInfo = {
+      timestamp: new Date().toISOString(),
+      status: 'unknown',
+      details: null,
+      recommendations: []
+    };
+    
+    try {
+      // OpenAI API 테스트
+      const testResponse = await axios.post(OPENAI_API_URL, {
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'test' }],
+        max_tokens: 10
+      }, {
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      billingInfo.status = 'available';
+      billingInfo.details = {
+        message: 'API 키가 정상적으로 작동합니다.',
+        model: 'gpt-4o-mini'
+      };
+      
+    } catch (error) {
+      if (error.response?.status === 429) {
+        billingInfo.status = 'rate_limited';
+        billingInfo.details = {
+          error: 'Rate Limit 도달',
+          message: '과금 상태를 확인하세요',
+          links: {
+            billing: 'https://platform.openai.com/account/billing',
+            usage: 'https://platform.openai.com/usage'
+          }
+        };
+        billingInfo.recommendations = [
+          'OpenAI 계정에 로그인하여 과금 상태를 확인하세요',
+          '무료 크레딧이 소진되었을 수 있습니다',
+          '결제 방법을 추가하거나 크레딧을 충전하세요',
+          '사용량을 확인하여 과도한 API 호출을 줄이세요'
+        ];
+      } else if (error.response?.status === 401) {
+        billingInfo.status = 'unauthorized';
+        billingInfo.details = {
+          error: '인증 실패',
+          message: 'API 키가 유효하지 않습니다'
+        };
+        billingInfo.recommendations = [
+          'API 키를 확인하고 다시 설정하세요',
+          '환경 변수 OPENAI_API_KEY를 확인하세요'
+        ];
+      } else {
+        billingInfo.status = 'error';
+        billingInfo.details = {
+          error: error.message,
+          status: error.response?.status
+        };
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: billingInfo
+    });
+    
+  } catch (error) {
+    console.error('OpenAI 과금 상태 확인 실패:', error);
+    res.status(500).json({ error: 'OpenAI 과금 상태 확인 중 오류가 발생했습니다.' });
   }
 });
