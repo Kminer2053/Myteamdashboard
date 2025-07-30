@@ -26,9 +26,7 @@ const UserActionLog = require('./models/UserActionLog');
 
 // AI API 설정
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
 const app = express();
 
@@ -102,66 +100,38 @@ async function collectRiskNews() {
     let analysisResults = [];
     console.log(`[AI 수집][리스크이슈] ${today} 수집 시작 (키워드 ${keywords.length}개)`);
     
-    // Perplexity AI를 사용한 뉴스 수집 (Rate Limit 방지를 위해 첫 번째 키워드만)
+    // Perplexity AI를 사용한 뉴스 수집 및 분석
     if (keywords.length > 0) {
       try {
-        console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" Perplexity AI 수집 시작`);
-        const aiNews = await collectNewsWithPerplexity(keywords[0], 'risk');
+        console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" Perplexity AI 수집 및 분석 시작`);
+        const aiResult = await collectNewsWithPerplexity(keywords[0], 'risk');
         
-        if (aiNews && aiNews.length > 0) {
-          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" 결과 ${aiNews.length}건 수집`);
-          allNews.push(...aiNews);
+        if (aiResult && aiResult.news && aiResult.news.length > 0) {
+          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" 결과 ${aiResult.news.length}건 수집`);
+          allNews.push(...aiResult.news);
+          
+          if (aiResult.analysis) {
+            analysisResults.push(aiResult.analysis);
+          }
         } else {
           console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" 결과 없음`);
         }
       } catch (e) {
-        console.error(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" 뉴스 수집 실패:`, e.message);
-        // AI 수집 실패 시 기존 네이버 API로 폴백
+        console.error(`[AI 수집][리스크이슈] Perplexity AI 실패:`, e.message);
+        // 네이버 뉴스 API로 폴백
         try {
-          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" 네이버 API 폴백 시도`);
-          const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-            params: { query: keywords[0], display: 100, sort: 'date' },
-            headers: {
-              'X-Naver-Client-Id': NAVER_CLIENT_ID,
-              'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-            }
-          });
-          
-          if (res.data.items && res.data.items.length > 0) {
-            res.data.items.forEach(item => {
-              if (!allNews.some(n => n.link === item.link)) {
-                allNews.push({ 
-                  ...item, 
-                  keyword: keywords[0],
-                  source: '네이버 뉴스',
-                  importanceScore: 5,
-                  sentiment: 'neutral',
-                  relatedKeywords: [keywords[0]]
-                });
-              }
-            });
+          console.log(`[AI 수집][리스크이슈] 네이버 뉴스 API로 폴백`);
+          const fallbackNews = await collectNewsWithNaver(keywords[0]);
+          if (fallbackNews && fallbackNews.length > 0) {
+            allNews.push(...fallbackNews);
           }
         } catch (fallbackError) {
-          console.error(`[AI 수집][리스크이슈] 폴백 실패:`, fallbackError.message);
+          console.error(`[AI 수집][리스크이슈] 네이버 뉴스 API 폴백 실패:`, fallbackError.message);
         }
       }
     }
     
     if (allNews.length > 0) {
-      // ChatGPT를 사용한 전체 뉴스 분석 (Rate Limit 방지를 위해 최소한만)
-      try {
-        // Rate Limit 방지를 위해 5분 대기
-        console.log(`[AI 분석][risk] Rate Limit 방지를 위해 5분 대기 중...`);
-        await new Promise(resolve => setTimeout(resolve, 300000));
-        
-        const analysis = await analyzeNewsWithChatGPT(allNews.slice(0, 3), 'risk');
-        if (analysis) {
-          analysisResults.push(analysis);
-        }
-      } catch (analysisError) {
-        console.error(`[AI 수집][리스크이슈] ChatGPT 분석 실패:`, analysisError.message);
-      }
-      
       try {
         fs.writeFileSync(`riskNews_${today}.json`, JSON.stringify({
           news: allNews,
@@ -181,7 +151,7 @@ async function collectRiskNews() {
           const newsData = {
             ...item,
             aiGeneratedAt: new Date(),
-            analysisModel: 'perplexity-chatgpt'
+            analysisModel: 'perplexity-ai'
           };
           
           const result = await RiskNews.updateOne(
@@ -200,12 +170,9 @@ async function collectRiskNews() {
         }
       }
       console.log(`[AI 수집][리스크이슈] ${today} DB 저장 완료 (신규: ${insertedRisk}건, 중복: ${duplicateRisk}건)`);
-    } else {
-      console.log(`[AI 수집][리스크이슈] ${today} 수집된 뉴스가 없습니다.`);
     }
   } catch (error) {
-    console.error(`[AI 수집][리스크이슈] 전체 프로세스 에러:`, error);
-    throw error;
+    console.error(`[AI 수집][리스크이슈] 전체 프로세스 실패:`, error.message);
   }
 }
 
@@ -421,13 +388,13 @@ async function scheduleNewsJob(isInit = false) {
 
 // === AI 기반 뉴스 수집 함수들 ===
 
-// Perplexity AI를 활용한 뉴스 수집
+// Perplexity AI를 활용한 뉴스 수집 및 분석
 async function collectNewsWithPerplexity(keyword, category = 'risk') {
   try {
     console.log(`[AI 수집][${category}] 키워드 "${keyword}" Perplexity AI 분석 시작`);
     
     const prompt = `
-    다음 키워드에 대한 최신 뉴스를 검색하고 분석해주세요: "${keyword}"
+    다음 키워드에 대한 최신 뉴스를 검색하고 종합 분석해주세요: "${keyword}"
     
     요구사항:
     1. 최근 24시간 내의 뉴스만 수집
@@ -442,17 +409,35 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
          "sentiment": "positive/negative/neutral",
          "relatedKeywords": ["관련 키워드1", "관련 키워드2"]
        }
-    3. 최대 3개 뉴스만 제공
+    3. 최대 5개 뉴스만 제공
     4. 중요도 순으로 정렬
+    5. 전체 뉴스에 대한 종합 분석 포함:
+       {
+         "trendAnalysis": "전체적인 트렌드 분석 (2-3문장)",
+         "mainIssues": "주요 이슈 요약",
+         "futureOutlook": "향후 전망 예측",
+         "keyKeywords": ["핵심 키워드1", "핵심 키워드2"]
+       }
+    
+    최종 응답 형식:
+    {
+      "news": [뉴스 배열],
+      "analysis": {
+        "trendAnalysis": "트렌드 분석",
+        "mainIssues": "주요 이슈",
+        "futureOutlook": "향후 전망",
+        "keyKeywords": ["키워드1", "키워드2"]
+      }
+    }
     `;
 
     // Rate Limit 방지를 위한 지연
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-      const response = await axios.post(PERPLEXITY_API_URL, {
-    model: 'sonar-pro',
-    messages: [
-      {
+    const response = await axios.post(PERPLEXITY_API_URL, {
+      model: 'sonar-pro',
+      messages: [
+        {
           role: 'system',
           content: '당신은 뉴스 분석 전문가입니다. 요청된 JSON 형식에 맞춰 정확하고 구조화된 정보를 제공해주세요.'
         },
@@ -461,7 +446,7 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
           content: prompt
         }
       ],
-      max_tokens: 2000,
+      max_tokens: 3000,
       temperature: 0.3
     }, {
       headers: {
@@ -476,12 +461,21 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
     
     // JSON 파싱 시도
     try {
-      const newsData = JSON.parse(aiResponse);
-      return Array.isArray(newsData) ? newsData : [newsData];
+      const result = JSON.parse(aiResponse);
+      
+      // 응답 형식에 따라 처리
+      if (result.news && result.analysis) {
+        return result; // 완전한 형태
+      } else if (Array.isArray(result)) {
+        return { news: result, analysis: null }; // 뉴스만 있는 경우
+      } else {
+        return { news: [result], analysis: null }; // 단일 뉴스
+      }
     } catch (parseError) {
       console.error(`[AI 수집][${category}] JSON 파싱 실패:`, parseError);
       // 텍스트에서 뉴스 정보 추출 시도
-      return extractNewsFromText(aiResponse, keyword);
+      const extractedNews = extractNewsFromText(aiResponse, keyword);
+      return { news: extractedNews, analysis: null };
     }
     
   } catch (error) {
@@ -495,81 +489,6 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
       console.error(`[AI 수집][${category}] 응답 데이터:`, error.response.data);
     }
     throw error;
-  }
-}
-
-// ChatGPT를 활용한 뉴스 분석 및 요약
-async function analyzeNewsWithChatGPT(newsData, category = 'risk') {
-  try {
-    console.log(`[AI 분석][${category}] ChatGPT 분석 시작 (${newsData.length}건)`);
-    
-    const prompt = `
-    다음 뉴스 데이터를 분석하고 요약해주세요:
-    
-    뉴스 목록:
-    ${JSON.stringify(newsData.slice(0, 3), null, 2)}
-    
-    분석 요구사항:
-    1. 전체적인 트렌드 분석 (2-3문장)
-    2. 주요 이슈 요약
-    3. 향후 전망 예측
-    4. 주목해야 할 키워드 추출
-    
-    JSON 형식으로 응답:
-    {
-      "trendAnalysis": "트렌드 분석",
-      "mainIssues": "주요 이슈",
-      "futureOutlook": "향후 전망",
-      "keyKeywords": ["키워드1", "키워드2"]
-    }
-    `;
-
-    // Rate Limit 방지를 위한 지연 (더 긴 지연)
-    await new Promise(resolve => setTimeout(resolve, 5000));
-
-    const response = await axios.post(OPENAI_API_URL, {
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: '당신은 뉴스 분석 전문가입니다. 객관적이고 정확한 분석을 제공해주세요.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: 1000,
-      temperature: 0.3
-    }, {
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 30000
-    });
-
-    const analysisResult = response.data.choices[0].message.content;
-    console.log(`[AI 분석][${category}] ChatGPT 분석 완료`);
-    
-    try {
-      return JSON.parse(analysisResult);
-    } catch (parseError) {
-      console.error(`[AI 분석][${category}] JSON 파싱 실패:`, parseError);
-      return { trendAnalysis: analysisResult };
-    }
-    
-  } catch (error) {
-    if (error.response && error.response.status === 429) {
-      console.log(`[AI 분석][${category}] Rate Limit 도달, 120초 후 재시도...`);
-      await new Promise(resolve => setTimeout(resolve, 120000));
-      return await analyzeNewsWithChatGPT(newsData, category);
-    }
-    console.error(`[AI 분석][${category}] ChatGPT API 호출 실패:`, error.message);
-    if (error.response) {
-      console.error(`[AI 분석][${category}] 응답 데이터:`, error.response.data);
-    }
-    return null;
   }
 }
 
@@ -1078,7 +997,7 @@ app.get('/api/tech-news', async (req, res) => {
 app.get('/api/ai-analysis/:category', async (req, res) => {
   try {
     const { category } = req.params;
-    const { limit = 5, days = 7 } = req.query; // 기본값을 5로 줄임
+    const { limit = 5, days = 7 } = req.query;
     
     let model;
     switch (category) {
@@ -1167,7 +1086,7 @@ app.get('/api/ai-summary/:category', async (req, res) => {
       aiGeneratedAt: { $gte: cutoffDate }
     })
     .sort({ aiGeneratedAt: -1 })
-    .limit(10) // 20에서 10으로 줄임
+    .limit(10)
     .select('title aiSummary importanceScore sentiment relatedKeywords');
     
     if (recentNews.length === 0) {
@@ -1181,9 +1100,9 @@ app.get('/api/ai-summary/:category', async (req, res) => {
       });
     }
     
-    // ChatGPT를 사용한 요약 생성 (Rate Limit 방지를 위해 간단한 요약만)
+    // Perplexity AI를 사용한 요약 생성
     try {
-      const summary = await analyzeNewsWithChatGPT(recentNews.slice(0, 3), category);
+      const summary = await generateSummaryWithPerplexity(recentNews.slice(0, 5), category);
       res.json({
         success: true,
         data: summary || {
@@ -1209,6 +1128,81 @@ app.get('/api/ai-summary/:category', async (req, res) => {
     res.status(500).json({ error: 'AI 요약 조회 중 오류가 발생했습니다.' });
   }
 });
+
+// Perplexity AI를 사용한 요약 생성
+async function generateSummaryWithPerplexity(newsData, category = 'risk') {
+  try {
+    console.log(`[AI 요약][${category}] Perplexity AI 요약 생성 시작 (${newsData.length}건)`);
+    
+    const prompt = `
+    다음 뉴스 데이터를 분석하고 요약해주세요:
+    
+    뉴스 목록:
+    ${JSON.stringify(newsData.slice(0, 5), null, 2)}
+    
+    분석 요구사항:
+    1. 전체적인 트렌드 분석 (2-3문장)
+    2. 주요 이슈 요약
+    3. 향후 전망 예측
+    4. 주목해야 할 키워드 추출
+    
+    JSON 형식으로 응답:
+    {
+      "trendAnalysis": "트렌드 분석",
+      "mainIssues": "주요 이슈",
+      "futureOutlook": "향후 전망",
+      "keyKeywords": ["키워드1", "키워드2"]
+    }
+    `;
+
+    // Rate Limit 방지를 위한 지연
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const response = await axios.post(PERPLEXITY_API_URL, {
+      model: 'sonar-pro',
+      messages: [
+        {
+          role: 'system',
+          content: '당신은 뉴스 분석 전문가입니다. 객관적이고 정확한 분석을 제공해주세요.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: 1500,
+      temperature: 0.3
+    }, {
+      headers: {
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+
+    const analysisResult = response.data.choices[0].message.content;
+    console.log(`[AI 요약][${category}] Perplexity AI 요약 완료`);
+    
+    try {
+      return JSON.parse(analysisResult);
+    } catch (parseError) {
+      console.error(`[AI 요약][${category}] JSON 파싱 실패:`, parseError);
+      return { trendAnalysis: analysisResult };
+    }
+    
+  } catch (error) {
+    if (error.response && error.response.status === 429) {
+      console.log(`[AI 요약][${category}] Rate Limit 도달, 30초 후 재시도...`);
+      await new Promise(resolve => setTimeout(resolve, 30000));
+      return await generateSummaryWithPerplexity(newsData, category);
+    }
+    console.error(`[AI 요약][${category}] Perplexity AI API 호출 실패:`, error.message);
+    if (error.response) {
+      console.error(`[AI 요약][${category}] 응답 데이터:`, error.response.data);
+    }
+    return null;
+  }
+}
 
 // ===== 이메일 리스트 API =====
 app.get('/api/emails', async (req, res) => {
@@ -1408,13 +1402,6 @@ app.get('/api/rate-limit-status', async (req, res) => {
   try {
     const status = {
       timestamp: new Date().toISOString(),
-      openai: {
-        status: 'unknown',
-        lastError: null,
-        retryCount: 0,
-        usage: null,
-        billing: null
-      },
       perplexity: {
         status: 'unknown',
         lastError: null,
@@ -1422,44 +1409,6 @@ app.get('/api/rate-limit-status', async (req, res) => {
       },
       recommendations: []
     };
-    
-    // OpenAI Rate Limit 및 사용량 테스트
-    try {
-      // 기본 API 테스트
-      const testResponse = await axios.post(OPENAI_API_URL, {
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: 'test' }],
-        max_tokens: 10
-      }, {
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      status.openai.status = 'available';
-      
-      // 사용량 정보 확인 (선택적)
-      try {
-        const usageResponse = await axios.get('https://api.openai.com/v1/usage', {
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`
-          }
-        });
-        status.openai.usage = usageResponse.data;
-      } catch (usageError) {
-        console.log('OpenAI 사용량 정보 조회 실패:', usageError.message);
-      }
-      
-    } catch (error) {
-      status.openai.status = error.response?.status === 429 ? 'rate_limited' : 'error';
-      status.openai.lastError = error.message;
-      
-      // 429 오류 시 과금 관련 안내
-      if (error.response?.status === 429) {
-        status.recommendations.push('OpenAI Rate Limit 도달. 과금 상태를 확인하세요: https://platform.openai.com/account/billing');
-        status.recommendations.push('무료 크레딧이 소진되었을 수 있습니다. 결제 방법을 추가하세요.');
-      }
-    }
     
     // Perplexity Rate Limit 테스트
     try {
@@ -1480,9 +1429,6 @@ app.get('/api/rate-limit-status', async (req, res) => {
     }
     
     // 권장사항 추가
-    if (status.openai.status === 'rate_limited') {
-      status.recommendations.push('OpenAI Rate Limit 도달. 1분 후 재시도하세요.');
-    }
     if (status.perplexity.status === 'rate_limited') {
       status.recommendations.push('Perplexity Rate Limit 도달. 30초 후 재시도하세요.');
     }
@@ -1495,81 +1441,5 @@ app.get('/api/rate-limit-status', async (req, res) => {
   } catch (error) {
     console.error('Rate Limit 상태 확인 실패:', error);
     res.status(500).json({ error: 'Rate Limit 상태 확인 중 오류가 발생했습니다.' });
-  }
-});
-
-// === OpenAI 과금 상태 확인 API ===
-app.get('/api/openai-billing-status', async (req, res) => {
-  try {
-    const billingInfo = {
-      timestamp: new Date().toISOString(),
-      status: 'unknown',
-      details: null,
-      recommendations: []
-    };
-    
-    try {
-      // OpenAI API 테스트
-      const testResponse = await axios.post(OPENAI_API_URL, {
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: 'test' }],
-        max_tokens: 10
-      }, {
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      billingInfo.status = 'available';
-      billingInfo.details = {
-        message: 'API 키가 정상적으로 작동합니다.',
-        model: 'gpt-4o-mini'
-      };
-      
-    } catch (error) {
-      if (error.response?.status === 429) {
-        billingInfo.status = 'rate_limited';
-        billingInfo.details = {
-          error: 'Rate Limit 도달',
-          message: '과금 상태를 확인하세요',
-          links: {
-            billing: 'https://platform.openai.com/account/billing',
-            usage: 'https://platform.openai.com/usage'
-          }
-        };
-        billingInfo.recommendations = [
-          'OpenAI 계정에 로그인하여 과금 상태를 확인하세요',
-          '무료 크레딧이 소진되었을 수 있습니다',
-          '결제 방법을 추가하거나 크레딧을 충전하세요',
-          '사용량을 확인하여 과도한 API 호출을 줄이세요'
-        ];
-      } else if (error.response?.status === 401) {
-        billingInfo.status = 'unauthorized';
-        billingInfo.details = {
-          error: '인증 실패',
-          message: 'API 키가 유효하지 않습니다'
-        };
-        billingInfo.recommendations = [
-          'API 키를 확인하고 다시 설정하세요',
-          '환경 변수 OPENAI_API_KEY를 확인하세요'
-        ];
-      } else {
-        billingInfo.status = 'error';
-        billingInfo.details = {
-          error: error.message,
-          status: error.response?.status
-        };
-      }
-    }
-    
-    res.json({
-      success: true,
-      data: billingInfo
-    });
-    
-  } catch (error) {
-    console.error('OpenAI 과금 상태 확인 실패:', error);
-    res.status(500).json({ error: 'OpenAI 과금 상태 확인 중 오류가 발생했습니다.' });
   }
 });
