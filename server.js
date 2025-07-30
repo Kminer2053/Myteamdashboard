@@ -585,9 +585,24 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
     } catch (parseError) {
       console.error(`[AI 수집][${category}] JSON 파싱 실패:`, parseError);
       console.error(`[AI 수집][${category}] 원본 응답:`, aiResponse);
-      // 텍스트에서 뉴스 정보 추출 시도
-      const extractedNews = extractNewsFromText(aiResponse, keyword);
-      return { news: extractedNews, analysis: null };
+      
+      // JSON 파싱 실패 시에도 기본 뉴스 객체 생성
+      console.log(`[AI 수집][${category}] 기본 뉴스 객체 생성`);
+      const fallbackNews = [{
+        title: `AI 분석 결과: ${keyword}`,
+        link: '#',
+        source: 'AI 분석',
+        pubDate: new Date().toISOString(),
+        aiSummary: aiResponse.substring(0, 200) + '...',
+        relatedKeywords: [keyword],
+        trendAnalysis: 'AI 분석을 통해 수집된 정보입니다.',
+        futureOutlook: '추가 분석이 필요합니다.',
+        keyword: keyword,
+        aiGeneratedAt: new Date(),
+        analysisModel: 'perplexity-ai'
+      }];
+      
+      return { news: fallbackNews, analysis: null };
     }
     
   } catch (error) {
