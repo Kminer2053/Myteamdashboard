@@ -598,23 +598,33 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
       console.error(`[AI 수집][${category}] JSON 파싱 실패:`, parseError);
       console.error(`[AI 수집][${category}] 원본 응답:`, aiResponse);
       
-      // JSON 파싱 실패 시에도 기본 뉴스 객체 생성
-      console.log(`[AI 수집][${category}] 기본 뉴스 객체 생성`);
-      const fallbackNews = [{
-        title: `AI 분석 결과: ${keyword}`,
-        link: '#',
-        source: 'AI 분석',
-        pubDate: new Date().toISOString(),
-        aiSummary: aiResponse.substring(0, 200) + '...',
-        relatedKeywords: [keyword],
-        trendAnalysis: 'AI 분석을 통해 수집된 정보입니다.',
-        futureOutlook: '추가 분석이 필요합니다.',
-        keyword: keyword,
-        aiGeneratedAt: new Date(),
-        analysisModel: 'perplexity-ai'
-      }];
-      
-      return { news: fallbackNews, analysis: null };
+              // JSON 파싱 실패 시 텍스트에서 뉴스 정보 추출 시도
+        console.log(`[AI 수집][${category}] 텍스트에서 뉴스 정보 추출 시도`);
+        
+        // 텍스트 응답에서 뉴스 정보 추출
+        const extractedNews = extractNewsFromText(aiResponse, keyword);
+        if (extractedNews && extractedNews.length > 0) {
+          console.log(`[AI 수집][${category}] 텍스트에서 ${extractedNews.length}건 추출 성공`);
+          return { news: extractedNews, analysis: null };
+        }
+        
+        // 추출 실패 시 기본 뉴스 객체 생성
+        console.log(`[AI 수집][${category}] 기본 뉴스 객체 생성`);
+        const fallbackNews = [{
+          title: `AI 분석 결과: ${keyword}`,
+          link: '#',
+          source: 'AI 분석',
+          pubDate: new Date().toISOString(),
+          aiSummary: aiResponse.substring(0, 200) + '...',
+          relatedKeywords: [keyword],
+          trendAnalysis: 'AI 분석을 통해 수집된 정보입니다.',
+          futureOutlook: '추가 분석이 필요합니다.',
+          keyword: keyword,
+          aiGeneratedAt: new Date(),
+          analysisModel: 'perplexity-ai'
+        }];
+        
+        return { news: fallbackNews, analysis: null };
     }
     
   } catch (error) {
@@ -634,28 +644,70 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
 // 텍스트에서 뉴스 정보 추출 (JSON 파싱 실패 시 대안)
 function extractNewsFromText(text, keyword) {
   const newsItems = [];
-  const lines = text.split('\n');
   
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.includes('title') || line.includes('제목')) {
-      const title = line.split(':')[1]?.trim() || line;
-      const link = lines[i + 1]?.includes('http') ? lines[i + 1].trim() : '';
+  // 텍스트에서 뉴스 정보를 추출하는 로직
+  // Perplexity AI의 텍스트 응답에서 뉴스 제목이나 주요 내용을 찾아서 뉴스 객체로 변환
+  
+  // 텍스트를 문단으로 분할
+  const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
+  
+  // 각 문단에서 뉴스 정보 추출
+  paragraphs.forEach((paragraph, index) => {
+    const lines = paragraph.split('\n');
+    let title = '';
+    let summary = '';
+    
+    // 첫 번째 줄을 제목으로 사용
+    if (lines[0] && lines[0].trim()) {
+      title = lines[0].trim().replace(/^[-*•]\s*/, '').replace(/^[0-9]+\.\s*/, '');
       
-      newsItems.push({
-        title: title.replace(/"/g, ''),
-        link: link,
-        keyword: keyword,
-        pubDate: new Date().toISOString(),
-        source: 'AI 수집',
-        aiSummary: 'AI가 수집한 뉴스입니다.',
-        importanceScore: 5,
-        sentiment: { type: 'neutral', score: 0.5 },
-        relatedKeywords: [keyword],
-        aiGeneratedAt: new Date(),
-        analysisModel: 'perplexity-ai'
-      });
+      // 나머지 내용을 요약으로 사용
+      summary = lines.slice(1).join(' ').trim();
+      
+      // 제목이 너무 길면 요약으로 이동
+      if (title.length > 100) {
+        summary = title + ' ' + summary;
+        title = title.substring(0, 100) + '...';
+      }
+      
+      // 최소 길이 체크
+      if (title.length > 10 && summary.length > 20) {
+        newsItems.push({
+          title: title,
+          link: '#',
+          keyword: keyword,
+          pubDate: new Date().toISOString(),
+          source: 'AI 분석',
+          aiSummary: summary.substring(0, 300) + (summary.length > 300 ? '...' : ''),
+          relatedKeywords: [keyword],
+          trendAnalysis: 'AI 분석을 통해 수집된 정보입니다.',
+          futureOutlook: '추가 분석이 필요합니다.',
+          aiGeneratedAt: new Date(),
+          analysisModel: 'perplexity-ai'
+        });
+      }
     }
+  });
+  
+  // 뉴스 항목이 없으면 전체 텍스트를 하나의 뉴스로 생성
+  if (newsItems.length === 0 && text.length > 50) {
+    const lines = text.split('\n');
+    const firstLine = lines[0]?.trim() || '';
+    const remainingText = lines.slice(1).join(' ').trim();
+    
+    newsItems.push({
+      title: firstLine.length > 10 ? firstLine.substring(0, 100) : `AI 분석: ${keyword}`,
+      link: '#',
+      keyword: keyword,
+      pubDate: new Date().toISOString(),
+      source: 'AI 분석',
+      aiSummary: remainingText.length > 0 ? remainingText.substring(0, 300) : text.substring(0, 300),
+      relatedKeywords: [keyword],
+      trendAnalysis: 'AI 분석을 통해 수집된 정보입니다.',
+      futureOutlook: '추가 분석이 필요합니다.',
+      aiGeneratedAt: new Date(),
+      analysisModel: 'perplexity-ai'
+    });
   }
   
   return newsItems;
