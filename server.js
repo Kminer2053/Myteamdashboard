@@ -473,46 +473,58 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
         categoryContext = '일반적인 뉴스 분석을 진행해주세요.';
     }
     
-    // 커스텀 프롬프트가 있으면 사용, 없으면 기본 프롬프트 사용
+        // 커스텀 프롬프트가 있으면 사용, 없으면 기본 프롬프트 사용
     const prompt = customPrompt || `
-    다음 키워드에 대한 최신 뉴스를 검색하고 종합 분석해주세요: "${keyword}"
+다음 키워드에 대한 최신 뉴스를 검색하고 종합 분석해주세요: "${keyword}"
     
-    분석 컨텍스트: ${categoryContext}
+분석 컨텍스트: ${categoryContext}
     
-    요구사항:
-    1. 최근 24시간 내의 뉴스만 수집
-    2. 각 뉴스에 대해 다음 정보를 JSON 형식으로 제공:
-       {
-         "title": "뉴스 제목",
-         "link": "뉴스 링크",
-         "source": "언론사명",
-         "pubDate": "발행일",
-         "aiSummary": "AI 생성 요약 (2-3문장)",
-         "relatedKeywords": ["관련 키워드1", "관련 키워드2"],
-         "trendAnalysis": "개별 뉴스 트렌드 분석",
-         "futureOutlook": "개별 뉴스 향후 전망"
-       }
-    3. 최대 5개 뉴스만 제공
-    4. 중요도 순으로 정렬
-    5. 전체 뉴스에 대한 종합 분석 포함:
-       {
-         "trendAnalysis": "전체적인 트렌드 분석 (2-3문장)",
-         "mainIssues": "주요 이슈 요약",
-         "futureOutlook": "향후 전망 예측",
-         "keyKeywords": ["핵심 키워드1", "핵심 키워드2"]
-       }
-    
-    최종 응답 형식:
+요구사항:
+1. 최근 24시간 내의 뉴스만 수집
+2. 반드시 JSON 형식으로만 응답해주세요
+3. 각 뉴스에 대해 다음 정보를 제공:
+   {
+     "title": "뉴스 제목",
+     "link": "뉴스 링크",
+     "source": "언론사명",
+     "pubDate": "발행일",
+     "aiSummary": "AI 생성 요약 (2-3문장)",
+     "relatedKeywords": ["관련 키워드1", "관련 키워드2"],
+     "trendAnalysis": "개별 뉴스 트렌드 분석",
+     "futureOutlook": "개별 뉴스 향후 전망"
+   }
+4. 최대 5개 뉴스만 제공
+5. 중요도 순으로 정렬
+6. 전체 뉴스에 대한 종합 분석 포함:
+   {
+     "trendAnalysis": "전체적인 트렌드 분석 (2-3문장)",
+     "mainIssues": "주요 이슈 요약",
+     "futureOutlook": "향후 전망 예측",
+     "keyKeywords": ["핵심 키워드1", "핵심 키워드2"]
+   }
+
+반드시 다음 JSON 형식으로만 응답해주세요:
+{
+  "news": [
     {
-      "news": [뉴스 배열],
-      "analysis": {
-        "trendAnalysis": "트렌드 분석",
-        "mainIssues": "주요 이슈",
-        "futureOutlook": "향후 전망",
-        "keyKeywords": ["키워드1", "키워드2"]
-      }
+      "title": "뉴스 제목",
+      "link": "뉴스 링크",
+      "source": "언론사명",
+      "pubDate": "발행일",
+      "aiSummary": "AI 생성 요약",
+      "relatedKeywords": ["키워드1", "키워드2"],
+      "trendAnalysis": "트렌드 분석",
+      "futureOutlook": "향후 전망"
     }
-    `;
+  ],
+  "analysis": {
+    "trendAnalysis": "트렌드 분석",
+    "mainIssues": "주요 이슈",
+    "futureOutlook": "향후 전망",
+    "keyKeywords": ["키워드1", "키워드2"]
+  }
+}
+`;
 
     // Rate Limit 방지를 위한 지연
     await new Promise(resolve => setTimeout(resolve, 2000));
