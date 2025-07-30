@@ -1097,6 +1097,29 @@ app.get('/api/tech-news', async (req, res) => {
   res.json(news);
 });
 
+// === 수동 뉴스 수집 테스트 API ===
+app.post('/api/test-collect', async (req, res) => {
+  try {
+    console.log('[수동 테스트] 뉴스 수집 시작...');
+    
+    // 각 카테고리별 수집 실행
+    await collectRiskNews();
+    await collectPartnerNews();
+    await collectTechNews();
+    
+    console.log('[수동 테스트] 뉴스 수집 완료');
+    
+    res.json({ 
+      success: true, 
+      message: '수동 뉴스 수집이 완료되었습니다.',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[수동 테스트] 오류:', error);
+    res.status(500).json({ error: '수동 뉴스 수집 실패' });
+  }
+});
+
 // === 강제 스키마 재설정 API ===
 app.post('/api/force-reset-schemas', async (req, res) => {
   try {
