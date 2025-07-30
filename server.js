@@ -186,71 +186,97 @@ async function collectPartnerNews() {
       return;
     }
     
-    let allNews = [];
-    console.log(`[자동수집][제휴처탐색] ${today} 수집 시작 (조건 ${conds.length}개)`);
+    console.log(`[AI 수집][제휴처탐색] ${today} 수집 시작 (조건 ${conds.length}개)`);
     
     for (const kw of conds) {
       try {
-        console.log(`[자동수집][제휴처탐색] 조건 "${kw}" 수집 시작`);
-        const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-          params: { query: kw, display: 100, sort: 'date' },
-          headers: {
-            'X-Naver-Client-Id': NAVER_CLIENT_ID,
-            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-          }
-        });
+        console.log(`[AI 수집][제휴처탐색] 조건 "${kw}" Perplexity AI 수집 시작`);
+        console.log(`[AI 수집][partner] 조건 "${kw}" Perplexity AI 분석 시작`);
         
-        if (res.data.items && res.data.items.length > 0) {
-          console.log(`[자동수집][제휴처탐색] 조건 "${kw}" 결과 ${res.data.items.length}건 수집`);
-          res.data.items.forEach(item => {
-            if (!allNews.some(n => n.link === item.link)) {
-              allNews.push({ ...item, keyword: kw });
+        // Perplexity AI로 뉴스 수집 및 분석
+        const aiNewsData = await collectNewsWithPerplexity(kw, 'partner');
+        
+        if (aiNewsData && aiNewsData.length > 0) {
+          console.log(`[AI 수집][partner] 조건 "${kw}" 결과 ${aiNewsData.length}건 수집 및 분석 완료`);
+          
+          // === DB 저장 ===
+          let insertedPartner = 0;
+          let duplicatePartner = 0;
+          
+          for (const item of aiNewsData) {
+            try {
+              const result = await PartnerNews.updateOne(
+                { link: item.link },
+                { $set: item },
+                { upsert: true }
+              );
+              
+              if (result.upsertedCount > 0) {
+                insertedPartner++;
+              } else {
+                duplicatePartner++;
+              }
+            } catch (dbError) {
+              console.error(`[AI 수집][partner] DB 저장 실패 (${item.title}):`, dbError.message);
+            }
+          }
+          
+          console.log(`[AI 수집][partner] 조건 "${kw}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
+        } else {
+          console.log(`[AI 수집][partner] 조건 "${kw}" 결과 없음`);
+        }
+        
+      } catch (e) {
+        console.error(`[AI 수집][partner] 조건 "${kw}" 뉴스 수집 실패:`, e.message);
+        
+        // AI 수집 실패 시 네이버 뉴스 API로 폴백
+        try {
+          console.log(`[AI 수집][partner] 조건 "${kw}" 네이버 뉴스 API 폴백 시도`);
+          const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+            params: { query: kw, display: 100, sort: 'date' },
+            headers: {
+              'X-Naver-Client-Id': NAVER_CLIENT_ID,
+              'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
             }
           });
-        } else {
-          console.log(`[자동수집][제휴처탐색] 조건 "${kw}" 결과 없음`);
+          
+          if (res.data.items && res.data.items.length > 0) {
+            console.log(`[AI 수집][partner] 조건 "${kw}" 폴백 결과 ${res.data.items.length}건 수집`);
+            
+            let insertedPartner = 0;
+            let duplicatePartner = 0;
+            
+            for (const item of res.data.items) {
+              try {
+                const result = await PartnerNews.updateOne(
+                  { link: item.link },
+                  { $setOnInsert: { ...item, keyword: kw } },
+                  { upsert: true }
+                );
+                
+                if (result.upsertedCount > 0) {
+                  insertedPartner++;
+                } else {
+                  duplicatePartner++;
+                }
+              } catch (dbError) {
+                console.error(`[AI 수집][partner] 폴백 DB 저장 실패 (${item.title}):`, dbError.message);
+              }
+            }
+            
+            console.log(`[AI 수집][partner] 조건 "${kw}" 폴백 DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
+          }
+        } catch (fallbackError) {
+          console.error(`[AI 수집][partner] 조건 "${kw}" 폴백 실패:`, fallbackError.message);
         }
-      } catch (e) {
-        console.error(`[자동수집][제휴처탐색] 조건 "${kw}" 뉴스 수집 실패:`, 
-          e.response ? `상태 코드: ${e.response.status}, 메시지: ${JSON.stringify(e.response.data)}` : e.message);
       }
     }
     
-    if (allNews.length > 0) {
-      try {
-        fs.writeFileSync(`partnerNews_${today}.json`, JSON.stringify(allNews, null, 2));
-        console.log(`[자동수집][제휴처탐색] ${today} 수집 완료 (총 ${allNews.length}건)`);
-      } catch (fileError) {
-        console.error(`[자동수집][제휴처탐색] 파일 저장 실패:`, fileError.message);
-      }
-      
-      // === DB 저장 ===
-      let insertedPartner = 0;
-      let duplicatePartner = 0;
-      for (const item of allNews) {
-        try {
-          const result = await PartnerNews.updateOne(
-            { link: item.link },
-            { $setOnInsert: item },
-            { upsert: true }
-          );
-          
-          if (result.upsertedCount > 0) {
-            insertedPartner++;
-          } else {
-            duplicatePartner++;
-          }
-        } catch (dbError) {
-          console.error(`[자동수집][제휴처탐색] DB 저장 실패 (${item.title}):`, dbError.message);
-        }
-      }
-      console.log(`[자동수집][제휴처탐색] ${today} DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
-    } else {
-      console.log(`[자동수집][제휴처탐색] ${today} 수집된 뉴스가 없습니다.`);
-    }
+    console.log(`[AI 수집][제휴처탐색] ${today} 수집 완료`);
+    
   } catch (error) {
-    console.error(`[자동수집][제휴처탐색] 전체 프로세스 에러:`, error);
-    throw error; // 상위 호출자에게 에러 전파
+    console.error(`[AI 수집][제휴처탐색] 전체 프로세스 에러:`, error);
+    throw error;
   }
 }
 
@@ -264,71 +290,97 @@ async function collectTechNews() {
       return;
     }
     
-    let allNews = [];
-    console.log(`[자동수집][신기술동향] ${today} 수집 시작 (주제 ${topics.length}개)`);
+    console.log(`[AI 수집][신기술동향] ${today} 수집 시작 (주제 ${topics.length}개)`);
     
     for (const kw of topics) {
       try {
-        console.log(`[자동수집][신기술동향] 주제 "${kw}" 수집 시작`);
-        const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-          params: { query: kw, display: 100, sort: 'date' },
-          headers: {
-            'X-Naver-Client-Id': NAVER_CLIENT_ID,
-            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-          }
-        });
+        console.log(`[AI 수집][신기술동향] 주제 "${kw}" Perplexity AI 수집 시작`);
+        console.log(`[AI 수집][tech] 주제 "${kw}" Perplexity AI 분석 시작`);
         
-        if (res.data.items && res.data.items.length > 0) {
-          console.log(`[자동수집][신기술동향] 주제 "${kw}" 결과 ${res.data.items.length}건 수집`);
-          res.data.items.forEach(item => {
-            if (!allNews.some(n => n.link === item.link)) {
-              allNews.push({ ...item, keyword: kw });
+        // Perplexity AI로 뉴스 수집 및 분석
+        const aiNewsData = await collectNewsWithPerplexity(kw, 'tech');
+        
+        if (aiNewsData && aiNewsData.length > 0) {
+          console.log(`[AI 수집][tech] 주제 "${kw}" 결과 ${aiNewsData.length}건 수집 및 분석 완료`);
+          
+          // === DB 저장 ===
+          let insertedTech = 0;
+          let duplicateTech = 0;
+          
+          for (const item of aiNewsData) {
+            try {
+              const result = await TechNews.updateOne(
+                { link: item.link },
+                { $set: item },
+                { upsert: true }
+              );
+              
+              if (result.upsertedCount > 0) {
+                insertedTech++;
+              } else {
+                duplicateTech++;
+              }
+            } catch (dbError) {
+              console.error(`[AI 수집][tech] DB 저장 실패 (${item.title}):`, dbError.message);
+            }
+          }
+          
+          console.log(`[AI 수집][tech] 주제 "${kw}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
+        } else {
+          console.log(`[AI 수집][tech] 주제 "${kw}" 결과 없음`);
+        }
+        
+      } catch (e) {
+        console.error(`[AI 수집][tech] 주제 "${kw}" 뉴스 수집 실패:`, e.message);
+        
+        // AI 수집 실패 시 네이버 뉴스 API로 폴백
+        try {
+          console.log(`[AI 수집][tech] 주제 "${kw}" 네이버 뉴스 API 폴백 시도`);
+          const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+            params: { query: kw, display: 100, sort: 'date' },
+            headers: {
+              'X-Naver-Client-Id': NAVER_CLIENT_ID,
+              'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
             }
           });
-        } else {
-          console.log(`[자동수집][신기술동향] 주제 "${kw}" 결과 없음`);
+          
+          if (res.data.items && res.data.items.length > 0) {
+            console.log(`[AI 수집][tech] 주제 "${kw}" 폴백 결과 ${res.data.items.length}건 수집`);
+            
+            let insertedTech = 0;
+            let duplicateTech = 0;
+            
+            for (const item of res.data.items) {
+              try {
+                const result = await TechNews.updateOne(
+                  { link: item.link },
+                  { $setOnInsert: { ...item, keyword: kw } },
+                  { upsert: true }
+                );
+                
+                if (result.upsertedCount > 0) {
+                  insertedTech++;
+                } else {
+                  duplicateTech++;
+                }
+              } catch (dbError) {
+                console.error(`[AI 수집][tech] 폴백 DB 저장 실패 (${item.title}):`, dbError.message);
+              }
+            }
+            
+            console.log(`[AI 수집][tech] 주제 "${kw}" 폴백 DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
+          }
+        } catch (fallbackError) {
+          console.error(`[AI 수집][tech] 주제 "${kw}" 폴백 실패:`, fallbackError.message);
         }
-      } catch (e) {
-        console.error(`[자동수집][신기술동향] 주제 "${kw}" 뉴스 수집 실패:`, 
-          e.response ? `상태 코드: ${e.response.status}, 메시지: ${JSON.stringify(e.response.data)}` : e.message);
       }
     }
     
-    if (allNews.length > 0) {
-      try {
-        fs.writeFileSync(`techNews_${today}.json`, JSON.stringify(allNews, null, 2));
-        console.log(`[자동수집][신기술동향] ${today} 수집 완료 (총 ${allNews.length}건)`);
-      } catch (fileError) {
-        console.error(`[자동수집][신기술동향] 파일 저장 실패:`, fileError.message);
-      }
-      
-      // === DB 저장 ===
-      let insertedTech = 0;
-      let duplicateTech = 0;
-      for (const item of allNews) {
-        try {
-          const result = await TechNews.updateOne(
-            { link: item.link },
-            { $setOnInsert: item },
-            { upsert: true }
-          );
-          
-          if (result.upsertedCount > 0) {
-            insertedTech++;
-          } else {
-            duplicateTech++;
-          }
-        } catch (dbError) {
-          console.error(`[자동수집][신기술동향] DB 저장 실패 (${item.title}):`, dbError.message);
-        }
-      }
-      console.log(`[자동수집][신기술동향] ${today} DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
-    } else {
-      console.log(`[자동수집][신기술동향] ${today} 수집된 뉴스가 없습니다.`);
-    }
+    console.log(`[AI 수집][신기술동향] ${today} 수집 완료`);
+    
   } catch (error) {
-    console.error(`[자동수집][신기술동향] 전체 프로세스 에러:`, error);
-    throw error; // 상위 호출자에게 에러 전파
+    console.error(`[AI 수집][신기술동향] 전체 프로세스 에러:`, error);
+    throw error;
   }
 }
 
@@ -393,8 +445,26 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
   try {
     console.log(`[AI 수집][${category}] 키워드 "${keyword}" Perplexity AI 분석 시작`);
     
+    // 카테고리별 프롬프트 설정
+    let categoryContext = '';
+    switch (category) {
+      case 'risk':
+        categoryContext = '리스크 이슈 및 위험 요소에 중점을 두고 분석해주세요.';
+        break;
+      case 'partner':
+        categoryContext = '제휴처 및 파트너사 관련 비즈니스 뉴스에 중점을 두고 분석해주세요.';
+        break;
+      case 'tech':
+        categoryContext = '신기술 동향 및 혁신 기술에 중점을 두고 분석해주세요.';
+        break;
+      default:
+        categoryContext = '일반적인 뉴스 분석을 진행해주세요.';
+    }
+    
     const prompt = `
     다음 키워드에 대한 최신 뉴스를 검색하고 종합 분석해주세요: "${keyword}"
+    
+    분석 컨텍스트: ${categoryContext}
     
     요구사항:
     1. 최근 24시간 내의 뉴스만 수집
@@ -404,10 +474,12 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
          "link": "뉴스 링크",
          "source": "언론사명",
          "pubDate": "발행일",
-         "summary": "핵심 요약 (2-3문장)",
+         "aiSummary": "AI 생성 요약 (2-3문장)",
          "importanceScore": 1-10 점수,
-         "sentiment": "positive/negative/neutral",
-         "relatedKeywords": ["관련 키워드1", "관련 키워드2"]
+         "sentiment": {"type": "positive/negative/neutral", "score": 0.0-1.0},
+         "relatedKeywords": ["관련 키워드1", "관련 키워드2"],
+         "trendAnalysis": "개별 뉴스 트렌드 분석",
+         "futureOutlook": "개별 뉴스 향후 전망"
        }
     3. 최대 5개 뉴스만 제공
     4. 중요도 순으로 정렬
