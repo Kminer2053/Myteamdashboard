@@ -10,10 +10,7 @@ const TechNewsSchema = new mongoose.Schema({
   // AI 분석 결과 필드들
   aiSummary: String,           // AI 요약
   importanceScore: Number,     // 중요도 점수 (1-10)
-  sentiment: {                 // 감정 분석
-    type: String,              // 'positive', 'negative', 'neutral'
-    score: Number              // 감정 점수 (-1 to 1)
-  },
+  sentiment: String,           // 감정 분석 ('positive:0.8', 'negative:-0.3', 'neutral:0.5')
   source: String,              // 출처 (언론사)
   relatedKeywords: [String],   // 관련 키워드
   trendAnalysis: String,       // 트렌드 분석

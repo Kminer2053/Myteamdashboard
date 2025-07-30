@@ -539,16 +539,15 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
       let newsData = [];
       if (result.news && Array.isArray(result.news)) {
         newsData = result.news.map(item => {
-          // sentiment 객체 정규화
-          let normalizedSentiment = { type: 'neutral', score: 0.5 };
+          // sentiment 객체 정규화 - 임시로 문자열로 저장
+          let normalizedSentiment = 'neutral:0.5';
           if (item.sentiment) {
             if (typeof item.sentiment === 'string') {
-              normalizedSentiment = { type: item.sentiment, score: 0.5 };
+              normalizedSentiment = item.sentiment;
             } else if (typeof item.sentiment === 'object') {
-              normalizedSentiment = {
-                type: item.sentiment.type || 'neutral',
-                score: item.sentiment.score || 0.5
-              };
+              const type = item.sentiment.type || 'neutral';
+              const score = item.sentiment.score || 0.5;
+              normalizedSentiment = `${type}:${score}`;
             }
           }
           
