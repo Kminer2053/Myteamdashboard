@@ -1203,6 +1203,45 @@ app.post('/api/add-test-data', async (req, res) => {
   }
 });
 
+// === 카테고리별 Perplexity AI 뉴스 수집 API ===
+app.post('/api/collect-news/:category', async (req, res) => {
+  try {
+    const { category } = req.params;
+    const validCategories = ['risk', 'partner', 'tech'];
+    
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({ error: '유효하지 않은 카테고리입니다.' });
+    }
+    
+    console.log(`[수동 수집][${category}] 뉴스 수집 시작...`);
+    
+    let result;
+    switch (category) {
+      case 'risk':
+        result = await collectRiskNews();
+        break;
+      case 'partner':
+        result = await collectPartnerNews();
+        break;
+      case 'tech':
+        result = await collectTechNews();
+        break;
+    }
+    
+    console.log(`[수동 수집][${category}] 뉴스 수집 완료`);
+    
+    res.json({ 
+      success: true, 
+      message: `${category} 카테고리 뉴스 수집이 완료되었습니다.`,
+      category,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`[수동 수집][${req.params.category}] 오류:`, error);
+    res.status(500).json({ error: '뉴스 수집 실패' });
+  }
+});
+
 // === 수동 뉴스 수집 테스트 API ===
 app.post('/api/test-collect', async (req, res) => {
   try {

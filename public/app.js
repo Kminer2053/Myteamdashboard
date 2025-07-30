@@ -521,7 +521,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 정보갱신 중...</div></div>';
-            await fetchAndSaveAllNews(checked);
+            
+            try {
+                // Perplexity AI 기반 뉴스 수집
+                const response = await fetch(`${API_BASE_URL}/api/collect-news/risk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    console.log('리스크이슈 뉴스 수집 완료');
+                } else {
+                    console.error('리스크이슈 뉴스 수집 실패');
+                }
+            } catch (error) {
+                console.error('리스크이슈 뉴스 수집 오류:', error);
+            }
+            
             await renderNews(checked);
         };
 
@@ -694,7 +710,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 정보갱신 중...</div></div>';
-            await fetchAndSaveAllPartners(checked);
+            
+            try {
+                // Perplexity AI 기반 뉴스 수집
+                const response = await fetch(`${API_BASE_URL}/api/collect-news/partner`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    console.log('제휴처탐색 뉴스 수집 완료');
+                } else {
+                    console.error('제휴처탐색 뉴스 수집 실패');
+                }
+            } catch (error) {
+                console.error('제휴처탐색 뉴스 수집 오류:', error);
+            }
+            
             await renderPartnerResults(checked);
         };
         if (filtered.length === 0) {
@@ -806,7 +838,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 정보갱신 중...</div></div>';
-            await fetchAndSaveAllTechs(checked);
+            
+            try {
+                // Perplexity AI 기반 뉴스 수집
+                const response = await fetch(`${API_BASE_URL}/api/collect-news/tech`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    console.log('신기술동향 뉴스 수집 완료');
+                } else {
+                    console.error('신기술동향 뉴스 수집 실패');
+                }
+            } catch (error) {
+                console.error('신기술동향 뉴스 수집 오류:', error);
+            }
+            
             await renderTechTrendResults(checked);
         };
         if (filtered.length === 0) {
