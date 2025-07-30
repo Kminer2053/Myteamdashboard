@@ -435,4 +435,63 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         };
     }
+
+    // ===== 카테고리별 AI 프롬프트 관리 =====
+    const promptInputRisk = document.getElementById('promptInputRisk');
+    const savePromptRisk = document.getElementById('savePromptRisk');
+    const promptInputPartner = document.getElementById('promptInputPartner');
+    const savePromptPartner = document.getElementById('savePromptPartner');
+    const promptInputTech = document.getElementById('promptInputTech');
+    const savePromptTech = document.getElementById('savePromptTech');
+
+    // 프롬프트 불러오기
+    async function loadPrompt(category, inputEl) {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/prompt/${category}`);
+            if (res.ok) {
+                const data = await res.json();
+                inputEl.value = data.value || '';
+            }
+        } catch (e) {}
+    }
+    // 프롬프트 저장
+    async function savePrompt(category, inputEl, btn) {
+        const value = inputEl.value.trim();
+        if (!value) {
+            showToast('프롬프트를 입력하세요.');
+            return;
+        }
+        btn.disabled = true;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/prompt/${category}` , {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ value })
+            });
+            if (res.ok) {
+                showToast('프롬프트가 저장되었습니다.');
+                logUserAction('프롬프트저장', { category, value });
+            } else {
+                alert('저장 실패: ' + (await res.text()));
+            }
+        } catch (e) {
+            alert('저장 중 오류: ' + e.message);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+    // 진입 시 불러오기
+    if (promptInputRisk) loadPrompt('risk', promptInputRisk);
+    if (promptInputPartner) loadPrompt('partner', promptInputPartner);
+    if (promptInputTech) loadPrompt('tech', promptInputTech);
+    // 저장 버튼 이벤트
+    if (savePromptRisk && promptInputRisk) {
+        savePromptRisk.onclick = () => savePrompt('risk', promptInputRisk, savePromptRisk);
+    }
+    if (savePromptPartner && promptInputPartner) {
+        savePromptPartner.onclick = () => savePrompt('partner', promptInputPartner, savePromptPartner);
+    }
+    if (savePromptTech && promptInputTech) {
+        savePromptTech.onclick = () => savePrompt('tech', promptInputTech, savePromptTech);
+    }
 }); 

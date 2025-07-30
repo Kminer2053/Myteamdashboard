@@ -445,7 +445,19 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
   try {
     console.log(`[AI 수집][${category}] 키워드 "${keyword}" Perplexity AI 분석 시작`);
     
-    // 카테고리별 프롬프트 설정
+    // DB에서 카테고리별 프롬프트 불러오기
+    let customPrompt = '';
+    try {
+      const promptSetting = await Setting.findOne({ key: `prompt_${category}` });
+      if (promptSetting && promptSetting.value) {
+        customPrompt = promptSetting.value;
+        console.log(`[AI 수집][${category}] 커스텀 프롬프트 사용: ${customPrompt.substring(0, 50)}...`);
+      }
+    } catch (e) {
+      console.log(`[AI 수집][${category}] 프롬프트 불러오기 실패, 기본 프롬프트 사용`);
+    }
+    
+    // 카테고리별 기본 프롬프트 설정 (커스텀 프롬프트가 없을 때 사용)
     let categoryContext = '';
     switch (category) {
       case 'risk':
@@ -461,7 +473,8 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
         categoryContext = '일반적인 뉴스 분석을 진행해주세요.';
     }
     
-    const prompt = `
+    // 커스텀 프롬프트가 있으면 사용, 없으면 기본 프롬프트 사용
+    const prompt = customPrompt || `
     다음 키워드에 대한 최신 뉴스를 검색하고 종합 분석해주세요: "${keyword}"
     
     분석 컨텍스트: ${categoryContext}
@@ -990,6 +1003,43 @@ app.delete('/api/tech-topics/:id', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: '주제 삭제 실패', message: err.message });
+  }
+});
+
+// === 카테고리별 AI 프롬프트 설정 API ===
+// 조회
+app.get('/api/prompt/:category', async (req, res) => {
+  try {
+    const { category } = req.params;
+    const validCategories = ['risk', 'partner', 'tech'];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({ error: '유효하지 않은 카테고리입니다.' });
+    }
+    const setting = await Setting.findOne({ key: `prompt_${category}` });
+    res.json({ value: setting ? setting.value : '' });
+  } catch (err) {
+    res.status(500).json({ error: '프롬프트 조회 실패', message: err.message });
+  }
+});
+
+// 저장
+app.post('/api/prompt/:category', async (req, res) => {
+  try {
+    const { category } = req.params;
+    const { value } = req.body;
+    const validCategories = ['risk', 'partner', 'tech'];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({ error: '유효하지 않은 카테고리입니다.' });
+    }
+    if (!value) return res.status(400).json({ error: '프롬프트 값이 필요합니다.' });
+    const setting = await Setting.findOneAndUpdate(
+      { key: `prompt_${category}` },
+      { value },
+      { upsert: true, new: true }
+    );
+    res.json(setting);
+  } catch (err) {
+    res.status(500).json({ error: '프롬프트 저장 실패', message: err.message });
   }
 });
 
