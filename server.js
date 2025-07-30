@@ -525,7 +525,7 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
         'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      timeout: 30000
+      timeout: 60000
     });
 
     const aiResponse = response.data.choices[0].message.content;
@@ -535,16 +535,46 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
     try {
       const result = JSON.parse(aiResponse);
       
+      // 뉴스 데이터 정규화 및 검증
+      let newsData = [];
+      if (result.news && Array.isArray(result.news)) {
+        newsData = result.news.map(item => {
+          // sentiment 객체 정규화
+          let normalizedSentiment = { type: 'neutral', score: 0.5 };
+          if (item.sentiment) {
+            if (typeof item.sentiment === 'string') {
+              normalizedSentiment = { type: item.sentiment, score: 0.5 };
+            } else if (typeof item.sentiment === 'object') {
+              normalizedSentiment = {
+                type: item.sentiment.type || 'neutral',
+                score: item.sentiment.score || 0.5
+              };
+            }
+          }
+          
+          return {
+            ...item,
+            sentiment: normalizedSentiment,
+            aiSummary: item.aiSummary || item.summary || 'AI 요약이 없습니다.',
+            importanceScore: item.importanceScore || 5,
+            relatedKeywords: item.relatedKeywords || [],
+            aiGeneratedAt: new Date(),
+            analysisModel: 'perplexity-ai'
+          };
+        });
+      }
+      
       // 응답 형식에 따라 처리
-      if (result.news && result.analysis) {
-        return result; // 완전한 형태
+      if (newsData.length > 0) {
+        return { news: newsData, analysis: result.analysis || null };
       } else if (Array.isArray(result)) {
-        return { news: result, analysis: null }; // 뉴스만 있는 경우
+        return { news: result, analysis: null };
       } else {
-        return { news: [result], analysis: null }; // 단일 뉴스
+        return { news: [result], analysis: null };
       }
     } catch (parseError) {
       console.error(`[AI 수집][${category}] JSON 파싱 실패:`, parseError);
+      console.error(`[AI 수집][${category}] 원본 응답:`, aiResponse);
       // 텍스트에서 뉴스 정보 추출 시도
       const extractedNews = extractNewsFromText(aiResponse, keyword);
       return { news: extractedNews, analysis: null };
@@ -581,10 +611,12 @@ function extractNewsFromText(text, keyword) {
         keyword: keyword,
         pubDate: new Date().toISOString(),
         source: 'AI 수집',
-        summary: 'AI가 수집한 뉴스입니다.',
+        aiSummary: 'AI가 수집한 뉴스입니다.',
         importanceScore: 5,
-        sentiment: 'neutral',
-        relatedKeywords: [keyword]
+        sentiment: { type: 'neutral', score: 0.5 },
+        relatedKeywords: [keyword],
+        aiGeneratedAt: new Date(),
+        analysisModel: 'perplexity-ai'
       });
     }
   }
@@ -1249,7 +1281,7 @@ async function generateSummaryWithPerplexity(newsData, category = 'risk') {
         'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      timeout: 30000
+      timeout: 60000
     });
 
     const analysisResult = response.data.choices[0].message.content;
