@@ -15,6 +15,10 @@ services:
         sync: false
       - key: EMAIL_PASS
         sync: false
+      - key: PERPLEXITY_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
     healthCheckPath: /
     autoDeploy: true
     packages:

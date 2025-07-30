@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 뉴스 분석 - 팀 대시보드</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .ai-analysis-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .ai-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .ai-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .ai-stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .ai-stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .ai-stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .ai-news-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+        
+        .ai-news-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+        
+        .ai-news-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .ai-news-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .ai-news-title {
+            font-weight: bold;
+            color: #333;
+            margin: 0;
+        }
+        
+        .ai-news-meta {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .ai-importance-badge {
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+        
+        .ai-sentiment-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+        
+        .ai-sentiment-positive {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .ai-sentiment-negative {
+            background: #f44336;
+            color: white;
+        }
+        
+        .ai-sentiment-neutral {
+            background: #9e9e9e;
+            color: white;
+        }
+        
+        .ai-news-content {
+            padding: 20px;
+        }
+        
+        .ai-summary {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        
+        .ai-keywords {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        
+        .ai-keyword-tag {
+            background: #f0f0f0;
+            color: #333;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+        
+        .ai-summary-section {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .ai-summary-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .ai-summary-content {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .category-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .category-tab {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #f0f0f0;
+            color: #333;
+            transition: all 0.2s;
+        }
+        
+        .category-tab.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="ai-analysis-container">
+        <div class="ai-header">
+            <h1>🤖 AI 뉴스 분석 대시보드</h1>
+            <p>Perplexity AI와 ChatGPT를 활용한 스마트 뉴스 분석</p>
+        </div>
+        
+        <div class="category-tabs">
+            <button class="category-tab active" data-category="risk">리스크 이슈</button>
+            <button class="category-tab" data-category="partner">제휴처 뉴스</button>
+            <button class="category-tab" data-category="tech">신기술 동향</button>
+        </div>
+        
+        <div id="ai-stats" class="ai-stats-grid">
+            <!-- AI 분석 통계가 여기에 표시됩니다 -->
+        </div>
+        
+        <div id="ai-summary" class="ai-summary-section">
+            <!-- AI 요약이 여기에 표시됩니다 -->
+        </div>
+        
+        <div id="ai-news" class="ai-news-grid">
+            <!-- AI 분석된 뉴스가 여기에 표시됩니다 -->
+        </div>
+    </div>
+
+    <script>
+        let currentCategory = 'risk';
+        
+        // 카테고리 탭 이벤트 리스너
+        document.querySelectorAll('.category-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentCategory = tab.dataset.category;
+                loadAIAnalysis();
+            });
+        });
+        
+        // AI 분석 데이터 로드
+        async function loadAIAnalysis() {
+            try {
+                // 통계 데이터 로드
+                const statsResponse = await fetch(`/api/ai-analysis/${currentCategory}?limit=50&days=7`);
+                const statsData = await statsResponse.json();
+                
+                if (statsData.success) {
+                    displayAIStats(statsData.data.stats);
+                    displayAINews(statsData.data.news);
+                }
+                
+                // 요약 데이터 로드
+                const summaryResponse = await fetch(`/api/ai-summary/${currentCategory}?days=7`);
+                const summaryData = await summaryResponse.json();
+                
+                if (summaryData.success) {
+                    displayAISummary(summaryData.data);
+                }
+                
+            } catch (error) {
+                console.error('AI 분석 데이터 로드 실패:', error);
+                showError('AI 분석 데이터를 불러오는 중 오류가 발생했습니다.');
+            }
+        }
+        
+        // AI 통계 표시
+        function displayAIStats(stats) {
+            const statsContainer = document.getElementById('ai-stats');
+            
+            const statsHTML = `
+                <div class="ai-stat-card">
+                    <div class="ai-stat-number">${stats.total}</div>
+                    <div class="ai-stat-label">분석된 뉴스</div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-number">${stats.bySentiment.positive}</div>
+                    <div class="ai-stat-label">긍정적 뉴스</div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-number">${stats.bySentiment.negative}</div>
+                    <div class="ai-stat-label">부정적 뉴스</div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-number">${stats.avgImportance.toFixed(1)}</div>
+                    <div class="ai-stat-label">평균 중요도</div>
+                </div>
+            `;
+            
+            statsContainer.innerHTML = statsHTML;
+        }
+        
+        // AI 뉴스 표시
+        function displayAINews(news) {
+            const newsContainer = document.getElementById('ai-news');
+            
+            if (news.length === 0) {
+                newsContainer.innerHTML = '<div class="loading">AI 분석된 뉴스가 없습니다.</div>';
+                return;
+            }
+            
+            const newsHTML = news.map(item => `
+                <div class="ai-news-card">
+                    <div class="ai-news-header">
+                        <h3 class="ai-news-title">${item.title}</h3>
+                        <div class="ai-news-meta">
+                            <span class="ai-importance-badge">중요도: ${item.importanceScore || 5}</span>
+                            <span class="ai-sentiment-badge ai-sentiment-${item.sentiment?.type || 'neutral'}">
+                                ${getSentimentText(item.sentiment?.type)}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="ai-news-content">
+                        <div class="ai-summary">${item.aiSummary || 'AI 요약이 없습니다.'}</div>
+                        <div class="ai-keywords">
+                            ${(item.relatedKeywords || []).map(kw => 
+                                `<span class="ai-keyword-tag">${kw}</span>`
+                            ).join('')}
+                        </div>
+                        <div style="margin-top: 10px; font-size: 0.8em; color: #999;">
+                            출처: ${item.source || '알 수 없음'} | 
+                            분석시간: ${new Date(item.aiGeneratedAt).toLocaleString()}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            newsContainer.innerHTML = newsHTML;
+        }
+        
+        // AI 요약 표시
+        function displayAISummary(summary) {
+            const summaryContainer = document.getElementById('ai-summary');
+            
+            const summaryHTML = `
+                <div class="ai-summary-title">📊 AI 분석 요약</div>
+                <div class="ai-summary-content">
+                    <p><strong>트렌드 분석:</strong> ${summary.trendAnalysis || '분석 데이터가 없습니다.'}</p>
+                    <p><strong>주요 이슈:</strong> ${summary.mainIssues || '분석 데이터가 없습니다.'}</p>
+                    <p><strong>향후 전망:</strong> ${summary.futureOutlook || '분석 데이터가 없습니다.'}</p>
+                    ${summary.keyKeywords ? `<p><strong>주요 키워드:</strong> ${summary.keyKeywords.join(', ')}</p>` : ''}
+                </div>
+            `;
+            
+            summaryContainer.innerHTML = summaryHTML;
+        }
+        
+        // 감정 텍스트 변환
+        function getSentimentText(sentiment) {
+            switch (sentiment) {
+                case 'positive': return '긍정';
+                case 'negative': return '부정';
+                case 'neutral': return '중립';
+                default: return '중립';
+            }
+        }
+        
+        // 에러 표시
+        function showError(message) {
+            const container = document.querySelector('.ai-analysis-container');
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = message;
+            container.insertBefore(errorDiv, container.firstChild);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+        
+        // 페이지 로드 시 초기 데이터 로드
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAIAnalysis();
+        });
+    </script>
+</body>
+</html> 
