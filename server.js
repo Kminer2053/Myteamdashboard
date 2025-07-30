@@ -102,25 +102,25 @@ async function collectRiskNews() {
     let analysisResults = [];
     console.log(`[AI 수집][리스크이슈] ${today} 수집 시작 (키워드 ${keywords.length}개)`);
     
-    // Perplexity AI를 사용한 뉴스 수집
-    for (const kw of keywords) {
+    // Perplexity AI를 사용한 뉴스 수집 (Rate Limit 방지를 위해 첫 번째 키워드만)
+    if (keywords.length > 0) {
       try {
-        console.log(`[AI 수집][리스크이슈] 키워드 "${kw}" Perplexity AI 수집 시작`);
-        const aiNews = await collectNewsWithPerplexity(kw, 'risk');
+        console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" Perplexity AI 수집 시작`);
+        const aiNews = await collectNewsWithPerplexity(keywords[0], 'risk');
         
         if (aiNews && aiNews.length > 0) {
-          console.log(`[AI 수집][리스크이슈] 키워드 "${kw}" 결과 ${aiNews.length}건 수집`);
+          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" 결과 ${aiNews.length}건 수집`);
           allNews.push(...aiNews);
         } else {
-          console.log(`[AI 수집][리스크이슈] 키워드 "${kw}" 결과 없음`);
+          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" 결과 없음`);
         }
       } catch (e) {
-        console.error(`[AI 수집][리스크이슈] 키워드 "${kw}" 뉴스 수집 실패:`, e.message);
+        console.error(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" 뉴스 수집 실패:`, e.message);
         // AI 수집 실패 시 기존 네이버 API로 폴백
         try {
-          console.log(`[AI 수집][리스크이슈] 키워드 "${kw}" 네이버 API 폴백 시도`);
+          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" 네이버 API 폴백 시도`);
           const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-            params: { query: kw, display: 100, sort: 'date' },
+            params: { query: keywords[0], display: 100, sort: 'date' },
             headers: {
               'X-Naver-Client-Id': NAVER_CLIENT_ID,
               'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
@@ -132,11 +132,11 @@ async function collectRiskNews() {
               if (!allNews.some(n => n.link === item.link)) {
                 allNews.push({ 
                   ...item, 
-                  keyword: kw,
+                  keyword: keywords[0],
                   source: '네이버 뉴스',
                   importanceScore: 5,
                   sentiment: 'neutral',
-                  relatedKeywords: [kw]
+                  relatedKeywords: [keywords[0]]
                 });
               }
             });
@@ -148,9 +148,13 @@ async function collectRiskNews() {
     }
     
     if (allNews.length > 0) {
-      // ChatGPT를 사용한 전체 뉴스 분석
+      // ChatGPT를 사용한 전체 뉴스 분석 (Rate Limit 방지를 위해 최소한만)
       try {
-        const analysis = await analyzeNewsWithChatGPT(allNews, 'risk');
+        // Rate Limit 방지를 위해 5분 대기
+        console.log(`[AI 분석][risk] Rate Limit 방지를 위해 5분 대기 중...`);
+        await new Promise(resolve => setTimeout(resolve, 300000));
+        
+        const analysis = await analyzeNewsWithChatGPT(allNews.slice(0, 3), 'risk');
         if (analysis) {
           analysisResults.push(analysis);
         }
@@ -438,12 +442,12 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
          "sentiment": "positive/negative/neutral",
          "relatedKeywords": ["관련 키워드1", "관련 키워드2"]
        }
-    3. 최대 5개 뉴스만 제공
+    3. 최대 3개 뉴스만 제공
     4. 중요도 순으로 정렬
     `;
 
     // Rate Limit 방지를 위한 지연
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     const response = await axios.post(PERPLEXITY_API_URL, {
       model: 'llama-3.1-sonar-small-128k-online',
@@ -457,13 +461,14 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
           content: prompt
         }
       ],
-      max_tokens: 3000,
+      max_tokens: 2000,
       temperature: 0.3
     }, {
       headers: {
         'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 30000
     });
 
     const aiResponse = response.data.choices[0].message.content;
@@ -486,6 +491,9 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
       return await collectNewsWithPerplexity(keyword, category);
     }
     console.error(`[AI 수집][${category}] Perplexity AI API 호출 실패:`, error.message);
+    if (error.response) {
+      console.error(`[AI 수집][${category}] 응답 데이터:`, error.response.data);
+    }
     throw error;
   }
 }
@@ -1066,7 +1074,7 @@ app.get('/api/tech-news', async (req, res) => {
 app.get('/api/ai-analysis/:category', async (req, res) => {
   try {
     const { category } = req.params;
-    const { limit = 10, days = 7 } = req.query;
+    const { limit = 5, days = 7 } = req.query; // 기본값을 5로 줄임
     
     let model;
     switch (category) {
@@ -1155,7 +1163,7 @@ app.get('/api/ai-summary/:category', async (req, res) => {
       aiGeneratedAt: { $gte: cutoffDate }
     })
     .sort({ aiGeneratedAt: -1 })
-    .limit(20)
+    .limit(10) // 20에서 10으로 줄임
     .select('title aiSummary importanceScore sentiment relatedKeywords');
     
     if (recentNews.length === 0) {
@@ -1169,9 +1177,9 @@ app.get('/api/ai-summary/:category', async (req, res) => {
       });
     }
     
-    // ChatGPT를 사용한 요약 생성
+    // ChatGPT를 사용한 요약 생성 (Rate Limit 방지를 위해 간단한 요약만)
     try {
-      const summary = await analyzeNewsWithChatGPT(recentNews, category);
+      const summary = await analyzeNewsWithChatGPT(recentNews.slice(0, 3), category);
       res.json({
         success: true,
         data: summary || {
