@@ -541,7 +541,25 @@ document.addEventListener('DOMContentLoaded', function() {
             await renderNews(checked);
         };
 
-        if (filtered.length === 0) {
+        // 오늘 데이터가 없으면 메시지 표출하고 기존 누적 데이터 표출
+        const todayNews = filtered.filter(item => extractDate(item.pubDate) === today);
+        if (todayNews.length === 0 && filtered.length > 0) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'alert alert-info';
+            emptyDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>금일은 뉴스가 없습니다</h5>
+                    <p class="text-muted">오늘 수집된 뉴스가 없습니다. 기존 누적 데이터를 확인해보세요.</p>
+                </div>
+            `;
+            newsFeed.appendChild(emptyDiv);
+            
+            // 기존 누적 데이터 표출
+            const recentDiv = document.createElement('div');
+            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+            newsFeed.appendChild(recentDiv);
+        } else if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
             emptyDiv.textContent = '표시할 뉴스가 없습니다.';
@@ -729,7 +747,25 @@ document.addEventListener('DOMContentLoaded', function() {
             
             await renderPartnerResults(checked);
         };
-        if (filtered.length === 0) {
+        // 오늘 데이터가 없으면 메시지 표출하고 기존 누적 데이터 표출
+        const todayNews = filtered.filter(item => extractDate(item.pubDate) === today);
+        if (todayNews.length === 0 && filtered.length > 0) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'alert alert-info';
+            emptyDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>금일은 뉴스가 없습니다</h5>
+                    <p class="text-muted">오늘 수집된 뉴스가 없습니다. 기존 누적 데이터를 확인해보세요.</p>
+                </div>
+            `;
+            resultsDiv.appendChild(emptyDiv);
+            
+            // 기존 누적 데이터 표출
+            const recentDiv = document.createElement('div');
+            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+            resultsDiv.appendChild(recentDiv);
+        } else if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
             emptyDiv.textContent = '표시할 정보가 없습니다.';
@@ -857,7 +893,25 @@ document.addEventListener('DOMContentLoaded', function() {
             
             await renderTechTrendResults(checked);
         };
-        if (filtered.length === 0) {
+        // 오늘 데이터가 없으면 메시지 표출하고 기존 누적 데이터 표출
+        const todayNews = filtered.filter(item => extractDate(item.pubDate) === today);
+        if (todayNews.length === 0 && filtered.length > 0) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'alert alert-info';
+            emptyDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>금일은 뉴스가 없습니다</h5>
+                    <p class="text-muted">오늘 수집된 뉴스가 없습니다. 기존 누적 데이터를 확인해보세요.</p>
+                </div>
+            `;
+            resultsDiv.appendChild(emptyDiv);
+            
+            // 기존 누적 데이터 표출
+            const recentDiv = document.createElement('div');
+            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+            resultsDiv.appendChild(recentDiv);
+        } else if (filtered.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'news-item';
             emptyDiv.textContent = '표시할 정보가 없습니다.';
