@@ -1097,6 +1097,48 @@ app.get('/api/tech-news', async (req, res) => {
   res.json(news);
 });
 
+// === 강제 스키마 재설정 API ===
+app.post('/api/force-reset-schemas', async (req, res) => {
+  try {
+    console.log('[강제 스키마 재설정] 시작...');
+    
+    // MongoDB 연결 재설정
+    await mongoose.disconnect();
+    console.log('[강제 스키마 재설정] MongoDB 연결 해제 완료');
+    
+    // 잠시 대기
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // MongoDB 재연결
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://park2053:admin0133@cluster0.yh7edwb.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    console.log('[강제 스키마 재설정] MongoDB 재연결 완료');
+    
+    // 모든 뉴스 컬렉션 강제 삭제
+    const collections = ['risknews', 'partnernews', 'technews'];
+    for (const collectionName of collections) {
+      try {
+        await mongoose.connection.collection(collectionName).drop();
+        console.log(`[강제 스키마 재설정] ${collectionName} 컬렉션 삭제 완료`);
+      } catch (error) {
+        console.log(`[강제 스키마 재설정] ${collectionName} 컬렉션이 없거나 이미 삭제됨`);
+      }
+    }
+    
+    console.log('[강제 스키마 재설정] 완료 - 모든 컬렉션이 새로운 스키마로 재생성됨');
+    
+    res.json({ 
+      success: true, 
+      message: '강제 스키마 재설정이 완료되었습니다. 다음 수집에서 새로운 스키마가 적용됩니다.'
+    });
+  } catch (error) {
+    console.error('[강제 스키마 재설정] 오류:', error);
+    res.status(500).json({ error: '강제 스키마 재설정 실패' });
+  }
+});
+
 // === 스키마 업데이트 API (안전한 방법) ===
 app.post('/api/update-schemas', async (req, res) => {
   try {
@@ -1105,12 +1147,14 @@ app.post('/api/update-schemas', async (req, res) => {
     // 기존 데이터 백업
     const existingPartnerNews = await PartnerNews.find({});
     const existingTechNews = await TechNews.find({});
+    const existingRiskNews = await RiskNews.find({});
     
-    console.log(`[스키마 업데이트] 백업 완료 - PartnerNews: ${existingPartnerNews.length}건, TechNews: ${existingTechNews.length}건`);
+    console.log(`[스키마 업데이트] 백업 완료 - PartnerNews: ${existingPartnerNews.length}건, TechNews: ${existingTechNews.length}건, RiskNews: ${existingRiskNews.length}건`);
     
     // 컬렉션 삭제 후 재생성 (스키마 강제 업데이트)
     await mongoose.connection.collection('partnernews').drop();
     await mongoose.connection.collection('technews').drop();
+    await mongoose.connection.collection('risknews').drop();
     
     console.log('[스키마 업데이트] 컬렉션 삭제 완료');
     
@@ -1147,12 +1191,29 @@ app.post('/api/update-schemas', async (req, res) => {
       console.log(`[스키마 업데이트] TechNews ${updatedTechNews.length}건 재생성 완료`);
     }
     
+    if (existingRiskNews.length > 0) {
+      const updatedRiskNews = existingRiskNews.map(item => ({
+        ...item.toObject(),
+        aiSummary: item.aiSummary || '기존 데이터',
+        importanceScore: item.importanceScore || 5,
+        sentiment: item.sentiment || { type: 'neutral', score: 0.5 },
+        source: item.source || '기존 수집',
+        relatedKeywords: item.relatedKeywords || [],
+        aiGeneratedAt: item.aiGeneratedAt || new Date(),
+        analysisModel: item.analysisModel || 'legacy'
+      }));
+      
+      await RiskNews.insertMany(updatedRiskNews);
+      console.log(`[스키마 업데이트] RiskNews ${updatedRiskNews.length}건 재생성 완료`);
+    }
+    
     res.json({ 
       success: true, 
       message: '스키마가 안전하게 업데이트되었습니다.',
       stats: {
         partnerNews: existingPartnerNews.length,
-        techNews: existingTechNews.length
+        techNews: existingTechNews.length,
+        riskNews: existingRiskNews.length
       }
     });
   } catch (error) {
