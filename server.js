@@ -438,9 +438,12 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
          "sentiment": "positive/negative/neutral",
          "relatedKeywords": ["관련 키워드1", "관련 키워드2"]
        }
-    3. 최대 10개 뉴스만 제공
+    3. 최대 5개 뉴스만 제공
     4. 중요도 순으로 정렬
     `;
+
+    // Rate Limit 방지를 위한 지연
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     const response = await axios.post(PERPLEXITY_API_URL, {
       model: 'llama-3.1-sonar-small-128k-online',
@@ -454,7 +457,7 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
           content: prompt
         }
       ],
-      max_tokens: 4000,
+      max_tokens: 3000,
       temperature: 0.3
     }, {
       headers: {
@@ -477,6 +480,11 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
     }
     
   } catch (error) {
+    if (error.response && error.response.status === 429) {
+      console.log(`[AI 수집][${category}] Rate Limit 도달, 30초 후 재시도...`);
+      await new Promise(resolve => setTimeout(resolve, 30000));
+      return await collectNewsWithPerplexity(keyword, category);
+    }
     console.error(`[AI 수집][${category}] Perplexity AI API 호출 실패:`, error.message);
     throw error;
   }
@@ -491,7 +499,7 @@ async function analyzeNewsWithChatGPT(newsData, category = 'risk') {
     다음 뉴스 데이터를 분석하고 요약해주세요:
     
     뉴스 목록:
-    ${JSON.stringify(newsData.slice(0, 5), null, 2)}
+    ${JSON.stringify(newsData.slice(0, 3), null, 2)}
     
     분석 요구사항:
     1. 전체적인 트렌드 분석 (2-3문장)
@@ -508,6 +516,9 @@ async function analyzeNewsWithChatGPT(newsData, category = 'risk') {
     }
     `;
 
+    // Rate Limit 방지를 위한 지연
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     const response = await axios.post(OPENAI_API_URL, {
       model: 'gpt-4o-mini',
       messages: [
@@ -520,7 +531,7 @@ async function analyzeNewsWithChatGPT(newsData, category = 'risk') {
           content: prompt
         }
       ],
-      max_tokens: 2000,
+      max_tokens: 1500,
       temperature: 0.3
     }, {
       headers: {
@@ -540,6 +551,11 @@ async function analyzeNewsWithChatGPT(newsData, category = 'risk') {
     }
     
   } catch (error) {
+    if (error.response && error.response.status === 429) {
+      console.log(`[AI 분석][${category}] Rate Limit 도달, 60초 후 재시도...`);
+      await new Promise(resolve => setTimeout(resolve, 60000));
+      return await analyzeNewsWithChatGPT(newsData, category);
+    }
     console.error(`[AI 분석][${category}] ChatGPT API 호출 실패:`, error.message);
     return null;
   }
@@ -1372,5 +1388,78 @@ app.get('/api/stats/visit', async (req, res) => {
     res.json({ today, month, total });
   } catch (err) {
     res.status(500).json({ error: '방문자수 통계 조회 실패', message: err.message });
+  }
+});
+
+// === Rate Limit 상태 확인 API ===
+app.get('/api/rate-limit-status', async (req, res) => {
+  try {
+    const status = {
+      timestamp: new Date().toISOString(),
+      openai: {
+        status: 'unknown',
+        lastError: null,
+        retryCount: 0
+      },
+      perplexity: {
+        status: 'unknown',
+        lastError: null,
+        retryCount: 0
+      },
+      recommendations: []
+    };
+    
+    // OpenAI Rate Limit 테스트
+    try {
+      const testResponse = await axios.post(OPENAI_API_URL, {
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'test' }],
+        max_tokens: 10
+      }, {
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      status.openai.status = 'available';
+    } catch (error) {
+      status.openai.status = error.response?.status === 429 ? 'rate_limited' : 'error';
+      status.openai.lastError = error.message;
+    }
+    
+    // Perplexity Rate Limit 테스트
+    try {
+      const testResponse = await axios.post(PERPLEXITY_API_URL, {
+        model: 'llama-3.1-sonar-small-128k-online',
+        messages: [{ role: 'user', content: 'test' }],
+        max_tokens: 10
+      }, {
+        headers: {
+          'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      status.perplexity.status = 'available';
+    } catch (error) {
+      status.perplexity.status = error.response?.status === 429 ? 'rate_limited' : 'error';
+      status.perplexity.lastError = error.message;
+    }
+    
+    // 권장사항 추가
+    if (status.openai.status === 'rate_limited') {
+      status.recommendations.push('OpenAI Rate Limit 도달. 1분 후 재시도하세요.');
+    }
+    if (status.perplexity.status === 'rate_limited') {
+      status.recommendations.push('Perplexity Rate Limit 도달. 30초 후 재시도하세요.');
+    }
+    
+    res.json({
+      success: true,
+      data: status
+    });
+    
+  } catch (error) {
+    console.error('Rate Limit 상태 확인 실패:', error);
+    res.status(500).json({ error: 'Rate Limit 상태 확인 중 오류가 발생했습니다.' });
   }
 });
