@@ -449,10 +449,10 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
     // Rate Limit 방지를 위한 지연
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    const response = await axios.post(PERPLEXITY_API_URL, {
-      model: 'llama-3.1-sonar-small-128k-online',
-      messages: [
-        {
+      const response = await axios.post(PERPLEXITY_API_URL, {
+    model: 'sonar-pro',
+    messages: [
+      {
           role: 'system',
           content: '당신은 뉴스 분석 전문가입니다. 요청된 JSON 형식에 맞춰 정확하고 구조화된 정보를 제공해주세요.'
         },
@@ -1442,7 +1442,7 @@ app.get('/api/rate-limit-status', async (req, res) => {
     // Perplexity Rate Limit 테스트
     try {
       const testResponse = await axios.post(PERPLEXITY_API_URL, {
-        model: 'llama-3.1-sonar-small-128k-online',
+        model: 'sonar-pro',
         messages: [{ role: 'user', content: 'test' }],
         max_tokens: 10
       }, {
