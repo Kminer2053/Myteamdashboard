@@ -196,14 +196,14 @@ async function collectPartnerNews() {
         // Perplexity AI로 뉴스 수집 및 분석
         const aiNewsData = await collectNewsWithPerplexity(kw, 'partner');
         
-        if (aiNewsData && aiNewsData.length > 0) {
-          console.log(`[AI 수집][partner] 조건 "${kw}" 결과 ${aiNewsData.length}건 수집 및 분석 완료`);
+        if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
+          console.log(`[AI 수집][partner] 조건 "${kw}" 결과 ${aiNewsData.news.length}건 수집 및 분석 완료`);
           
           // === DB 저장 ===
           let insertedPartner = 0;
           let duplicatePartner = 0;
           
-          for (const item of aiNewsData) {
+          for (const item of aiNewsData.news) {
             try {
               const result = await PartnerNews.updateOne(
                 { link: item.link },
@@ -300,14 +300,14 @@ async function collectTechNews() {
         // Perplexity AI로 뉴스 수집 및 분석
         const aiNewsData = await collectNewsWithPerplexity(kw, 'tech');
         
-        if (aiNewsData && aiNewsData.length > 0) {
-          console.log(`[AI 수집][tech] 주제 "${kw}" 결과 ${aiNewsData.length}건 수집 및 분석 완료`);
+        if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
+          console.log(`[AI 수집][tech] 주제 "${kw}" 결과 ${aiNewsData.news.length}건 수집 및 분석 완료`);
           
           // === DB 저장 ===
           let insertedTech = 0;
           let duplicateTech = 0;
           
-          for (const item of aiNewsData) {
+          for (const item of aiNewsData.news) {
             try {
               const result = await TechNews.updateOne(
                 { link: item.link },
