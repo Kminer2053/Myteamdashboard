@@ -1150,6 +1150,12 @@ app.post('/api/force-reset-schemas', async (req, res) => {
       }
     }
     
+    // 스키마 모델 캐시 삭제
+    delete mongoose.models.RiskNews;
+    delete mongoose.models.PartnerNews;
+    delete mongoose.models.TechNews;
+    
+    console.log('[강제 스키마 재설정] 스키마 모델 캐시 삭제 완료');
     console.log('[강제 스키마 재설정] 완료 - 모든 컬렉션이 새로운 스키마로 재생성됨');
     
     res.json({ 
