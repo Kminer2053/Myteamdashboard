@@ -488,8 +488,6 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
          "source": "언론사명",
          "pubDate": "발행일",
          "aiSummary": "AI 생성 요약 (2-3문장)",
-         "importanceScore": 1-10 점수,
-         "sentiment": {"type": "positive/negative/neutral", "score": 0.0-1.0},
          "relatedKeywords": ["관련 키워드1", "관련 키워드2"],
          "trendAnalysis": "개별 뉴스 트렌드 분석",
          "futureOutlook": "개별 뉴스 향후 전망"

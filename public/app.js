@@ -439,32 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return await res.json();
     }
 
-    // ===== 감정 분석 헬퍼 함수 =====
-    function getSentimentClass(sentiment) {
-        if (typeof sentiment === 'string') {
-            const type = sentiment.split(':')[0];
-            switch (type) {
-                case 'positive': return 'bg-success';
-                case 'negative': return 'bg-danger';
-                case 'neutral': return 'bg-secondary';
-                default: return 'bg-secondary';
-            }
-        }
-        return 'bg-secondary';
-    }
-    
-    function getSentimentText(sentiment) {
-        if (typeof sentiment === 'string') {
-            const type = sentiment.split(':')[0];
-            switch (type) {
-                case 'positive': return '긍정';
-                case 'negative': return '부정';
-                case 'neutral': return '중립';
-                default: return '중립';
-            }
-        }
-        return '중립';
-    }
+
 
     // ===== 리스크 이슈 모니터링 1단계: 키워드 관리 및 뉴스 모킹 =====
     // 키워드 체크박스 UI 렌더링 (서버 연동)
@@ -572,10 +547,6 @@ document.addEventListener('DOMContentLoaded', function() {
                   ${isToday ? '<span class="badge badge-section-risk me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
                 </h6>
-                <div class="d-flex gap-2 align-items-center">
-                  ${item.importanceScore ? `<span class="badge" style="background: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">중요도: ${item.importanceScore}</span>` : ''}
-                  ${item.sentiment ? `<span class="badge ${getSentimentClass(item.sentiment)}" style="padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${getSentimentText(item.sentiment)}</span>` : ''}
-                </div>
               </div>
               <div class="card-body" style="padding: 20px;">
                 ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
@@ -748,10 +719,6 @@ document.addEventListener('DOMContentLoaded', function() {
                   ${isToday ? '<span class="badge badge-section-partner me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
                 </h6>
-                <div class="d-flex gap-2 align-items-center">
-                  ${item.importanceScore ? `<span class="badge" style="background: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">중요도: ${item.importanceScore}</span>` : ''}
-                  ${item.sentiment ? `<span class="badge ${getSentimentClass(item.sentiment)}" style="padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${getSentimentText(item.sentiment)}</span>` : ''}
-                </div>
               </div>
               <div class="card-body" style="padding: 20px;">
                 ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
@@ -864,10 +831,6 @@ document.addEventListener('DOMContentLoaded', function() {
                   ${isToday ? '<span class="badge badge-section-tech me-2">Today</span>' : ''}
                   <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
                 </h6>
-                <div class="d-flex gap-2 align-items-center">
-                  ${item.importanceScore ? `<span class="badge" style="background: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">중요도: ${item.importanceScore}</span>` : ''}
-                  ${item.sentiment ? `<span class="badge ${getSentimentClass(item.sentiment)}" style="padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${getSentimentText(item.sentiment)}</span>` : ''}
-                </div>
               </div>
               <div class="card-body" style="padding: 20px;">
                 ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
