@@ -1097,25 +1097,67 @@ app.get('/api/tech-news', async (req, res) => {
   res.json(news);
 });
 
-// === 데이터베이스 초기화 API (임시) ===
-app.post('/api/reset-db', async (req, res) => {
+// === 스키마 업데이트 API (안전한 방법) ===
+app.post('/api/update-schemas', async (req, res) => {
   try {
-    console.log('[DB 초기화] 시작...');
+    console.log('[스키마 업데이트] 시작...');
     
-    // 기존 컬렉션 삭제
-    await mongoose.connection.dropDatabase();
-    console.log('[DB 초기화] 데이터베이스 삭제 완료');
+    // 기존 데이터 백업
+    const existingPartnerNews = await PartnerNews.find({});
+    const existingTechNews = await TechNews.find({});
     
-    // 기본 데이터 재생성
-    await RiskKeyword.create({ value: '백종원|더본코리아' });
-    await PartnerCondition.create({ value: '로코노미' });
-    await TechTopic.create({ value: 'AI 업무노하우' });
-    console.log('[DB 초기화] 기본 데이터 생성 완료');
+    console.log(`[스키마 업데이트] 백업 완료 - PartnerNews: ${existingPartnerNews.length}건, TechNews: ${existingTechNews.length}건`);
     
-    res.json({ success: true, message: '데이터베이스가 초기화되었습니다.' });
+    // 컬렉션 삭제 후 재생성 (스키마 강제 업데이트)
+    await mongoose.connection.collection('partnernews').drop();
+    await mongoose.connection.collection('technews').drop();
+    
+    console.log('[스키마 업데이트] 컬렉션 삭제 완료');
+    
+    // 새로운 스키마로 데이터 재생성
+    if (existingPartnerNews.length > 0) {
+      const updatedPartnerNews = existingPartnerNews.map(item => ({
+        ...item.toObject(),
+        aiSummary: item.aiSummary || '기존 데이터',
+        importanceScore: item.importanceScore || 5,
+        sentiment: item.sentiment || { type: 'neutral', score: 0.5 },
+        source: item.source || '기존 수집',
+        relatedKeywords: item.relatedKeywords || [],
+        aiGeneratedAt: item.aiGeneratedAt || new Date(),
+        analysisModel: item.analysisModel || 'legacy'
+      }));
+      
+      await PartnerNews.insertMany(updatedPartnerNews);
+      console.log(`[스키마 업데이트] PartnerNews ${updatedPartnerNews.length}건 재생성 완료`);
+    }
+    
+    if (existingTechNews.length > 0) {
+      const updatedTechNews = existingTechNews.map(item => ({
+        ...item.toObject(),
+        aiSummary: item.aiSummary || '기존 데이터',
+        importanceScore: item.importanceScore || 5,
+        sentiment: item.sentiment || { type: 'neutral', score: 0.5 },
+        source: item.source || '기존 수집',
+        relatedKeywords: item.relatedKeywords || [],
+        aiGeneratedAt: item.aiGeneratedAt || new Date(),
+        analysisModel: item.analysisModel || 'legacy'
+      }));
+      
+      await TechNews.insertMany(updatedTechNews);
+      console.log(`[스키마 업데이트] TechNews ${updatedTechNews.length}건 재생성 완료`);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: '스키마가 안전하게 업데이트되었습니다.',
+      stats: {
+        partnerNews: existingPartnerNews.length,
+        techNews: existingTechNews.length
+      }
+    });
   } catch (error) {
-    console.error('[DB 초기화] 오류:', error);
-    res.status(500).json({ error: '데이터베이스 초기화 실패' });
+    console.error('[스키마 업데이트] 오류:', error);
+    res.status(500).json({ error: '스키마 업데이트 실패' });
   }
 });
 
