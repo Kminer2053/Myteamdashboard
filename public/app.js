@@ -541,9 +541,10 @@ document.addEventListener('DOMContentLoaded', function() {
             await renderNews(checked);
         };
 
-        // 오늘 데이터가 없으면 메시지 표출하고 기존 누적 데이터 표출
+        // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
         const todayNews = filtered.filter(item => extractDate(item.pubDate) === today);
         if (todayNews.length === 0 && filtered.length > 0) {
+            // 오늘 데이터가 없고 누적 데이터가 있는 경우
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'alert alert-info';
             emptyDiv.innerHTML = `
@@ -564,6 +565,78 @@ document.addEventListener('DOMContentLoaded', function() {
             emptyDiv.className = 'news-item';
             emptyDiv.textContent = '표시할 뉴스가 없습니다.';
             newsFeed.appendChild(emptyDiv);
+            return;
+        } else if (todayNews.length > 0 && filtered.length > todayNews.length) {
+            // 오늘 데이터가 있고 누적 데이터도 있는 경우
+            const todayDiv = document.createElement('div');
+            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+            newsFeed.appendChild(todayDiv);
+            
+            // 오늘 데이터 표출
+            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            todayNews.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card mb-3';
+                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
+                card.classList.add('border-primary', 'bg-light');
+                card.innerHTML = `
+                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
+                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
+                      <span class="badge badge-section-risk me-2">Today</span>
+                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
+                    </h6>
+                  </div>
+                  <div class="card-body" style="padding: 20px;">
+                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                      ${(item.relatedKeywords || []).map(kw => 
+                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
+                      ).join('')}
+                    </div>
+                    <div style="font-size: 0.8em; color: #999;">
+                      출처: ${item.source || '알 수 없음'} | 
+                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
+                      <span class="badge badge-section-risk">${item.keyword}</span>
+                    </div>
+                  </div>
+                `;
+                newsFeed.appendChild(card);
+            });
+            
+            // 누적 데이터 표출
+            const recentDiv = document.createElement('div');
+            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+            newsFeed.appendChild(recentDiv);
+            
+            // 오늘 데이터를 제외한 나머지 데이터
+            const otherNews = filtered.filter(item => extractDate(item.pubDate) !== today);
+            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            otherNews.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card mb-3';
+                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
+                card.innerHTML = `
+                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
+                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
+                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
+                    </h6>
+                  </div>
+                  <div class="card-body" style="padding: 20px;">
+                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                      ${(item.relatedKeywords || []).map(kw => 
+                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
+                      ).join('')}
+                    </div>
+                    <div style="font-size: 0.8em; color: #999;">
+                      출처: ${item.source || '알 수 없음'} | 
+                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
+                      <span class="badge badge-section-risk">${item.keyword}</span>
+                    </div>
+                  </div>
+                `;
+                newsFeed.appendChild(card);
+            });
             return;
         }
         filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
@@ -747,9 +820,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             await renderPartnerResults(checked);
         };
-        // 오늘 데이터가 없으면 메시지 표출하고 기존 누적 데이터 표출
+        // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
         const todayNews = filtered.filter(item => extractDate(item.pubDate) === today);
         if (todayNews.length === 0 && filtered.length > 0) {
+            // 오늘 데이터가 없고 누적 데이터가 있는 경우
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'alert alert-info';
             emptyDiv.innerHTML = `
@@ -770,6 +844,78 @@ document.addEventListener('DOMContentLoaded', function() {
             emptyDiv.className = 'news-item';
             emptyDiv.textContent = '표시할 정보가 없습니다.';
             resultsDiv.appendChild(emptyDiv);
+            return;
+        } else if (todayNews.length > 0 && filtered.length > todayNews.length) {
+            // 오늘 데이터가 있고 누적 데이터도 있는 경우
+            const todayDiv = document.createElement('div');
+            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+            resultsDiv.appendChild(todayDiv);
+            
+            // 오늘 데이터 표출
+            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            todayNews.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card mb-3';
+                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
+                card.classList.add('border-primary', 'bg-light');
+                card.innerHTML = `
+                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
+                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
+                      <span class="badge badge-section-partner me-2">Today</span>
+                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
+                    </h6>
+                  </div>
+                  <div class="card-body" style="padding: 20px;">
+                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                      ${(item.relatedKeywords || []).map(kw => 
+                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
+                      ).join('')}
+                    </div>
+                    <div style="font-size: 0.8em; color: #999;">
+                      출처: ${item.source || '알 수 없음'} | 
+                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
+                      <span class="badge badge-section-partner">${item.keyword}</span>
+                    </div>
+                  </div>
+                `;
+                resultsDiv.appendChild(card);
+            });
+            
+            // 누적 데이터 표출
+            const recentDiv = document.createElement('div');
+            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+            resultsDiv.appendChild(recentDiv);
+            
+            // 오늘 데이터를 제외한 나머지 데이터
+            const otherNews = filtered.filter(item => extractDate(item.pubDate) !== today);
+            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            otherNews.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card mb-3';
+                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
+                card.innerHTML = `
+                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
+                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
+                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
+                    </h6>
+                  </div>
+                  <div class="card-body" style="padding: 20px;">
+                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                      ${(item.relatedKeywords || []).map(kw => 
+                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
+                      ).join('')}
+                    </div>
+                    <div style="font-size: 0.8em; color: #999;">
+                      출처: ${item.source || '알 수 없음'} | 
+                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
+                      <span class="badge badge-section-partner">${item.keyword}</span>
+                    </div>
+                  </div>
+                `;
+                resultsDiv.appendChild(card);
+            });
             return;
         }
         filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
@@ -893,9 +1039,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             await renderTechTrendResults(checked);
         };
-        // 오늘 데이터가 없으면 메시지 표출하고 기존 누적 데이터 표출
+        // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
         const todayNews = filtered.filter(item => extractDate(item.pubDate) === today);
         if (todayNews.length === 0 && filtered.length > 0) {
+            // 오늘 데이터가 없고 누적 데이터가 있는 경우
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'alert alert-info';
             emptyDiv.innerHTML = `
@@ -916,6 +1063,78 @@ document.addEventListener('DOMContentLoaded', function() {
             emptyDiv.className = 'news-item';
             emptyDiv.textContent = '표시할 정보가 없습니다.';
             resultsDiv.appendChild(emptyDiv);
+            return;
+        } else if (todayNews.length > 0 && filtered.length > todayNews.length) {
+            // 오늘 데이터가 있고 누적 데이터도 있는 경우
+            const todayDiv = document.createElement('div');
+            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+            resultsDiv.appendChild(todayDiv);
+            
+            // 오늘 데이터 표출
+            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            todayNews.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card mb-3';
+                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
+                card.classList.add('border-primary', 'bg-light');
+                card.innerHTML = `
+                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
+                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
+                      <span class="badge badge-section-tech me-2">Today</span>
+                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
+                    </h6>
+                  </div>
+                  <div class="card-body" style="padding: 20px;">
+                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                      ${(item.relatedKeywords || []).map(kw => 
+                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
+                      ).join('')}
+                    </div>
+                    <div style="font-size: 0.8em; color: #999;">
+                      출처: ${item.source || '알 수 없음'} | 
+                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
+                      <span class="badge badge-section-tech">${item.keyword}</span>
+                    </div>
+                  </div>
+                `;
+                resultsDiv.appendChild(card);
+            });
+            
+            // 누적 데이터 표출
+            const recentDiv = document.createElement('div');
+            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+            resultsDiv.appendChild(recentDiv);
+            
+            // 오늘 데이터를 제외한 나머지 데이터
+            const otherNews = filtered.filter(item => extractDate(item.pubDate) !== today);
+            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            otherNews.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'card mb-3';
+                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
+                card.innerHTML = `
+                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
+                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
+                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
+                    </h6>
+                  </div>
+                  <div class="card-body" style="padding: 20px;">
+                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                      ${(item.relatedKeywords || []).map(kw => 
+                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
+                      ).join('')}
+                    </div>
+                    <div style="font-size: 0.8em; color: #999;">
+                      출처: ${item.source || '알 수 없음'} | 
+                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
+                      <span class="badge badge-section-tech">${item.keyword}</span>
+                    </div>
+                  </div>
+                `;
+                resultsDiv.appendChild(card);
+            });
             return;
         }
         filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
