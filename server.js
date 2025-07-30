@@ -450,7 +450,7 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const response = await axios.post(PERPLEXITY_API_URL, {
-      model: 'llama-3.1-sonar-small-128k',
+      model: 'llama-3.1-sonar-small-128k-online',
       messages: [
         {
           role: 'system',
