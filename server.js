@@ -1096,6 +1096,65 @@ app.get('/api/tech-news', async (req, res) => {
   res.json(news);
 });
 
+// === 테스트 데이터 추가 API ===
+app.post('/api/add-test-data', async (req, res) => {
+  try {
+    console.log('[테스트 데이터] 추가 시작...');
+    
+    // 제휴처뉴스 테스트 데이터
+    const partnerTestData = new PartnerNews({
+      title: '[테스트] AI 기술 기업 간 협력 확대',
+      link: 'https://example.com/partner-test-news',
+      description: 'AI 기술 기업들이 협력을 통해 시너지를 창출하고 있습니다.',
+      pubDate: new Date().toISOString(),
+      keyword: 'AI',
+      aiSummary: 'AI 기술 기업들이 전략적 파트너십을 통해 기술 혁신을 가속화하고 있다. 이는 시장 경쟁력 강화와 새로운 비즈니스 모델 창출로 이어질 것으로 예상된다.',
+      importanceScore: 7,
+      sentiment: 'positive:0.6',
+      source: '테스트뉴스',
+      relatedKeywords: ['AI 협력', '기술혁신', '파트너십'],
+      trendAnalysis: 'AI 기업 간 협력이 새로운 트렌드로 부상하고 있다.',
+      futureOutlook: 'AI 기술 발전과 함께 협력 모델이 더욱 확산될 것으로 전망된다.',
+      aiGeneratedAt: new Date(),
+      analysisModel: 'perplexity-ai'
+    });
+    
+    // 신기술동향 테스트 데이터
+    const techTestData = new TechNews({
+      title: '[테스트] 인공지능 업무 활용 사례 증가',
+      link: 'https://example.com/tech-test-news',
+      description: '기업들이 AI를 업무에 적극 활용하여 생산성을 향상시키고 있습니다.',
+      pubDate: new Date().toISOString(),
+      keyword: '인공지능',
+      aiSummary: '기업들이 AI 기술을 업무 프로세스에 도입하여 업무 효율성을 크게 향상시키고 있다. 특히 문서 처리, 고객 서비스, 데이터 분석 분야에서 AI 활용이 두드러진다.',
+      importanceScore: 8,
+      sentiment: 'positive:0.7',
+      source: '테스트뉴스',
+      relatedKeywords: ['AI 업무', '생산성 향상', '자동화'],
+      trendAnalysis: 'AI 업무 활용이 기업의 디지털 전환 핵심 요소로 자리잡고 있다.',
+      futureOutlook: 'AI 기술 발전과 함께 업무 활용도가 더욱 확대될 것으로 예상된다.',
+      aiGeneratedAt: new Date(),
+      analysisModel: 'perplexity-ai'
+    });
+    
+    await partnerTestData.save();
+    await techTestData.save();
+    
+    console.log('[테스트 데이터] 추가 완료');
+    
+    res.json({ 
+      success: true, 
+      message: '테스트 데이터가 추가되었습니다.',
+      partnerNews: 1,
+      techNews: 1,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[테스트 데이터] 오류:', error);
+    res.status(500).json({ error: '테스트 데이터 추가 실패' });
+  }
+});
+
 // === 수동 뉴스 수집 테스트 API ===
 app.post('/api/test-collect', async (req, res) => {
   try {
