@@ -1097,6 +1097,28 @@ app.get('/api/tech-news', async (req, res) => {
   res.json(news);
 });
 
+// === 데이터베이스 초기화 API (임시) ===
+app.post('/api/reset-db', async (req, res) => {
+  try {
+    console.log('[DB 초기화] 시작...');
+    
+    // 기존 컬렉션 삭제
+    await mongoose.connection.dropDatabase();
+    console.log('[DB 초기화] 데이터베이스 삭제 완료');
+    
+    // 기본 데이터 재생성
+    await RiskKeyword.create({ value: '백종원|더본코리아' });
+    await PartnerCondition.create({ value: '로코노미' });
+    await TechTopic.create({ value: 'AI 업무노하우' });
+    console.log('[DB 초기화] 기본 데이터 생성 완료');
+    
+    res.json({ success: true, message: '데이터베이스가 초기화되었습니다.' });
+  } catch (error) {
+    console.error('[DB 초기화] 오류:', error);
+    res.status(500).json({ error: '데이터베이스 초기화 실패' });
+  }
+});
+
 // === AI 분석 결과 조회 API ===
 app.get('/api/ai-analysis/:category', async (req, res) => {
   try {
