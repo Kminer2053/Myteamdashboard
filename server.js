@@ -450,7 +450,7 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     const response = await axios.post(PERPLEXITY_API_URL, {
-      model: 'llama-3.1-sonar-small-128k-online',
+      model: 'llama-3.1-sonar-small-128k',
       messages: [
         {
           role: 'system',
@@ -524,11 +524,11 @@ async function analyzeNewsWithChatGPT(newsData, category = 'risk') {
     }
     `;
 
-    // Rate Limit 방지를 위한 지연
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Rate Limit 방지를 위한 지연 (더 긴 지연)
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     const response = await axios.post(OPENAI_API_URL, {
-      model: 'gpt-4o-mini',
+      model: 'gpt-3.5-turbo',
       messages: [
         {
           role: 'system',
@@ -539,13 +539,14 @@ async function analyzeNewsWithChatGPT(newsData, category = 'risk') {
           content: prompt
         }
       ],
-      max_tokens: 1500,
+      max_tokens: 1000,
       temperature: 0.3
     }, {
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 30000
     });
 
     const analysisResult = response.data.choices[0].message.content;
@@ -560,11 +561,14 @@ async function analyzeNewsWithChatGPT(newsData, category = 'risk') {
     
   } catch (error) {
     if (error.response && error.response.status === 429) {
-      console.log(`[AI 분석][${category}] Rate Limit 도달, 60초 후 재시도...`);
-      await new Promise(resolve => setTimeout(resolve, 60000));
+      console.log(`[AI 분석][${category}] Rate Limit 도달, 120초 후 재시도...`);
+      await new Promise(resolve => setTimeout(resolve, 120000));
       return await analyzeNewsWithChatGPT(newsData, category);
     }
     console.error(`[AI 분석][${category}] ChatGPT API 호출 실패:`, error.message);
+    if (error.response) {
+      console.error(`[AI 분석][${category}] 응답 데이터:`, error.response.data);
+    }
     return null;
   }
 }
