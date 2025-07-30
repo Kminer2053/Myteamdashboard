@@ -439,6 +439,33 @@ document.addEventListener('DOMContentLoaded', function() {
         return await res.json();
     }
 
+    // ===== 감정 분석 헬퍼 함수 =====
+    function getSentimentClass(sentiment) {
+        if (typeof sentiment === 'string') {
+            const type = sentiment.split(':')[0];
+            switch (type) {
+                case 'positive': return 'bg-success';
+                case 'negative': return 'bg-danger';
+                case 'neutral': return 'bg-secondary';
+                default: return 'bg-secondary';
+            }
+        }
+        return 'bg-secondary';
+    }
+    
+    function getSentimentText(sentiment) {
+        if (typeof sentiment === 'string') {
+            const type = sentiment.split(':')[0];
+            switch (type) {
+                case 'positive': return '긍정';
+                case 'negative': return '부정';
+                case 'neutral': return '중립';
+                default: return '중립';
+            }
+        }
+        return '중립';
+    }
+
     // ===== 리스크 이슈 모니터링 1단계: 키워드 관리 및 뉴스 모킹 =====
     // 키워드 체크박스 UI 렌더링 (서버 연동)
     async function renderKeywordCheckboxes() {
@@ -534,16 +561,33 @@ document.addEventListener('DOMContentLoaded', function() {
         filtered.forEach(item => {
             const isToday = extractDate(item.pubDate) === today;
             const card = document.createElement('div');
-            card.className = 'card mb-2';
+            card.className = 'card mb-3';
+            card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
             if (isToday) {
                 card.classList.add('border-primary', 'bg-light');
             }
             card.innerHTML = `
-              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-                <div class="flex-grow-1">
+              <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
+                <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
                   ${isToday ? '<span class="badge badge-section-risk me-2">Today</span>' : ''}
-                  <a href="${item.link}" target="_blank"><b class="main-color">${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge badge-section-risk">${item.keyword}</span></div>
+                  <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
+                </h6>
+                <div class="d-flex gap-2 align-items-center">
+                  ${item.importanceScore ? `<span class="badge" style="background: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">중요도: ${item.importanceScore}</span>` : ''}
+                  ${item.sentiment ? `<span class="badge ${getSentimentClass(item.sentiment)}" style="padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${getSentimentText(item.sentiment)}</span>` : ''}
+                </div>
+              </div>
+              <div class="card-body" style="padding: 20px;">
+                ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                  ${(item.relatedKeywords || []).map(kw => 
+                    `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
+                  ).join('')}
+                </div>
+                <div style="font-size: 0.8em; color: #999;">
+                  출처: ${item.source || '알 수 없음'} | 
+                  ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
+                  <span class="badge badge-section-risk">${item.keyword}</span>
                 </div>
               </div>
             `;
@@ -693,16 +737,33 @@ document.addEventListener('DOMContentLoaded', function() {
         filtered.forEach(item => {
             const isToday = extractDate(item.pubDate) === today;
             const card = document.createElement('div');
-            card.className = 'card mb-2';
+            card.className = 'card mb-3';
+            card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
             if (isToday) {
                 card.classList.add('border-primary', 'bg-light');
             }
             card.innerHTML = `
-              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-                <div class="flex-grow-1">
+              <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
+                <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
                   ${isToday ? '<span class="badge badge-section-partner me-2">Today</span>' : ''}
-                  <a href="${item.link}" target="_blank"><b class="main-color">${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge badge-section-partner">${item.keyword}</span></div>
+                  <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
+                </h6>
+                <div class="d-flex gap-2 align-items-center">
+                  ${item.importanceScore ? `<span class="badge" style="background: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">중요도: ${item.importanceScore}</span>` : ''}
+                  ${item.sentiment ? `<span class="badge ${getSentimentClass(item.sentiment)}" style="padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${getSentimentText(item.sentiment)}</span>` : ''}
+                </div>
+              </div>
+              <div class="card-body" style="padding: 20px;">
+                ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                  ${(item.relatedKeywords || []).map(kw => 
+                    `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
+                  ).join('')}
+                </div>
+                <div style="font-size: 0.8em; color: #999;">
+                  출처: ${item.source || '알 수 없음'} | 
+                  ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
+                  <span class="badge badge-section-partner">${item.keyword}</span>
                 </div>
               </div>
             `;
@@ -792,16 +853,33 @@ document.addEventListener('DOMContentLoaded', function() {
         filtered.forEach(item => {
             const isToday = extractDate(item.pubDate) === today;
             const card = document.createElement('div');
-            card.className = 'card mb-2';
+            card.className = 'card mb-3';
+            card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
             if (isToday) {
                 card.classList.add('border-primary', 'bg-light');
             }
             card.innerHTML = `
-              <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-                <div class="flex-grow-1">
+              <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
+                <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
                   ${isToday ? '<span class="badge badge-section-tech me-2">Today</span>' : ''}
-                  <a href="${item.link}" target="_blank"><b class="main-color">${item.title.replace(/<[^>]+>/g, '')}</b></a>
-                  <div class="text-muted small mb-1">${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | <span class="badge badge-section-tech">${item.keyword}</span></div>
+                  <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
+                </h6>
+                <div class="d-flex gap-2 align-items-center">
+                  ${item.importanceScore ? `<span class="badge" style="background: #667eea; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">중요도: ${item.importanceScore}</span>` : ''}
+                  ${item.sentiment ? `<span class="badge ${getSentimentClass(item.sentiment)}" style="padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${getSentimentText(item.sentiment)}</span>` : ''}
+                </div>
+              </div>
+              <div class="card-body" style="padding: 20px;">
+                ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                  ${(item.relatedKeywords || []).map(kw => 
+                    `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
+                  ).join('')}
+                </div>
+                <div style="font-size: 0.8em; color: #999;">
+                  출처: ${item.source || '알 수 없음'} | 
+                  ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
+                  <span class="badge badge-section-tech">${item.keyword}</span>
                 </div>
               </div>
             `;
