@@ -497,10 +497,6 @@ ${categoryContext}
       model: 'sonar-pro',
       messages: [
         {
-          role: 'system',
-          content: '당신은 뉴스 분석 전문가입니다. 요청된 JSON 형식에 맞춰 정확하고 구조화된 정보를 제공해주세요.'
-        },
-        {
           role: 'user',
           content: prompt
         }
@@ -518,60 +514,47 @@ ${categoryContext}
     const aiResponse = response.data.choices[0].message.content;
     console.log(`[AI 수집][${category}] Perplexity AI 응답 수신`);
     
-    // JSON 파싱 시도
-    try {
-      const result = JSON.parse(aiResponse);
-      
-      // 뉴스 데이터 정규화 및 검증
-      let newsData = [];
-      if (result.news && Array.isArray(result.news)) {
-        newsData = result.news.map(item => {
-          return {
-            ...item,
-            aiSummary: item.aiSummary || item.summary || 'AI 요약이 없습니다.',
-            relatedKeywords: item.relatedKeywords || [],
-            aiGeneratedAt: new Date(),
-            analysisModel: 'perplexity-ai'
-          };
-        });
+    // 응답 형식 감지 및 적절한 파싱 함수 선택
+    console.log(`[AI 수집][${category}] 응답 형식 감지 중...`);
+    
+    // JSON 형식인지 확인
+    const isJsonResponse = aiResponse.trim().startsWith('{') || aiResponse.trim().startsWith('[');
+    
+    if (isJsonResponse) {
+      console.log(`[AI 수집][${category}] JSON 형식 감지됨, JSON 파싱 시도`);
+      try {
+        const result = JSON.parse(aiResponse);
+        
+        // 뉴스 데이터 정규화 및 검증
+        let newsData = [];
+        if (result.news && Array.isArray(result.news)) {
+          newsData = result.news.map(item => {
+            return {
+              ...item,
+              aiSummary: item.aiSummary || item.summary || 'AI 요약이 없습니다.',
+              relatedKeywords: item.relatedKeywords || [],
+              aiGeneratedAt: new Date(),
+              analysisModel: 'perplexity-ai'
+            };
+          });
+        }
+        
+        // 응답 형식에 따라 처리
+        if (newsData.length > 0) {
+          return { news: newsData, analysis: result.analysis || null };
+        } else if (Array.isArray(result)) {
+          return { news: result, analysis: null };
+        } else {
+          return { news: [result], analysis: null };
+        }
+      } catch (parseError) {
+        console.error(`[AI 수집][${category}] JSON 파싱 실패:`, parseError);
+        console.log(`[AI 수집][${category}] 텍스트 파싱으로 전환`);
+        return parseTextResponse(aiResponse, keywords, category);
       }
-      
-      // 응답 형식에 따라 처리
-      if (newsData.length > 0) {
-        return { news: newsData, analysis: result.analysis || null };
-      } else if (Array.isArray(result)) {
-        return { news: result, analysis: null };
-      } else {
-        return { news: [result], analysis: null };
-      }
-    } catch (parseError) {
-      console.error(`[AI 수집][${category}] JSON 파싱 실패:`, parseError);
-      console.error(`[AI 수집][${category}] 원본 응답:`, aiResponse);
-      
-      // JSON 파싱 실패 시 텍스트에서 뉴스 정보 추출 시도
-      console.log(`[AI 수집][${category}] 텍스트에서 뉴스 정보 추출 시도`);
-      
-      // 텍스트 응답에서 뉴스 정보 추출
-      const extractedResult = extractNewsFromText(aiResponse, keywords[0]);
-      if (extractedResult && extractedResult.news && extractedResult.news.length > 0) {
-        console.log(`[AI 수집][${category}] 텍스트에서 ${extractedResult.news.length}건 추출 성공`);
-        return extractedResult;
-      }
-      
-      // 추출 실패 시 기본 뉴스 객체 생성
-      console.log(`[AI 수집][${category}] 기본 뉴스 객체 생성`);
-      const fallbackNews = [{
-        title: `AI 분석 결과: ${keywords.join(', ')}`,
-        link: '#',
-        source: 'AI 분석',
-        pubDate: new Date().toISOString(),
-        aiSummary: aiResponse.substring(0, 200) + '...',
-        relatedKeywords: keywords,
-        aiGeneratedAt: new Date(),
-        analysisModel: 'perplexity-ai'
-      }];
-      
-      return { news: fallbackNews, analysis: null };
+    } else {
+      console.log(`[AI 수집][${category}] 텍스트 형식 감지됨, 텍스트 파싱 시도`);
+      return parseTextResponse(aiResponse, keywords, category);
     }
     
   } catch (error) {
@@ -588,23 +571,53 @@ ${categoryContext}
   }
 }
 
+// 텍스트 응답 파싱 함수
+function parseTextResponse(text, keywords, category) {
+  console.log(`[AI 수집][${category}] 텍스트 파싱 시작`);
+  
+  // 텍스트에서 뉴스 정보 추출 시도
+  const extractedResult = extractNewsFromText(text, keywords[0]);
+  if (extractedResult && extractedResult.news && extractedResult.news.length > 0) {
+    console.log(`[AI 수집][${category}] 텍스트에서 ${extractedResult.news.length}건 추출 성공`);
+    return extractedResult;
+  }
+  
+  // 추출 실패 시 기본 뉴스 객체 생성
+  console.log(`[AI 수집][${category}] 기본 뉴스 객체 생성`);
+  const fallbackNews = [{
+    title: `AI 분석 결과: ${keywords.join(', ')}`,
+    link: '#',
+    source: 'AI 분석',
+    pubDate: new Date().toISOString(),
+    aiSummary: text.substring(0, 200) + '...',
+    relatedKeywords: keywords,
+    aiGeneratedAt: new Date(),
+    analysisModel: 'perplexity-ai'
+  }];
+  
+  return { news: fallbackNews, analysis: null };
+}
+
 // 텍스트에서 뉴스 정보 추출 (JSON 파싱 실패 시 대안)
 function extractNewsFromText(text, keyword) {
   const newsItems = [];
   let newsAnalysis = '';
+  
+  console.log(`[텍스트 파싱] 키워드: ${keyword}, 텍스트 길이: ${text.length}`);
   
   // 텍스트를 섹션으로 분할
   const sections = text.split('---');
   
   // 뉴스 섹션 찾기 (표 형태)
   for (const section of sections) {
-    if (section.includes('| 제목 |') || section.includes('| 제목|')) {
+    if (section.includes('| 제목 |') || section.includes('| 제목|') || section.includes('제목 |')) {
+      console.log(`[텍스트 파싱] 표 형태 뉴스 섹션 발견`);
       // 표 형태의 뉴스 데이터 파싱
       const lines = section.split('\n');
       let inTable = false;
       
       for (const line of lines) {
-        if (line.includes('| 제목 |') || line.includes('| 제목|')) {
+        if (line.includes('| 제목 |') || line.includes('| 제목|') || line.includes('제목 |')) {
           inTable = true;
           continue;
         }
@@ -663,14 +676,18 @@ function extractNewsFromText(text, keyword) {
       }
     }
     
-    // 분석 보고서 섹션 찾기
-    if (section.includes('리스크 분석') || section.includes('전체 뉴스 분석')) {
+    // 분석 보고서 섹션 찾기 (다양한 패턴 지원)
+    if (section.includes('리스크 분석') || section.includes('전체 뉴스 분석') || 
+        section.includes('분석 보고서') || section.includes('뉴스 분석') ||
+        section.includes('종합 분석') || section.includes('요약 분석')) {
       newsAnalysis = section.trim();
+      console.log(`[텍스트 파싱] 분석 보고서 섹션 발견`);
     }
   }
   
   // 뉴스 항목이 없으면 전체 텍스트를 하나의 뉴스로 생성
   if (newsItems.length === 0 && text.length > 50) {
+    console.log(`[텍스트 파싱] 뉴스 항목 없음, 전체 텍스트를 뉴스로 생성`);
     const lines = text.split('\n');
     const firstLine = lines[0]?.trim() || '';
     const remainingText = lines.slice(1).join(' ').trim();
@@ -687,6 +704,7 @@ function extractNewsFromText(text, keyword) {
     });
   }
   
+  console.log(`[텍스트 파싱] 결과: 뉴스 ${newsItems.length}건, 분석보고서: ${newsAnalysis ? '있음' : '없음'}`);
   return { news: newsItems, analysis: newsAnalysis };
 }
 
