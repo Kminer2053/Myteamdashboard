@@ -16,6 +16,9 @@ const Setting = require('./models/Setting');
 const RiskNews = require('./models/RiskNews');
 const PartnerNews = require('./models/PartnerNews');
 const TechNews = require('./models/TechNews');
+const RiskAnalysisReport = require('./models/RiskAnalysisReport');
+const PartnerAnalysisReport = require('./models/PartnerAnalysisReport');
+const TechAnalysisReport = require('./models/TechAnalysisReport');
 const nodemailer = require('nodemailer');
 const kakaoBotRouter = require('./kakao-bot');
 const path = require('path');
@@ -170,6 +173,26 @@ async function collectRiskNews() {
         }
       }
       console.log(`[AI 수집][리스크이슈] ${today} DB 저장 완료 (신규: ${insertedRisk}건, 중복: ${duplicateRisk}건)`);
+      
+              // AI 분석 보고서 생성
+        if (allNews.length > 0 && analysisResults.length > 0) {
+          try {
+            const reportData = {
+              date: new Date(today),
+              summary: analysisResults[0] || 'AI 분석 보고서',
+              totalNewsCount: allNews.length
+            };
+            
+            await RiskAnalysisReport.findOneAndUpdate(
+              { date: new Date(today) },
+              reportData,
+              { upsert: true, new: true }
+            );
+            console.log(`[AI 수집][리스크이슈] ${today} AI 분석 보고서 생성 완료`);
+          } catch (reportError) {
+            console.error(`[AI 수집][리스크이슈] AI 분석 보고서 생성 실패:`, reportError.message);
+          }
+        }
     }
   } catch (error) {
     console.error(`[AI 수집][리스크이슈] 전체 프로세스 실패:`, error.message);
@@ -221,7 +244,7 @@ async function collectPartnerNews() {
             }
           }
           
-          console.log(`[AI 수집][partner] 조건 "${kw}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
+          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
         } else {
           console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 없음`);
         }
@@ -270,6 +293,33 @@ async function collectPartnerNews() {
           console.error(`[AI 수집][partner] 조건 "${conds.join(', ')}" 폴백 실패:`, fallbackError.message);
         }
       }
+    }
+    
+    // AI 분석 보고서 생성
+    try {
+      const partnerNews = await PartnerNews.find({ 
+        createdAt: { 
+          $gte: new Date(today + 'T00:00:00.000Z'),
+          $lt: new Date(today + 'T23:59:59.999Z')
+        }
+      }).sort({ createdAt: -1 });
+      
+      if (partnerNews.length > 0) {
+        const reportData = {
+          date: new Date(today),
+          summary: `제휴처탐색 ${partnerNews.length}건 수집 완료`,
+          totalNewsCount: partnerNews.length
+        };
+        
+        await PartnerAnalysisReport.findOneAndUpdate(
+          { date: new Date(today) },
+          reportData,
+          { upsert: true, new: true }
+        );
+        console.log(`[AI 수집][제휴처탐색] ${today} AI 분석 보고서 생성 완료`);
+      }
+    } catch (reportError) {
+      console.error(`[AI 수집][제휴처탐색] AI 분석 보고서 생성 실패:`, reportError.message);
     }
     
     console.log(`[AI 수집][제휴처탐색] ${today} 수집 완료`);
@@ -376,6 +426,33 @@ async function collectTechNews() {
       }
     }
     
+    // AI 분석 보고서 생성
+    try {
+      const techNews = await TechNews.find({ 
+        createdAt: { 
+          $gte: new Date(today + 'T00:00:00.000Z'),
+          $lt: new Date(today + 'T23:59:59.999Z')
+        }
+      }).sort({ createdAt: -1 });
+      
+      if (techNews.length > 0) {
+        const reportData = {
+          date: new Date(today),
+          summary: `신기술동향 ${techNews.length}건 수집 완료`,
+          totalNewsCount: techNews.length
+        };
+        
+        await TechAnalysisReport.findOneAndUpdate(
+          { date: new Date(today) },
+          reportData,
+          { upsert: true, new: true }
+        );
+        console.log(`[AI 수집][신기술동향] ${today} AI 분석 보고서 생성 완료`);
+      }
+    } catch (reportError) {
+      console.error(`[AI 수집][신기술동향] AI 분석 보고서 생성 실패:`, reportError.message);
+    }
+    
     console.log(`[AI 수집][신기술동향] ${today} 수집 완료`);
     
   } catch (error) {
@@ -397,14 +474,27 @@ async function scheduleNewsJob(isInit = false) {
   const cronExp = `${m} ${h} * * *`;
   console.log(`[자동수집][크론] ${cronExp} (매일 ${time})에 자동 뉴스 수집 예약됨`);
   
-  // 서버 시작 시에만 테스트 수집 실행
+  // 서버 시작 시에만 테스트 수집 실행 (중복 방지)
   if (isInit) {
     console.log(`[자동수집][크론] 서버 시작 시 테스트 수집 시도...`);
     try {
-      await collectRiskNews();
-      await collectPartnerNews();
-      await collectTechNews();
-      console.log(`[자동수집][크론] 서버 시작 시 테스트 수집 완료`);
+      // 이미 오늘 수집된 데이터가 있는지 확인
+      const today = await getKoreaToday();
+      const existingRiskNews = await RiskNews.findOne({ 
+        createdAt: { 
+          $gte: new Date(today + 'T00:00:00.000Z'),
+          $lt: new Date(today + 'T23:59:59.999Z')
+        }
+      });
+      
+      if (!existingRiskNews) {
+        await collectRiskNews();
+        await collectPartnerNews();
+        await collectTechNews();
+        console.log(`[자동수집][크론] 서버 시작 시 테스트 수집 완료`);
+      } else {
+        console.log(`[자동수집][크론] 오늘 이미 수집된 데이터가 있어 테스트 수집을 건너뜁니다.`);
+      }
     } catch (error) {
       console.error(`[자동수집][크론] 초기 테스트 수집 에러:`, error);
     }
@@ -1166,9 +1256,29 @@ app.post('/api/risk-news', async (req, res) => {
   }
 });
 app.get('/api/risk-news', async (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
-  const news = await RiskNews.find({}).sort({ pubDate: -1 });
-  res.json(news);
+  try {
+    const { limit = 50, days = 7 } = req.query;
+    
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
+    
+    const news = await RiskNews.find({
+      createdAt: { $gte: cutoffDate }
+    })
+    .sort({ createdAt: -1 })
+    .limit(parseInt(limit))
+    .select('title link description pubDate keyword createdAt');
+    
+    res.json({
+      success: true,
+      data: news,
+      count: news.length,
+      totalCount: await RiskNews.countDocuments()
+    });
+  } catch (error) {
+    console.error('리스크 뉴스 조회 실패:', error);
+    res.status(500).json({ error: '리스크 뉴스 조회 중 오류가 발생했습니다.' });
+  }
 });
 // === 제휴처탐색 뉴스 저장/조회 API ===
 app.post('/api/partner-news', async (req, res) => {
@@ -1191,8 +1301,29 @@ app.post('/api/partner-news', async (req, res) => {
   }
 });
 app.get('/api/partner-news', async (req, res) => {
-  const news = await PartnerNews.find({}).sort({ pubDate: -1 });
-  res.json(news);
+  try {
+    const { limit = 50, days = 7 } = req.query;
+    
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
+    
+    const news = await PartnerNews.find({
+      createdAt: { $gte: cutoffDate }
+    })
+    .sort({ createdAt: -1 })
+    .limit(parseInt(limit))
+    .select('title link description pubDate keyword createdAt');
+    
+    res.json({
+      success: true,
+      data: news,
+      count: news.length,
+      totalCount: await PartnerNews.countDocuments()
+    });
+  } catch (error) {
+    console.error('제휴처 뉴스 조회 실패:', error);
+    res.status(500).json({ error: '제휴처 뉴스 조회 중 오류가 발생했습니다.' });
+  }
 });
 // === 신기술동향 뉴스 저장/조회 API ===
 app.post('/api/tech-news', async (req, res) => {
@@ -1215,8 +1346,29 @@ app.post('/api/tech-news', async (req, res) => {
   }
 });
 app.get('/api/tech-news', async (req, res) => {
-  const news = await TechNews.find({}).sort({ pubDate: -1 });
-  res.json(news);
+  try {
+    const { limit = 50, days = 7 } = req.query;
+    
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
+    
+    const news = await TechNews.find({
+      createdAt: { $gte: cutoffDate }
+    })
+    .sort({ createdAt: -1 })
+    .limit(parseInt(limit))
+    .select('title link description pubDate keyword createdAt');
+    
+    res.json({
+      success: true,
+      data: news,
+      count: news.length,
+      totalCount: await TechNews.countDocuments()
+    });
+  } catch (error) {
+    console.error('신기술 뉴스 조회 실패:', error);
+    res.status(500).json({ error: '신기술 뉴스 조회 중 오류가 발생했습니다.' });
+  }
 });
 
 // === 테스트 데이터 추가 API ===
@@ -1536,6 +1688,138 @@ app.get('/api/ai-analysis/:category', async (req, res) => {
   }
 });
 
+// === DB 데이터 상태 확인 API ===
+app.get('/api/db-status', async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // 각 카테고리별 데이터 현황
+    const [riskNews, partnerNews, techNews] = await Promise.all([
+      RiskNews.find({ aiGeneratedAt: { $gte: today, $lt: tomorrow } }).sort({ aiGeneratedAt: -1 }),
+      PartnerNews.find({ aiGeneratedAt: { $gte: today, $lt: tomorrow } }).sort({ aiGeneratedAt: -1 }),
+      TechNews.find({ aiGeneratedAt: { $gte: today, $lt: tomorrow } }).sort({ aiGeneratedAt: -1 })
+    ]);
+    
+    // 전체 데이터 수도 확인
+    const [totalRisk, totalPartner, totalTech] = await Promise.all([
+      RiskNews.countDocuments(),
+      PartnerNews.countDocuments(),
+      TechNews.countDocuments()
+    ]);
+    
+    res.json({
+      success: true,
+      data: {
+        today: {
+          risk: riskNews.length,
+          partner: partnerNews.length,
+          tech: techNews.length
+        },
+        total: {
+          risk: totalRisk,
+          partner: totalPartner,
+          tech: totalTech
+        },
+        latestData: {
+          risk: riskNews.slice(0, 3),
+          partner: partnerNews.slice(0, 3),
+          tech: techNews.slice(0, 3)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('DB 상태 확인 실패:', error);
+    res.status(500).json({ error: 'DB 상태 확인 중 오류가 발생했습니다.' });
+  }
+});
+
+// === 리스크이슈 분석 보고서 API ===
+app.get('/api/risk-analysis/:date?', async (req, res) => {
+  try {
+    const { date } = req.params;
+    let query = {};
+    
+    if (date) {
+      const targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDate = new Date(targetDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      query.date = { $gte: targetDate, $lt: nextDate };
+    }
+    
+    const reports = await RiskAnalysisReport.find(query)
+      .sort({ date: -1 })
+      .limit(10);
+    
+    res.json({
+      success: true,
+      data: reports
+    });
+  } catch (error) {
+    console.error('리스크이슈 분석 보고서 조회 실패:', error);
+    res.status(500).json({ error: '리스크이슈 분석 보고서 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// === 제휴처탐색 분석 보고서 API ===
+app.get('/api/partner-analysis/:date?', async (req, res) => {
+  try {
+    const { date } = req.params;
+    let query = {};
+    
+    if (date) {
+      const targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDate = new Date(targetDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      query.date = { $gte: targetDate, $lt: nextDate };
+    }
+    
+    const reports = await PartnerAnalysisReport.find(query)
+      .sort({ date: -1 })
+      .limit(10);
+    
+    res.json({
+      success: true,
+      data: reports
+    });
+  } catch (error) {
+    console.error('제휴처탐색 분석 보고서 조회 실패:', error);
+    res.status(500).json({ error: '제휴처탐색 분석 보고서 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// === 신기술동향 분석 보고서 API ===
+app.get('/api/tech-analysis/:date?', async (req, res) => {
+  try {
+    const { date } = req.params;
+    let query = {};
+    
+    if (date) {
+      const targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDate = new Date(targetDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      query.date = { $gte: targetDate, $lt: nextDate };
+    }
+    
+    const reports = await TechAnalysisReport.find(query)
+      .sort({ date: -1 })
+      .limit(10);
+    
+    res.json({
+      success: true,
+      data: reports
+    });
+  } catch (error) {
+    console.error('신기술동향 분석 보고서 조회 실패:', error);
+    res.status(500).json({ error: '신기술동향 분석 보고서 조회 중 오류가 발생했습니다.' });
+  }
+});
+
 // === AI 분석 요약 API ===
 app.get('/api/ai-summary/:category', async (req, res) => {
   try {
@@ -1776,6 +2060,8 @@ app.listen(PORT, async () => {
     // 크론 작업 초기화 - 한 번만 실행
     if (!newsCronJob) {  // 크론 작업이 없을 때만 초기화
       await scheduleNewsJob(true);
+    } else {
+      console.log(`[서버] 크론 작업이 이미 등록되어 있어 초기화를 건너뜁니다.`);
     }
   } catch (error) {
     console.error(`[서버] 초기화 중 오류 발생:`, error);
@@ -1872,6 +2158,62 @@ app.get('/api/stats/visit', async (req, res) => {
     res.json({ today, month, total });
   } catch (err) {
     res.status(500).json({ error: '방문자수 통계 조회 실패', message: err.message });
+  }
+});
+
+// === DB 진단 API ===
+app.get('/api/db-diagnosis', async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // 각 테이블의 데이터 현황
+    const [riskCount, partnerCount, techCount] = await Promise.all([
+      RiskNews.countDocuments(),
+      PartnerNews.countDocuments(),
+      TechNews.countDocuments()
+    ]);
+    
+    // 오늘 수집된 데이터
+    const [todayRisk, todayPartner, todayTech] = await Promise.all([
+      RiskNews.countDocuments({ aiGeneratedAt: { $gte: today, $lt: tomorrow } }),
+      PartnerNews.countDocuments({ aiGeneratedAt: { $gte: today, $lt: tomorrow } }),
+      TechNews.countDocuments({ aiGeneratedAt: { $gte: today, $lt: tomorrow } })
+    ]);
+    
+    // 최근 데이터 샘플
+    const [recentRisk, recentPartner, recentTech] = await Promise.all([
+      RiskNews.findOne().sort({ aiGeneratedAt: -1 }),
+      PartnerNews.findOne().sort({ aiGeneratedAt: -1 }),
+      TechNews.findOne().sort({ aiGeneratedAt: -1 })
+    ]);
+    
+    // AI 분석 보고서 현황
+    const [reportCount, todayReport] = await Promise.all([
+      AIAnalysisReport.countDocuments(),
+      AIAnalysisReport.countDocuments({ date: { $gte: today, $lt: tomorrow } })
+    ]);
+    
+    res.json({
+      success: true,
+      data: {
+        tables: {
+          risk: { total: riskCount, today: todayRisk, latest: recentRisk },
+          partner: { total: partnerCount, today: todayPartner, latest: recentPartner },
+          tech: { total: techCount, today: todayTech, latest: recentTech }
+        },
+        reports: {
+          total: reportCount,
+          today: todayReport
+        },
+        issues: []
+      }
+    });
+  } catch (error) {
+    console.error('DB 진단 실패:', error);
+    res.status(500).json({ error: 'DB 진단 중 오류가 발생했습니다.' });
   }
 });
 
