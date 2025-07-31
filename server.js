@@ -226,19 +226,19 @@ async function collectPartnerNews() {
           console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 없음`);
         }
         
-      } catch (e) {
-        console.error(`[AI 수집][partner] 조건 "${conds.join(', ')}" 뉴스 수집 실패:`, e.message);
-        
-        // AI 수집 실패 시 네이버 뉴스 API로 폴백
-        try {
-          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 네이버 뉴스 API 폴백 시도`);
-          const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-            params: { query: conds[0], display: 100, sort: 'date' },
-            headers: {
-              'X-Naver-Client-Id': NAVER_CLIENT_ID,
-              'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-            }
-          });
+              } catch (e) {
+          console.error(`[AI 수집][partner] 조건 "${conds.join(', ')}" 뉴스 수집 실패:`, e.message);
+          
+          // AI 수집 실패 시 네이버 뉴스 API로 폴백
+          try {
+            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 네이버 뉴스 API 폴백 시도`);
+            const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+              params: { query: conds[0], display: 10, sort: 'date' },
+              headers: {
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+              }
+            });
           
           if (res.data.items && res.data.items.length > 0) {
             console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 폴백 결과 ${res.data.items.length}건 수집`);
@@ -330,19 +330,19 @@ async function collectTechNews() {
           console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 없음`);
         }
         
-      } catch (e) {
-        console.error(`[AI 수집][tech] 주제 "${topics.join(', ')}" 뉴스 수집 실패:`, e.message);
-        
-        // AI 수집 실패 시 네이버 뉴스 API로 폴백
-        try {
-          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 네이버 뉴스 API 폴백 시도`);
-          const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-            params: { query: topics[0], display: 100, sort: 'date' },
-            headers: {
-              'X-Naver-Client-Id': NAVER_CLIENT_ID,
-              'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-            }
-          });
+              } catch (e) {
+          console.error(`[AI 수집][tech] 주제 "${topics.join(', ')}" 뉴스 수집 실패:`, e.message);
+          
+          // AI 수집 실패 시 네이버 뉴스 API로 폴백
+          try {
+            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 네이버 뉴스 API 폴백 시도`);
+            const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+              params: { query: topics[0], display: 10, sort: 'date' },
+              headers: {
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+              }
+            });
           
           if (res.data.items && res.data.items.length > 0) {
             console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 폴백 결과 ${res.data.items.length}건 수집`);
@@ -552,7 +552,7 @@ ${categoryContext}
       console.log(`[AI 수집][${category}] 텍스트에서 뉴스 정보 추출 시도`);
       
       // 텍스트 응답에서 뉴스 정보 추출
-      const extractedResult = extractNewsFromText(aiResponse, keyword);
+      const extractedResult = extractNewsFromText(aiResponse, keywords[0]);
       if (extractedResult && extractedResult.news && extractedResult.news.length > 0) {
         console.log(`[AI 수집][${category}] 텍스트에서 ${extractedResult.news.length}건 추출 성공`);
         return extractedResult;
@@ -561,12 +561,12 @@ ${categoryContext}
       // 추출 실패 시 기본 뉴스 객체 생성
       console.log(`[AI 수집][${category}] 기본 뉴스 객체 생성`);
       const fallbackNews = [{
-        title: `AI 분석 결과: ${keyword}`,
+        title: `AI 분석 결과: ${keywords.join(', ')}`,
         link: '#',
         source: 'AI 분석',
         pubDate: new Date().toISOString(),
         aiSummary: aiResponse.substring(0, 200) + '...',
-        relatedKeywords: [keyword],
+        relatedKeywords: keywords,
         aiGeneratedAt: new Date(),
         analysisModel: 'perplexity-ai'
       }];
