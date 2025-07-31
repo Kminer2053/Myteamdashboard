@@ -443,9 +443,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ===== 리스크 이슈 모니터링 1단계: 키워드 관리 및 뉴스 모킹 =====
     // 키워드 체크박스 UI 렌더링 (서버 연동)
-    async function renderKeywordCheckboxes() {
+    async function renderKeywordDisplay() {
         const keywords = await loadKeywords();
-        const container = document.getElementById('keywordCheckboxList');
+        const container = document.getElementById('keywordDisplay');
         if (!container) return;
         container.innerHTML = '';
         if (keywords.length === 0) {
@@ -453,23 +453,10 @@ document.addEventListener('DOMContentLoaded', function() {
             renderNews([]);
             return;
         }
-        keywords.forEach((kw, idx) => {
-            const id = `risk-checkbox-${idx}`;
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.className = 'form-check-input me-1 section-risk';
-            checkbox.value = kw;
-            checkbox.checked = true;
-            checkbox.onchange = renderNewsByChecked;
-            checkbox.setAttribute('aria-label', `키워드 ${kw} 선택`);
-            checkbox.id = id;
-            const label = document.createElement('label');
-            label.className = 'form-check-label me-3';
-            label.setAttribute('for', id);
-            label.appendChild(document.createTextNode(kw));
-            container.appendChild(checkbox);
-            container.appendChild(label);
-        });
+        // 키워드를 텍스트로 표시
+        const keywordText = keywords.join(', ');
+        container.innerHTML = `<strong>설정된 키워드:</strong> ${keywordText}`;
+        renderNews(keywords);
     }
 
     function renderNewsByChecked() {
@@ -490,21 +477,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const response = await getRes.json();
         const allNews = response.data || response; // 새로운 구조와 기존 구조 모두 지원
         const today = await getKoreaToday();
-        let filtered = [];
-        if (keywords.length > 0) {
-            // 네이버 뉴스 특성상 공백(&), |(or) 모두 분리해서 비교
-            // 대소문자 구분 유지
-            let normalizedKeywords = [];
-            keywords.forEach(kw => {
-                normalizedKeywords.push(...kw.split(/\s+|\|/).map(k => k.trim()).filter(Boolean));
-            });
-            filtered = allNews.filter(news => {
-                if (!news.keyword) return false;
-                // 뉴스 keyword도 공백, | 모두 분리
-                const newsKeywords = news.keyword.split(/\s+|\|/).map(k => k.trim()).filter(Boolean);
-                return newsKeywords.some(k => normalizedKeywords.includes(k));
-            });
-        }
+        // 키워드 필터링 제거 - 모든 뉴스 표시
+        let filtered = allNews;
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         newsFeed.innerHTML = '';
         // === 상단 건수/갱신 버튼 추가 ===
@@ -516,9 +490,9 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         newsFeed.appendChild(topBar);
         document.getElementById('refreshNewsBtn').onclick = async function() {
-            const checked = Array.from(document.querySelectorAll('#keywordCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
-            if (!checked.length) {
-                alert('체크된 키워드가 없습니다.');
+            const keywords = await loadKeywords();
+            if (!keywords.length) {
+                alert('등록된 키워드가 없습니다.');
                 return;
             }
             newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 정보갱신 중...</div></div>';
@@ -539,7 +513,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('리스크이슈 뉴스 수집 오류:', error);
             }
             
-            await renderNews(checked);
+            await renderNews(keywords);
         };
 
         // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
@@ -724,19 +698,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 대시보드 진입 시 자동 뉴스 갱신 체크 및 체크박스/뉴스 렌더링 순서 보장
     if (document.getElementById('newsFeed')) {
-        renderKeywordCheckboxes().then(() => {
+        renderKeywordDisplay().then(() => {
             renderNewsByChecked();
         });
     }
 
     // 제휴처 탐색, 신기술 동향도 체크박스 렌더링 후 필터링 함수 실행
-    renderPartnerCheckboxes().then(() => renderPartnerResultsByChecked());
-    renderTechCheckboxes().then(() => renderTechTrendResultsByChecked());
+            renderPartnerDisplay();
+            renderTechDisplay();
 
     // 제휴처 탐색 키워드 관리
-    async function renderPartnerCheckboxes() {
+    async function renderPartnerDisplay() {
         const conds = await loadPartnerConditions();
-        const container = document.getElementById('partnerCheckboxList');
+        const container = document.getElementById('partnerDisplay');
         if (!container) return;
         container.innerHTML = '';
         if (conds.length === 0) {
@@ -744,23 +718,10 @@ document.addEventListener('DOMContentLoaded', function() {
             renderPartnerResults([]);
             return;
         }
-        conds.forEach((kw, idx) => {
-            const id = `partner-checkbox-${idx}`;
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.className = 'form-check-input me-1 section-partner';
-            checkbox.value = kw;
-            checkbox.checked = true;
-            checkbox.onchange = renderPartnerResultsByChecked;
-            checkbox.setAttribute('aria-label', `조건 ${kw} 선택`);
-            checkbox.id = id;
-            const label = document.createElement('label');
-            label.className = 'form-check-label me-3';
-            label.setAttribute('for', id);
-            label.appendChild(document.createTextNode(kw));
-            container.appendChild(checkbox);
-            container.appendChild(label);
-        });
+        // 조건을 텍스트로 표시
+        const conditionText = conds.join(', ');
+        container.innerHTML = `<strong>설정된 조건:</strong> ${conditionText}`;
+        renderPartnerResults(conds);
     }
     function renderPartnerResultsByChecked() {
         const container = document.getElementById('partnerCheckboxList');
@@ -777,15 +738,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const response = await getRes.json();
         const allData = response.data || response; // 새로운 구조와 기존 구조 모두 지원
         const today = await getKoreaToday();
-        let filtered = [];
-        if (selected && selected.length > 0) {
-            const selectedNorm = selected.map(s => s.toLowerCase().trim());
-            filtered = allData.filter(item => {
-                if (!item.keyword) return false;
-                const newsKeywords = item.keyword.split('|').map(k => k.toLowerCase().trim());
-                return newsKeywords.some(k => selectedNorm.includes(k));
-            });
-        }
+        // 키워드 필터링 제거 - 모든 뉴스 표시
+        let filtered = allData;
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         resultsDiv.innerHTML = '';
         // 제휴처탐색 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
@@ -797,9 +751,9 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         resultsDiv.appendChild(topBar);
         document.getElementById('refreshPartnerBtn').onclick = async function() {
-            const checked = Array.from(document.querySelectorAll('#partnerCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
-            if (!checked.length) {
-                alert('체크된 조건이 없습니다.');
+            const conds = await loadPartnerConditions();
+            if (!conds.length) {
+                alert('등록된 조건이 없습니다.');
                 return;
             }
             resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 정보갱신 중...</div></div>';
@@ -820,7 +774,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('제휴처탐색 뉴스 수집 오류:', error);
             }
             
-            await renderPartnerResults(checked);
+            await renderPartnerResults(conds);
         };
         // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
         const todayNews = filtered.filter(item => extractDate(item.pubDate) === today);
@@ -954,9 +908,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     // 신기술 동향 키워드 관리
-    async function renderTechCheckboxes() {
+    async function renderTechDisplay() {
         const topics = await loadTechTopics();
-        const container = document.getElementById('techCheckboxList');
+        const container = document.getElementById('techDisplay');
         if (!container) return;
         container.innerHTML = '';
         if (topics.length === 0) {
@@ -964,23 +918,10 @@ document.addEventListener('DOMContentLoaded', function() {
             renderTechTrendResults([]);
             return;
         }
-        topics.forEach((kw, idx) => {
-            const id = `tech-checkbox-${idx}`;
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.className = 'form-check-input me-1 section-tech';
-            checkbox.value = kw;
-            checkbox.checked = true;
-            checkbox.onchange = renderTechTrendResultsByChecked;
-            checkbox.setAttribute('aria-label', `주제 ${kw} 선택`);
-            checkbox.id = id;
-            const label = document.createElement('label');
-            label.className = 'form-check-label me-3';
-            label.setAttribute('for', id);
-            label.appendChild(document.createTextNode(kw));
-            container.appendChild(checkbox);
-            container.appendChild(label);
-        });
+        // 주제를 텍스트로 표시
+        const topicText = topics.join(', ');
+        container.innerHTML = `<strong>설정된 주제:</strong> ${topicText}`;
+        renderTechTrendResults(topics);
     }
     function renderTechTrendResultsByChecked() {
         const container = document.getElementById('techCheckboxList');
@@ -997,15 +938,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const response = await getRes.json();
         const allData = response.data || response; // 새로운 구조와 기존 구조 모두 지원
         const today = await getKoreaToday();
-        let filtered = [];
-        if (selected && selected.length > 0) {
-            const selectedNorm = selected.map(s => s.toLowerCase().trim());
-            filtered = allData.filter(item => {
-                if (!item.keyword) return false;
-                const newsKeywords = item.keyword.split('|').map(k => k.toLowerCase().trim());
-                return newsKeywords.some(k => selectedNorm.includes(k));
-            });
-        }
+        // 키워드 필터링 제거 - 모든 뉴스 표시
+        let filtered = allData;
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         resultsDiv.innerHTML = '';
         // 신기술동향 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
@@ -1017,9 +951,9 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         resultsDiv.appendChild(topBar);
         document.getElementById('refreshTechBtn').onclick = async function() {
-            const checked = Array.from(document.querySelectorAll('#techCheckboxList input[type=checkbox]:checked')).map(cb => cb.value);
-            if (!checked.length) {
-                alert('체크된 주제가 없습니다.');
+            const topics = await loadTechTopics();
+            if (!topics.length) {
+                alert('등록된 주제가 없습니다.');
                 return;
             }
             resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 정보갱신 중...</div></div>';
@@ -1040,7 +974,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('신기술동향 뉴스 수집 오류:', error);
             }
             
-            await renderTechTrendResults(checked);
+            await renderTechTrendResults(topics);
         };
         // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
         const todayNews = filtered.filter(item => extractDate(item.pubDate) === today);

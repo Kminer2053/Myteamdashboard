@@ -153,6 +153,7 @@ async function collectRiskNews() {
         try {
           const newsData = {
             ...item,
+            keyword: keywords.join(', '), // 키워드 필드 추가
             aiGeneratedAt: new Date(),
             analysisModel: 'perplexity-ai'
           };
@@ -230,7 +231,7 @@ async function collectPartnerNews() {
             try {
               const result = await PartnerNews.updateOne(
                 { link: item.link },
-                { $set: item },
+                { $set: { ...item, keyword: conds.join(', ') } },
                 { upsert: true }
               );
               
@@ -361,7 +362,7 @@ async function collectTechNews() {
             try {
               const result = await TechNews.updateOne(
                 { link: item.link },
-                { $set: item },
+                { $set: { ...item, keyword: topics.join(', ') } },
                 { upsert: true }
               );
               
@@ -622,6 +623,7 @@ ${categoryContext}
           newsData = result.news.map(item => {
             return {
               ...item,
+              keyword: keywords.join(', '), // 키워드 필드 추가
               aiSummary: item.aiSummary || item.summary || 'AI 요약이 없습니다.',
               relatedKeywords: item.relatedKeywords || [],
               aiGeneratedAt: new Date(),
@@ -680,6 +682,7 @@ function parseTextResponse(text, keywords, category) {
     link: '#',
     source: 'AI 분석',
     pubDate: new Date().toISOString(),
+    keyword: keywords.join(', '), // 키워드 필드 추가
     aiSummary: text.substring(0, 200) + '...',
     relatedKeywords: keywords,
     aiGeneratedAt: new Date(),
