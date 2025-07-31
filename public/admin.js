@@ -494,4 +494,113 @@ document.addEventListener('DOMContentLoaded', function() {
     if (savePromptTech && promptInputTech) {
         savePromptTech.onclick = () => savePrompt('tech', promptInputTech, savePromptTech);
     }
+
+    // ===== AI API 테스트 기능 =====
+    const testRiskApi = document.getElementById('testRiskApi');
+    const testPartnerApi = document.getElementById('testPartnerApi');
+    const testTechApi = document.getElementById('testTechApi');
+
+    // API 테스트 함수
+    async function testApi(category, resultElement) {
+        try {
+            // 해당 카테고리의 키워드들 가져오기
+            let keywords = [];
+            let customPrompt = '';
+            
+            if (category === 'risk') {
+                const res = await fetch(`${API_BASE_URL}/api/risk-keywords`);
+                const data = await res.json();
+                keywords = data.map(k => k.value);
+                
+                // 커스텀 프롬프트 가져오기
+                try {
+                    const promptRes = await fetch(`${API_BASE_URL}/api/prompt/risk`);
+                    if (promptRes.ok) {
+                        const promptData = await promptRes.json();
+                        customPrompt = promptData.value || '';
+                    }
+                } catch (e) {}
+                
+            } else if (category === 'partner') {
+                const res = await fetch(`${API_BASE_URL}/api/partner-conditions`);
+                const data = await res.json();
+                keywords = data.map(c => c.value);
+                
+                try {
+                    const promptRes = await fetch(`${API_BASE_URL}/api/prompt/partner`);
+                    if (promptRes.ok) {
+                        const promptData = await promptRes.json();
+                        customPrompt = promptData.value || '';
+                    }
+                } catch (e) {}
+                
+            } else if (category === 'tech') {
+                const res = await fetch(`${API_BASE_URL}/api/tech-topics`);
+                const data = await res.json();
+                keywords = data.map(t => t.value);
+                
+                try {
+                    const promptRes = await fetch(`${API_BASE_URL}/api/prompt/tech`);
+                    if (promptRes.ok) {
+                        const promptData = await promptRes.json();
+                        customPrompt = promptData.value || '';
+                    }
+                } catch (e) {}
+            }
+
+            if (keywords.length === 0) {
+                resultElement.querySelector('pre').textContent = '키워드가 없습니다. 먼저 키워드를 추가해주세요.';
+                resultElement.style.display = 'block';
+                return;
+            }
+
+            // API 테스트 요청
+            const testData = {
+                keywords: keywords,
+                category: category,
+                customPrompt: customPrompt
+            };
+
+            resultElement.querySelector('pre').textContent = 'API 테스트 중...';
+            resultElement.style.display = 'block';
+
+            const response = await fetch(`${API_BASE_URL}/api/test-perplexity`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(testData)
+            });
+
+            const result = await response.json();
+            
+            // 결과 표시
+            const resultText = JSON.stringify(result, null, 2);
+            resultElement.querySelector('pre').textContent = resultText;
+            
+            // 성공/실패에 따른 색상 변경
+            if (result.success) {
+                resultElement.querySelector('pre').style.backgroundColor = '#d4edda';
+                resultElement.querySelector('pre').style.border = '1px solid #c3e6cb';
+            } else {
+                resultElement.querySelector('pre').style.backgroundColor = '#f8d7da';
+                resultElement.querySelector('pre').style.border = '1px solid #f5c6cb';
+            }
+
+        } catch (error) {
+            resultElement.querySelector('pre').textContent = `테스트 실패: ${error.message}`;
+            resultElement.querySelector('pre').style.backgroundColor = '#f8d7da';
+            resultElement.querySelector('pre').style.border = '1px solid #f5c6cb';
+            resultElement.style.display = 'block';
+        }
+    }
+
+    // 테스트 버튼 이벤트 리스너
+    if (testRiskApi) {
+        testRiskApi.onclick = () => testApi('risk', document.getElementById('testRiskResult'));
+    }
+    if (testPartnerApi) {
+        testPartnerApi.onclick = () => testApi('partner', document.getElementById('testPartnerResult'));
+    }
+    if (testTechApi) {
+        testTechApi.onclick = () => testApi('tech', document.getElementById('testTechResult'));
+    }
 }); 
