@@ -154,8 +154,10 @@ async function collectRiskNews() {
           const newsData = {
             ...item,
             keyword: keywords.join(', '), // 키워드 필드 추가
-            aiGeneratedAt: new Date(),
-            analysisModel: 'perplexity-ai'
+            source: item.source || 'AI 분석', // 언론사/출처
+            relatedKeywords: item.relatedKeywords || keywords, // 관련 키워드
+            analysisModel: 'perplexity-ai', // AI 모델명
+            aiGeneratedAt: new Date()
           };
           
           const result = await RiskNews.updateOne(
@@ -231,7 +233,13 @@ async function collectPartnerNews() {
             try {
               const result = await PartnerNews.updateOne(
                 { link: item.link },
-                { $set: { ...item, keyword: conds.join(', ') } },
+                { $set: { 
+                  ...item, 
+                  keyword: conds.join(', '),
+                  source: item.source || 'AI 분석',
+                  relatedKeywords: item.relatedKeywords || conds,
+                  analysisModel: 'perplexity-ai'
+                } },
                 { upsert: true }
               );
               
@@ -362,7 +370,13 @@ async function collectTechNews() {
             try {
               const result = await TechNews.updateOne(
                 { link: item.link },
-                { $set: { ...item, keyword: topics.join(', ') } },
+                { $set: { 
+                  ...item, 
+                  keyword: topics.join(', '),
+                  source: item.source || 'AI 분석',
+                  relatedKeywords: item.relatedKeywords || topics,
+                  analysisModel: 'perplexity-ai'
+                } },
                 { upsert: true }
               );
               
@@ -624,10 +638,11 @@ ${categoryContext}
             return {
               ...item,
               keyword: keywords.join(', '), // 키워드 필드 추가
+              source: item.source || 'AI 분석', // 언론사/출처
+              relatedKeywords: item.relatedKeywords || keywords, // 관련 키워드
               aiSummary: item.aiSummary || item.summary || 'AI 요약이 없습니다.',
-              relatedKeywords: item.relatedKeywords || [],
-              aiGeneratedAt: new Date(),
-              analysisModel: 'perplexity-ai'
+              analysisModel: 'perplexity-ai', // AI 모델명
+              aiGeneratedAt: new Date()
             };
           });
         }
@@ -683,10 +698,10 @@ function parseTextResponse(text, keywords, category) {
     source: 'AI 분석',
     pubDate: new Date().toISOString(),
     keyword: keywords.join(', '), // 키워드 필드 추가
+    relatedKeywords: keywords, // 관련 키워드
     aiSummary: text.substring(0, 200) + '...',
-    relatedKeywords: keywords,
-    aiGeneratedAt: new Date(),
-    analysisModel: 'perplexity-ai'
+    analysisModel: 'perplexity-ai', // AI 모델명
+    aiGeneratedAt: new Date()
   }];
   
   return { news: fallbackNews, analysis: null };
@@ -755,10 +770,11 @@ function extractNewsFromText(text, keyword) {
               link: actualLink,
               source: source || 'AI 분석',
               pubDate: pubDate || new Date().toISOString(),
+              keyword: keyword, // 키워드 필드 추가
+              relatedKeywords: relatedKeywords, // 관련 키워드
               aiSummary: cleanSummary,
-              relatedKeywords: relatedKeywords,
-              aiGeneratedAt: new Date(),
-              analysisModel: 'perplexity-ai'
+              analysisModel: 'perplexity-ai', // AI 모델명
+              aiGeneratedAt: new Date()
             });
           }
         }
@@ -1270,7 +1286,7 @@ app.get('/api/risk-news', async (req, res) => {
     })
     .sort({ createdAt: -1 })
     .limit(parseInt(limit))
-    .select('title link description pubDate keyword createdAt');
+    .select('title link description pubDate keyword source relatedKeywords analysisModel createdAt');
     
     res.json({
       success: true,
@@ -1315,7 +1331,7 @@ app.get('/api/partner-news', async (req, res) => {
     })
     .sort({ createdAt: -1 })
     .limit(parseInt(limit))
-    .select('title link description pubDate keyword createdAt');
+    .select('title link description pubDate keyword source relatedKeywords analysisModel createdAt');
     
     res.json({
       success: true,
@@ -1360,7 +1376,7 @@ app.get('/api/tech-news', async (req, res) => {
     })
     .sort({ createdAt: -1 })
     .limit(parseInt(limit))
-    .select('title link description pubDate keyword createdAt');
+    .select('title link description pubDate keyword source relatedKeywords analysisModel createdAt');
     
     res.json({
       success: true,

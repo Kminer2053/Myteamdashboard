@@ -607,6 +607,8 @@ document.addEventListener('DOMContentLoaded', function() {
                       출처: ${item.source || '알 수 없음'} | 
                       ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
                       <span class="badge badge-section-risk">${item.keyword}</span>
+                      ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
+                        `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
                     </div>
                   </div>
                 `;
@@ -641,6 +643,8 @@ document.addEventListener('DOMContentLoaded', function() {
                   출처: ${item.source || '알 수 없음'} | 
                   ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
                   <span class="badge badge-section-risk">${item.keyword}</span>
+                  ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
+                    `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
                 </div>
               </div>
             `;
@@ -867,6 +871,8 @@ document.addEventListener('DOMContentLoaded', function() {
                       출처: ${item.source || '알 수 없음'} | 
                       ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
                       <span class="badge badge-section-partner">${item.keyword}</span>
+                      ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
+                        `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
                     </div>
                   </div>
                 `;
@@ -901,6 +907,8 @@ document.addEventListener('DOMContentLoaded', function() {
                   출처: ${item.source || '알 수 없음'} | 
                   ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
                   <span class="badge badge-section-partner">${item.keyword}</span>
+                  ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
+                    `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
                 </div>
               </div>
             `;
@@ -1067,6 +1075,8 @@ document.addEventListener('DOMContentLoaded', function() {
                       출처: ${item.source || '알 수 없음'} | 
                       ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
                       <span class="badge badge-section-tech">${item.keyword}</span>
+                      ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
+                        `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
                     </div>
                   </div>
                 `;
@@ -1101,6 +1111,8 @@ document.addEventListener('DOMContentLoaded', function() {
                   출처: ${item.source || '알 수 없음'} | 
                   ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
                   <span class="badge badge-section-tech">${item.keyword}</span>
+                  ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
+                    `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
                 </div>
               </div>
             `;
