@@ -2335,67 +2335,117 @@ app.get('/api/rate-limit-status', async (req, res) => {
 // === AI API 테스트 엔드포인트 ===
 app.post('/api/test-perplexity', async (req, res) => {
   try {
-    const { keywords, category, customPrompt } = req.body;
+    const { category, customPrompt } = req.body;
     
-    if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
-      return res.status(400).json({ error: '키워드 배열이 필요합니다.' });
+    if (!category) {
+      return res.status(400).json({ error: '카테고리가 필요합니다.' });
     }
     
-    console.log(`[API 테스트] 카테고리: ${category}, 키워드: ${keywords.join(', ')}`);
+    // 실제 DB에서 키워드 가져오기
+    let keywords = [];
+    switch (category) {
+      case 'risk':
+        const riskKeywords = await RiskKeyword.find();
+        keywords = riskKeywords.map(k => k.value);
+        break;
+      case 'partner':
+        const partnerConditions = await PartnerCondition.find();
+        keywords = partnerConditions.map(c => c.value);
+        break;
+      case 'tech':
+        const techTopics = await TechTopic.find();
+        keywords = techTopics.map(t => t.value);
+        break;
+      default:
+        return res.status(400).json({ error: '유효하지 않은 카테고리입니다.' });
+    }
     
-    // 새로운 간단한 프롬프트 구조
-    const prompt = customPrompt || `
-다음 키워드들에 대한 최신 뉴스를 검색하고 분석해주세요: ${keywords.join(', ')}
+    if (keywords.length === 0) {
+      return res.status(400).json({ error: `${category} 카테고리에 키워드가 없습니다.` });
+    }
+    
+    console.log(`[API 테스트] 카테고리: ${category}, 실제 DB 키워드: ${keywords.join(', ')}`);
+    
+    // 실제 DB에서 커스텀 프롬프트 가져오기
+    let dbCustomPrompt = '';
+    try {
+      const promptSetting = await Setting.findOne({ key: `prompt_${category}` });
+      if (promptSetting && promptSetting.value) {
+        dbCustomPrompt = promptSetting.value;
+        console.log(`[API 테스트] DB 커스텀 프롬프트 사용: ${dbCustomPrompt.substring(0, 50)}...`);
+      }
+    } catch (e) {
+      console.log(`[API 테스트] DB 프롬프트 불러오기 실패`);
+    }
+    
+    // 실제 뉴스 수집과 동일한 프롬프트 구조 사용
+    const categoryContext = category === 'risk' ? '리스크 이슈 및 위험 요소에 중점을 두고 분석해주세요.' :
+                           category === 'partner' ? '제휴처 및 파트너사 관련 비즈니스 뉴스에 중점을 두고 분석해주세요.' :
+                           '신기술 동향 및 혁신 기술에 중점을 두고 분석해주세요.';
+    
+    const prompt = customPrompt || dbCustomPrompt || `
+당신은 뉴스 분석 전문가입니다. 다음 키워드들에 대한 최신 뉴스를 검색하고 분석해주세요: ${keywords.join(', ')}
 
 카테고리: ${category}
 
 요구사항:
-1. 최근 24시간 내의 뉴스만 수집
+1. 키워드와 관련된 최근 24시간 내의 뉴스만 수집
 2. 각 뉴스에 대해 다음 정보를 제공:
-   - 제목
-   - 링크
-   - 언론사명
-   - 발행일
-   - AI 생성 요약 (2-3문장)
-   - 관련 키워드
+   - 제목: 뉴스 제목
+   - 링크: 실제 뉴스 URL
+   - 언론사: 출처 언론사명
+   - 발행일: 뉴스 발행일
+   - 요약: 뉴스 내용 요약
+3. 뉴스가 없을 경우 "금일은 뉴스가 없습니다" 표시
+4. 마지막에 전체 뉴스에 대한 종합 분석 보고서를 추가
 
-3. 최대 5개 뉴스만 제공
-4. 전체 뉴스에 대한 간단한 분석 보고서 포함
+분석 보고서 작성 시 다음 내용을 참고하여 작성해주세요:
+${categoryContext}
 
-다음 JSON 형식으로 응답해주세요:
+응답 형식:
+- 가능하면 JSON 형태로 응답하되, JSON이 어려우면 텍스트 형태로도 가능합니다
+- JSON 응답 시 주석을 포함하지 마세요
+- 텍스트 응답 시 표 형태나 구조화된 형태로 정리해주세요
+
+예시 JSON 형식:
 {
   "news": [
     {
       "title": "뉴스 제목",
-      "link": "뉴스 링크",
+      "link": "https://example.com/news/123",
       "source": "언론사명",
-      "pubDate": "발행일",
-      "aiSummary": "AI 생성 요약",
-      "relatedKeywords": ["키워드1", "키워드2"]
+      "pubDate": "2025-07-31",
+      "summary": "뉴스 요약"
     }
   ],
-  "analysis": {
-    "newsAnalysis": "전체 뉴스 분석 보고서"
-  }
+  "analysis": "전체 분석 보고서"
 }
 `;
 
     // Rate Limit 방지를 위한 지연
     await new Promise(resolve => setTimeout(resolve, 2000));
 
+    // 카테고리별 토큰 제한 가져오기
+    let setting = await Setting.findOne({ key: 'tokenLimits' });
+    let tokenLimits = {
+      risk: 3000,
+      partner: 3000,
+      tech: 3000
+    };
+    if (setting && setting.value) {
+      tokenLimits = JSON.parse(setting.value);
+    }
+    const maxTokens = tokenLimits[category] === null ? null : (tokenLimits[category] || 3000);
+    
     const response = await axios.post(PERPLEXITY_API_URL, {
       model: 'sonar-pro',
       messages: [
-        {
-          role: 'system',
-          content: '당신은 뉴스 분석 전문가입니다. 요청된 JSON 형식에 맞춰 정확하고 구조화된 정보를 제공해주세요.'
-        },
         {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: 3000,
+      max_tokens: maxTokens === null ? null : maxTokens,
       temperature: 0.5
     }, {
       headers: {
@@ -2413,10 +2463,54 @@ app.post('/api/test-perplexity', async (req, res) => {
     console.log(`[API 테스트] Finish reason: ${finishReason}`);
     console.log(`[API 테스트] Token usage: ${usage?.total_tokens || 'N/A'}/${usage?.completion_tokens || 'N/A'}`);
     
-    // 토큰 잘림 감지
+    // 토큰 잘림 감지 및 재시도 로직
     if (finishReason === 'length') {
-      console.warn(`[API 테스트] ⚠️ 응답이 max_tokens(${3000})로 잘렸습니다!`);
+      console.warn(`[API 테스트] ⚠️ 응답이 max_tokens(${maxTokens})로 잘렸습니다!`);
       console.warn(`[API 테스트] 실제 사용된 토큰: ${usage?.completion_tokens || 'N/A'}`);
+      
+      // 토큰 제한을 2배로 늘려서 재시도 (무제한인 경우 8000으로 설정)
+      const retryMaxTokens = maxTokens === null ? 8000 : maxTokens * 2;
+      console.log(`[API 테스트] 토큰 제한을 ${retryMaxTokens}로 늘려서 재시도합니다...`);
+      
+      try {
+        const retryResponse = await axios.post(PERPLEXITY_API_URL, {
+          model: 'sonar-pro',
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          max_tokens: retryMaxTokens,
+          temperature: 0.5
+        }, {
+          headers: {
+            'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 60000
+        });
+
+        const retryAiResponse = retryResponse.data.choices[0].message.content;
+        const retryFinishReason = retryResponse.data.choices[0].finish_reason;
+        const retryUsage = retryResponse.data.usage;
+        
+        console.log(`[API 테스트] 재시도 완료 - Finish reason: ${retryFinishReason}`);
+        console.log(`[API 테스트] 재시도 Token usage: ${retryUsage?.total_tokens || 'N/A'}/${retryUsage?.completion_tokens || 'N/A'}`);
+        
+        if (retryFinishReason === 'length') {
+          console.warn(`[API 테스트] ⚠️ 재시도에서도 토큰 제한에 걸렸습니다!`);
+        }
+        
+        // 재시도 응답으로 처리
+        const aiResponse = retryAiResponse;
+        const finishReason = retryFinishReason;
+        const usage = retryUsage;
+        
+      } catch (retryError) {
+        console.error(`[API 테스트] 재시도 중 오류 발생:`, retryError.message);
+        // 재시도 실패 시 원래 응답 사용
+      }
     }
     
     // JSON 파싱 시도
