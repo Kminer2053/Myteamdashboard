@@ -1925,3 +1925,113 @@ app.get('/api/rate-limit-status', async (req, res) => {
     res.status(500).json({ error: 'Rate Limit 상태 확인 중 오류가 발생했습니다.' });
   }
 });
+
+// === AI API 테스트 엔드포인트 ===
+app.post('/api/test-perplexity', async (req, res) => {
+  try {
+    const { keywords, category, customPrompt } = req.body;
+    
+    if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
+      return res.status(400).json({ error: '키워드 배열이 필요합니다.' });
+    }
+    
+    console.log(`[API 테스트] 카테고리: ${category}, 키워드: ${keywords.join(', ')}`);
+    
+    // 새로운 간단한 프롬프트 구조
+    const prompt = customPrompt || `
+다음 키워드들에 대한 최신 뉴스를 검색하고 분석해주세요: ${keywords.join(', ')}
+
+카테고리: ${category}
+
+요구사항:
+1. 최근 24시간 내의 뉴스만 수집
+2. 각 뉴스에 대해 다음 정보를 제공:
+   - 제목
+   - 링크
+   - 언론사명
+   - 발행일
+   - AI 생성 요약 (2-3문장)
+   - 관련 키워드
+
+3. 최대 5개 뉴스만 제공
+4. 전체 뉴스에 대한 간단한 분석 보고서 포함
+
+다음 JSON 형식으로 응답해주세요:
+{
+  "news": [
+    {
+      "title": "뉴스 제목",
+      "link": "뉴스 링크",
+      "source": "언론사명",
+      "pubDate": "발행일",
+      "aiSummary": "AI 생성 요약",
+      "relatedKeywords": ["키워드1", "키워드2"]
+    }
+  ],
+  "analysis": {
+    "newsAnalysis": "전체 뉴스 분석 보고서"
+  }
+}
+`;
+
+    // Rate Limit 방지를 위한 지연
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const response = await axios.post(PERPLEXITY_API_URL, {
+      model: 'sonar-pro',
+      messages: [
+        {
+          role: 'system',
+          content: '당신은 뉴스 분석 전문가입니다. 요청된 JSON 형식에 맞춰 정확하고 구조화된 정보를 제공해주세요.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: 3000,
+      temperature: 0.3
+    }, {
+      headers: {
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 60000
+    });
+
+    const aiResponse = response.data.choices[0].message.content;
+    console.log(`[API 테스트] Perplexity AI 응답 수신`);
+    
+    // JSON 파싱 시도
+    try {
+      const result = JSON.parse(aiResponse);
+      console.log(`[API 테스트] JSON 파싱 성공`);
+      
+      res.json({
+        success: true,
+        data: result,
+        rawResponse: aiResponse
+      });
+      
+    } catch (parseError) {
+      console.error(`[API 테스트] JSON 파싱 실패:`, parseError);
+      console.error(`[API 테스트] 원본 응답:`, aiResponse);
+      
+      res.json({
+        success: false,
+        error: 'JSON 파싱 실패',
+        rawResponse: aiResponse,
+        parseError: parseError.message
+      });
+    }
+    
+  } catch (error) {
+    if (error.response && error.response.status === 429) {
+      console.log(`[API 테스트] Rate Limit 도달`);
+      res.status(429).json({ error: 'Rate Limit 도달' });
+    } else {
+      console.error(`[API 테스트] API 호출 실패:`, error.message);
+      res.status(500).json({ error: error.message });
+    }
+  }
+});
