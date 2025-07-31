@@ -550,7 +550,7 @@ async function collectNewsWithPerplexity(keywords, category = 'risk') {
   try {
     console.log(`[AI 수집][${category}] 키워드 "${keywords.join(', ')}" Perplexity AI 분석 시작`);
     
-    // DB에서 카테고리별 프롬프트 불러오기
+    // DB에서 카테고리별 커스텀 프롬프트 불러오기
     let customPrompt = '';
     try {
       const promptSetting = await Setting.findOne({ key: `prompt_${category}` });
@@ -559,27 +559,30 @@ async function collectNewsWithPerplexity(keywords, category = 'risk') {
         console.log(`[AI 수집][${category}] 커스텀 프롬프트 사용: ${customPrompt.substring(0, 50)}...`);
       }
     } catch (e) {
-      console.log(`[AI 수집][${category}] 프롬프트 불러오기 실패, 기본 프롬프트 사용`);
+      console.log(`[AI 수집][${category}] 프롬프트 불러오기 실패`);
     }
     
-    // 카테고리별 기본 프롬프트 설정 (커스텀 프롬프트가 없을 때 사용)
-    let categoryContext = '';
+    // 카테고리별 기본 컨텍스트 설정 (커스텀 프롬프트가 없을 때 사용)
+    let defaultCategoryContext = '';
     switch (category) {
       case 'risk':
-        categoryContext = '리스크 이슈 및 위험 요소에 중점을 두고 분석해주세요.';
+        defaultCategoryContext = '리스크 이슈 및 위험 요소에 중점을 두고 분석해주세요.';
         break;
       case 'partner':
-        categoryContext = '제휴처 및 파트너사 관련 비즈니스 뉴스에 중점을 두고 분석해주세요.';
+        defaultCategoryContext = '제휴처 및 파트너사 관련 비즈니스 뉴스에 중점을 두고 분석해주세요.';
         break;
       case 'tech':
-        categoryContext = '신기술 동향 및 혁신 기술에 중점을 두고 분석해주세요.';
+        defaultCategoryContext = '신기술 동향 및 혁신 기술에 중점을 두고 분석해주세요.';
         break;
       default:
-        categoryContext = '일반적인 뉴스 분석을 진행해주세요.';
+        defaultCategoryContext = '일반적인 뉴스 분석을 진행해주세요.';
     }
     
-        // 커스텀 프롬프트가 있으면 사용, 없으면 기본 프롬프트 사용
-    const prompt = customPrompt || `
+    // 커스텀 프롬프트가 있으면 사용, 없으면 기본 컨텍스트 사용
+    const categoryContext = customPrompt || defaultCategoryContext;
+    
+    // 항상 기본 프롬프트 구조 사용
+    const prompt = `
 당신은 뉴스 분석 전문가입니다. 다음 키워드들에 대한 최신 뉴스를 검색하고 분석해주세요: ${keywords.join(', ')}
 
 카테고리: ${category}
@@ -2378,12 +2381,27 @@ app.post('/api/test-perplexity', async (req, res) => {
       console.log(`[API 테스트] DB 프롬프트 불러오기 실패`);
     }
     
-    // 실제 뉴스 수집과 동일한 프롬프트 구조 사용
-    const categoryContext = category === 'risk' ? '리스크 이슈 및 위험 요소에 중점을 두고 분석해주세요.' :
-                           category === 'partner' ? '제휴처 및 파트너사 관련 비즈니스 뉴스에 중점을 두고 분석해주세요.' :
-                           '신기술 동향 및 혁신 기술에 중점을 두고 분석해주세요.';
+    // 카테고리별 기본 컨텍스트 설정 (커스텀 프롬프트가 없을 때 사용)
+    let defaultCategoryContext = '';
+    switch (category) {
+      case 'risk':
+        defaultCategoryContext = '리스크 이슈 및 위험 요소에 중점을 두고 분석해주세요.';
+        break;
+      case 'partner':
+        defaultCategoryContext = '제휴처 및 파트너사 관련 비즈니스 뉴스에 중점을 두고 분석해주세요.';
+        break;
+      case 'tech':
+        defaultCategoryContext = '신기술 동향 및 혁신 기술에 중점을 두고 분석해주세요.';
+        break;
+      default:
+        defaultCategoryContext = '일반적인 뉴스 분석을 진행해주세요.';
+    }
     
-    const prompt = customPrompt || dbCustomPrompt || `
+    // 커스텀 프롬프트가 있으면 사용, 없으면 기본 컨텍스트 사용
+    const categoryContext = customPrompt || dbCustomPrompt || defaultCategoryContext;
+    
+    // 항상 기본 프롬프트 구조 사용
+    const prompt = `
 당신은 뉴스 분석 전문가입니다. 다음 키워드들에 대한 최신 뉴스를 검색하고 분석해주세요: ${keywords.join(', ')}
 
 카테고리: ${category}
