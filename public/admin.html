@@ -95,6 +95,39 @@
                             <button class="btn btn-sm btn-primary mb-2" id="savePromptTech">저장</button>
                         </div>
 
+                        <!-- 토큰 제한 설정 -->
+                        <div class="mb-4">
+                            <h6 class="mb-3">AI 토큰 제한 설정</h6>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <label for="tokenLimitRisk" class="form-label">리스크 이슈 토큰 제한</label>
+                                    <input type="number" class="form-control" id="tokenLimitRisk" placeholder="3000" min="0" max="8000">
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input" type="checkbox" id="unlimitedRisk">
+                                        <label class="form-check-label" for="unlimitedRisk">무제한</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="tokenLimitPartner" class="form-label">제휴처 탐색 토큰 제한</label>
+                                    <input type="number" class="form-control" id="tokenLimitPartner" placeholder="3000" min="0" max="8000">
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input" type="checkbox" id="unlimitedPartner">
+                                        <label class="form-check-label" for="unlimitedPartner">무제한</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="tokenLimitTech" class="form-label">신기술 동향 토큰 제한</label>
+                                    <input type="number" class="form-control" id="tokenLimitTech" placeholder="3000" min="0" max="8000">
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input" type="checkbox" id="unlimitedTech">
+                                        <label class="form-check-label" for="unlimitedTech">무제한</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-primary mt-2" id="saveTokenLimits">토큰 제한 저장</button>
+                            <small class="form-text text-muted">토큰 제한이 부족하면 자동으로 2배로 늘려서 재시도합니다.</small>
+                        </div>
+
                         <!-- 뉴스 갱신 시간 설정 -->
                         <div class="mb-4">
                             <h6 class="mb-3">뉴스 갱신 시간 설정</h6>

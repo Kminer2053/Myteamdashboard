@@ -585,20 +585,54 @@ async function collectNewsWithPerplexity(keywords, category = 'risk') {
 카테고리: ${category}
 
 요구사항:
-1. 키워드와 직접적으로 관련된 최근 24시간 내의 뉴스만 수집
-2. 각 뉴스에 대해 제목, 링크, 언론사, 발행일, 요약을 제공
+1. 키워드와 관련된 최근 24시간 내의 뉴스만 수집
+2. 각 뉴스에 대해 다음 정보를 제공:
+   - 제목: 뉴스 제목
+   - 링크: 실제 뉴스 URL
+   - 언론사: 출처 언론사명
+   - 발행일: 뉴스 발행일
+   - 요약: 뉴스 내용 요약
 3. 뉴스가 없을 경우 "금일은 뉴스가 없습니다" 표시
-4. 마지막에 전체 뉴스에 대한 분석 보고서를 추가
+4. 마지막에 전체 뉴스에 대한 종합 분석 보고서를 추가
 
 분석 보고서 작성 시 다음 내용을 참고하여 작성해주세요:
 ${categoryContext}
 
-구조화된 형태로 정리해서 응답해주세요.
+응답 형식:
+- 가능하면 JSON 형태로 응답하되, JSON이 어려우면 텍스트 형태로도 가능합니다
+- JSON 응답 시 주석을 포함하지 마세요
+- 텍스트 응답 시 표 형태나 구조화된 형태로 정리해주세요
+
+예시 JSON 형식:
+{
+  "news": [
+    {
+      "title": "뉴스 제목",
+      "link": "https://example.com/news/123",
+      "source": "언론사명",
+      "pubDate": "2025-07-31",
+      "summary": "뉴스 요약"
+    }
+  ],
+  "analysis": "전체 분석 보고서"
+}
 `;
 
     // Rate Limit 방지를 위한 지연
     await new Promise(resolve => setTimeout(resolve, 2000));
 
+    // 카테고리별 토큰 제한 가져오기
+    let setting = await Setting.findOne({ key: 'tokenLimits' });
+    let tokenLimits = {
+      risk: 3000,
+      partner: 3000,
+      tech: 3000
+    };
+    if (setting && setting.value) {
+      tokenLimits = JSON.parse(setting.value);
+    }
+    const maxTokens = tokenLimits[category] === null ? null : (tokenLimits[category] || 3000);
+    
     const response = await axios.post(PERPLEXITY_API_URL, {
       model: 'sonar-pro',
       messages: [
@@ -607,8 +641,8 @@ ${categoryContext}
           content: prompt
         }
       ],
-      max_tokens: 3000,
-      temperature: 0.3
+      max_tokens: maxTokens === null ? null : maxTokens,
+      temperature: 0.5
     }, {
       headers: {
         'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
@@ -618,52 +652,65 @@ ${categoryContext}
     });
 
     const aiResponse = response.data.choices[0].message.content;
+    const finishReason = response.data.choices[0].finish_reason;
+    const usage = response.data.usage;
+    
     console.log(`[AI 수집][${category}] Perplexity AI 응답 수신`);
+    console.log(`[AI 수집][${category}] Finish reason: ${finishReason}`);
+    console.log(`[AI 수집][${category}] Token usage: ${usage?.total_tokens || 'N/A'}/${usage?.completion_tokens || 'N/A'}`);
     
-    // 응답 형식 감지 및 적절한 파싱 함수 선택
-    console.log(`[AI 수집][${category}] 응답 형식 감지 중...`);
-    
-    // JSON 형식인지 확인
-    const isJsonResponse = aiResponse.trim().startsWith('{') || aiResponse.trim().startsWith('[');
-    
-    if (isJsonResponse) {
-      console.log(`[AI 수집][${category}] JSON 형식 감지됨, JSON 파싱 시도`);
+    // 토큰 잘림 감지 및 재시도 로직
+    if (finishReason === 'length') {
+      console.warn(`[AI 수집][${category}] ⚠️ 응답이 max_tokens(${3000})로 잘렸습니다!`);
+      console.warn(`[AI 수집][${category}] 실제 사용된 토큰: ${usage?.completion_tokens || 'N/A'}`);
+      
+      // 토큰 제한을 2배로 늘려서 재시도 (무제한인 경우 8000으로 설정)
+      const retryMaxTokens = maxTokens === null ? 8000 : maxTokens * 2;
+      console.log(`[AI 수집][${category}] 토큰 제한을 ${retryMaxTokens}로 늘려서 재시도합니다...`);
+      
       try {
-        const result = JSON.parse(aiResponse);
+        const retryResponse = await axios.post(PERPLEXITY_API_URL, {
+          model: 'sonar-pro',
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          max_tokens: retryMaxTokens === null ? null : retryMaxTokens,
+          temperature: 0.5
+        }, {
+          headers: {
+            'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 60000
+        });
+
+        const retryAiResponse = retryResponse.data.choices[0].message.content;
+        const retryFinishReason = retryResponse.data.choices[0].finish_reason;
+        const retryUsage = retryResponse.data.usage;
         
-        // 뉴스 데이터 정규화 및 검증
-        let newsData = [];
-        if (result.news && Array.isArray(result.news)) {
-          newsData = result.news.map(item => {
-            return {
-              ...item,
-              keyword: keywords.join(', '), // 키워드 필드 추가
-              source: item.source || 'AI 분석', // 언론사/출처
-              relatedKeywords: item.relatedKeywords || keywords, // 관련 키워드
-              aiSummary: item.aiSummary || item.summary || 'AI 요약이 없습니다.',
-              analysisModel: 'perplexity-ai', // AI 모델명
-              aiGeneratedAt: new Date()
-            };
-          });
-        }
+        console.log(`[AI 수집][${category}] 재시도 완료 - Finish reason: ${retryFinishReason}`);
+        console.log(`[AI 수집][${category}] 재시도 토큰 사용량: ${retryUsage?.completion_tokens || 'N/A'}`);
         
-        // 응답 형식에 따라 처리
-        if (newsData.length > 0) {
-          return { news: newsData, analysis: result.analysis || null };
-        } else if (Array.isArray(result)) {
-          return { news: result, analysis: null };
+        if (retryFinishReason === 'stop') {
+          console.log(`[AI 수집][${category}] ✅ 재시도 성공! 정상적으로 완료되었습니다.`);
+          // 재시도 성공 시 원래 토큰 제한으로 복원
+          return await processAiResponse(retryAiResponse, keywords, category, maxTokens);
         } else {
-          return { news: [result], analysis: null };
+          console.error(`[AI 수집][${category}] ❌ 재시도도 실패했습니다.`);
+          throw new Error('토큰 제한 초과로 재시도 실패');
         }
-      } catch (parseError) {
-        console.error(`[AI 수집][${category}] JSON 파싱 실패:`, parseError);
-        console.log(`[AI 수집][${category}] 텍스트 파싱으로 전환`);
-        return parseTextResponse(aiResponse, keywords, category);
+        
+      } catch (retryError) {
+        console.error(`[AI 수집][${category}] 재시도 중 오류:`, retryError.message);
+        throw retryError;
       }
-    } else {
-      console.log(`[AI 수집][${category}] 텍스트 형식 감지됨, 텍스트 파싱 시도`);
-      return parseTextResponse(aiResponse, keywords, category);
     }
+    
+    // AI 응답 처리 함수 호출
+    return await processAiResponse(aiResponse, keywords, category, maxTokens);
     
   } catch (error) {
     if (error.response && error.response.status === 429) {
@@ -676,6 +723,53 @@ ${categoryContext}
       console.error(`[AI 수집][${category}] 응답 데이터:`, error.response.data);
     }
     throw error;
+  }
+}
+
+// AI 응답 처리 함수
+async function processAiResponse(aiResponse, keywords, category, maxTokens) {
+  console.log(`[AI 수집][${category}] 응답 형식 감지 중...`);
+  
+  // JSON 형식인지 확인
+  const isJsonResponse = aiResponse.trim().startsWith('{') || aiResponse.trim().startsWith('[');
+  
+  if (isJsonResponse) {
+    console.log(`[AI 수집][${category}] JSON 형식 감지됨, JSON 파싱 시도`);
+    try {
+      const result = JSON.parse(aiResponse);
+      
+      // 뉴스 데이터 정규화 및 검증
+      let newsData = [];
+      if (result.news && Array.isArray(result.news)) {
+        newsData = result.news.map(item => {
+          return {
+            ...item,
+            keyword: keywords.join(', '), // 키워드 필드 추가
+            source: item.source || 'AI 분석', // 언론사/출처
+            relatedKeywords: item.relatedKeywords || keywords, // 관련 키워드
+            aiSummary: item.aiSummary || item.summary || 'AI 요약이 없습니다.',
+            analysisModel: 'perplexity-ai', // AI 모델명
+            aiGeneratedAt: new Date()
+          };
+        });
+      }
+      
+      // 응답 형식에 따라 처리
+      if (newsData.length > 0) {
+        return { news: newsData, analysis: result.analysis || null };
+      } else if (Array.isArray(result)) {
+        return { news: result, analysis: null };
+      } else {
+        return { news: [result], analysis: null };
+      }
+    } catch (parseError) {
+      console.error(`[AI 수집][${category}] JSON 파싱 실패:`, parseError);
+      console.log(`[AI 수집][${category}] 텍스트 파싱으로 전환`);
+      return parseTextResponse(aiResponse, keywords, category);
+    }
+  } else {
+    console.log(`[AI 수집][${category}] 텍스트 형식 감지됨, 텍스트 파싱 시도`);
+    return parseTextResponse(aiResponse, keywords, category);
   }
 }
 
@@ -1881,28 +1975,15 @@ app.get('/api/ai-summary/:category', async (req, res) => {
       });
     }
     
-    // Perplexity AI를 사용한 요약 생성
-    try {
-      const summary = await generateSummaryWithPerplexity(recentNews.slice(0, 5), category);
-      res.json({
-        success: true,
-        data: summary || {
-          summary: 'AI 분석 요약을 생성할 수 없습니다.',
-          trends: [],
-          keywords: []
-        }
-      });
-    } catch (analysisError) {
-      console.error('AI 요약 생성 실패:', analysisError);
-      res.json({
-        success: true,
-        data: {
-          summary: 'AI 요약 생성 중 오류가 발생했습니다.',
-          trends: [],
-          keywords: []
-        }
-      });
-    }
+    // 뉴스 수집 시 이미 분석이 포함되어 있으므로 별도 요약 불필요
+    res.json({
+      success: true,
+      data: {
+        summary: '뉴스 수집 시 이미 분석이 포함되어 있습니다.',
+        trends: [],
+        keywords: []
+      }
+    });
     
   } catch (error) {
     console.error('AI 요약 조회 실패:', error);
@@ -1910,80 +1991,48 @@ app.get('/api/ai-summary/:category', async (req, res) => {
   }
 });
 
-// Perplexity AI를 사용한 요약 생성
-async function generateSummaryWithPerplexity(newsData, category = 'risk') {
+
+
+// ===== 토큰 제한 설정 API =====
+app.get('/api/token-limits', async (req, res) => {
   try {
-    console.log(`[AI 요약][${category}] Perplexity AI 요약 생성 시작 (${newsData.length}건)`);
-    
-    const prompt = `
-    다음 뉴스 데이터를 분석하고 요약해주세요:
-    
-    뉴스 목록:
-    ${JSON.stringify(newsData.slice(0, 5), null, 2)}
-    
-    분석 요구사항:
-    1. 전체적인 트렌드 분석 (2-3문장)
-    2. 주요 이슈 요약
-    3. 향후 전망 예측
-    4. 주목해야 할 키워드 추출
-    
-    JSON 형식으로 응답:
-    {
-      "trendAnalysis": "트렌드 분석",
-      "mainIssues": "주요 이슈",
-      "futureOutlook": "향후 전망",
-      "keyKeywords": ["키워드1", "키워드2"]
+    let setting = await Setting.findOne({ key: 'tokenLimits' });
+    let tokenLimits = {
+      risk: 3000,
+      partner: 3000,
+      tech: 3000
+    };
+    if (setting && setting.value) {
+      tokenLimits = JSON.parse(setting.value);
     }
-    `;
-
-    // Rate Limit 방지를 위한 지연
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const response = await axios.post(PERPLEXITY_API_URL, {
-      model: 'sonar-pro',
-      messages: [
-        {
-          role: 'system',
-          content: '당신은 뉴스 분석 전문가입니다. 객관적이고 정확한 분석을 제공해주세요.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      max_tokens: 1500,
-      temperature: 0.3
-    }, {
-      headers: {
-        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 60000
-    });
-
-    const analysisResult = response.data.choices[0].message.content;
-    console.log(`[AI 요약][${category}] Perplexity AI 요약 완료`);
-    
-    try {
-      return JSON.parse(analysisResult);
-    } catch (parseError) {
-      console.error(`[AI 요약][${category}] JSON 파싱 실패:`, parseError);
-      return { trendAnalysis: analysisResult };
-    }
-    
-  } catch (error) {
-    if (error.response && error.response.status === 429) {
-      console.log(`[AI 요약][${category}] Rate Limit 도달, 30초 후 재시도...`);
-      await new Promise(resolve => setTimeout(resolve, 30000));
-      return await generateSummaryWithPerplexity(newsData, category);
-    }
-    console.error(`[AI 요약][${category}] Perplexity AI API 호출 실패:`, error.message);
-    if (error.response) {
-      console.error(`[AI 요약][${category}] 응답 데이터:`, error.response.data);
-    }
-    return null;
+    res.json(tokenLimits);
+  } catch (err) {
+    res.status(500).json({ error: '토큰 제한 설정 조회 실패' });
   }
-}
+});
+
+app.post('/api/token-limits', async (req, res) => {
+  try {
+    const { risk, partner, tech } = req.body;
+    if (!risk || !partner || !tech) {
+      return res.status(400).json({ error: '모든 카테고리의 토큰 제한을 입력하세요.' });
+    }
+    
+    const tokenLimits = { risk, partner, tech };
+    let setting = await Setting.findOne({ key: 'tokenLimits' });
+    
+    if (setting) {
+      setting.value = JSON.stringify(tokenLimits);
+      await setting.save();
+    } else {
+      await Setting.create({ key: 'tokenLimits', value: JSON.stringify(tokenLimits) });
+    }
+    
+    res.json({ success: true, data: tokenLimits });
+  } catch (err) {
+    res.status(500).json({ error: '토큰 제한 설정 저장 실패' });
+  }
+});
 
 // ===== 이메일 리스트 API =====
 app.get('/api/emails', async (req, res) => {
@@ -2347,7 +2396,7 @@ app.post('/api/test-perplexity', async (req, res) => {
         }
       ],
       max_tokens: 3000,
-      temperature: 0.3
+      temperature: 0.5
     }, {
       headers: {
         'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
@@ -2357,7 +2406,18 @@ app.post('/api/test-perplexity', async (req, res) => {
     });
 
     const aiResponse = response.data.choices[0].message.content;
+    const finishReason = response.data.choices[0].finish_reason;
+    const usage = response.data.usage;
+    
     console.log(`[API 테스트] Perplexity AI 응답 수신`);
+    console.log(`[API 테스트] Finish reason: ${finishReason}`);
+    console.log(`[API 테스트] Token usage: ${usage?.total_tokens || 'N/A'}/${usage?.completion_tokens || 'N/A'}`);
+    
+    // 토큰 잘림 감지
+    if (finishReason === 'length') {
+      console.warn(`[API 테스트] ⚠️ 응답이 max_tokens(${3000})로 잘렸습니다!`);
+      console.warn(`[API 테스트] 실제 사용된 토큰: ${usage?.completion_tokens || 'N/A'}`);
+    }
     
     // JSON 파싱 시도
     try {

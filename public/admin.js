@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
             updateList('riskKeywords', riskKeywordsList);
             updateList('partnerConditions', partnerConditionsList);
             updateList('techTopics', techTopicsList);
+            loadTokenLimits();
         } else {
             alert('비밀번호가 일치하지 않습니다.');
             passwordInput.value = '';
@@ -82,6 +83,132 @@ document.addEventListener('DOMContentLoaded', function() {
             addItem('techTopics', topic, techTopicsList, '주제');
             logUserAction('신기술주제추가', { topic });
             techTopicInput.value = '';
+        }
+    });
+
+    // ===== 토큰 제한 설정 관리 =====
+    const tokenLimitRisk = document.getElementById('tokenLimitRisk');
+    const tokenLimitPartner = document.getElementById('tokenLimitPartner');
+    const tokenLimitTech = document.getElementById('tokenLimitTech');
+    const unlimitedRisk = document.getElementById('unlimitedRisk');
+    const unlimitedPartner = document.getElementById('unlimitedPartner');
+    const unlimitedTech = document.getElementById('unlimitedTech');
+    const saveTokenLimitsBtn = document.getElementById('saveTokenLimits');
+
+    // 토큰 제한 설정 로드
+    async function loadTokenLimits() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/token-limits`);
+            if (response.ok) {
+                const tokenLimits = await response.json();
+                
+                // 리스크 이슈
+                if (tokenLimits.risk === null || tokenLimits.risk === -1) {
+                    unlimitedRisk.checked = true;
+                    tokenLimitRisk.value = '';
+                    tokenLimitRisk.disabled = true;
+                } else {
+                    unlimitedRisk.checked = false;
+                    tokenLimitRisk.value = tokenLimits.risk || 3000;
+                    tokenLimitRisk.disabled = false;
+                }
+                
+                // 제휴처 탐색
+                if (tokenLimits.partner === null || tokenLimits.partner === -1) {
+                    unlimitedPartner.checked = true;
+                    tokenLimitPartner.value = '';
+                    tokenLimitPartner.disabled = true;
+                } else {
+                    unlimitedPartner.checked = false;
+                    tokenLimitPartner.value = tokenLimits.partner || 3000;
+                    tokenLimitPartner.disabled = false;
+                }
+                
+                // 신기술 동향
+                if (tokenLimits.tech === null || tokenLimits.tech === -1) {
+                    unlimitedTech.checked = true;
+                    tokenLimitTech.value = '';
+                    tokenLimitTech.disabled = true;
+                } else {
+                    unlimitedTech.checked = false;
+                    tokenLimitTech.value = tokenLimits.tech || 3000;
+                    tokenLimitTech.disabled = false;
+                }
+            }
+        } catch (error) {
+            console.error('토큰 제한 설정 로드 실패:', error);
+        }
+    }
+
+    // 무제한 체크박스 이벤트 핸들러
+    unlimitedRisk.addEventListener('change', function() {
+        tokenLimitRisk.disabled = this.checked;
+        if (this.checked) {
+            tokenLimitRisk.value = '';
+        } else {
+            tokenLimitRisk.value = '3000';
+        }
+    });
+    
+    unlimitedPartner.addEventListener('change', function() {
+        tokenLimitPartner.disabled = this.checked;
+        if (this.checked) {
+            tokenLimitPartner.value = '';
+        } else {
+            tokenLimitPartner.value = '3000';
+        }
+    });
+    
+    unlimitedTech.addEventListener('change', function() {
+        tokenLimitTech.disabled = this.checked;
+        if (this.checked) {
+            tokenLimitTech.value = '';
+        } else {
+            tokenLimitTech.value = '3000';
+        }
+    });
+
+    // 토큰 제한 설정 저장
+    saveTokenLimitsBtn.addEventListener('click', async function() {
+        if (!isAuthenticated) return;
+        
+        // 무제한 체크 여부에 따라 값 설정
+        const risk = unlimitedRisk.checked ? null : parseInt(tokenLimitRisk.value);
+        const partner = unlimitedPartner.checked ? null : parseInt(tokenLimitPartner.value);
+        const tech = unlimitedTech.checked ? null : parseInt(tokenLimitTech.value);
+        
+        // 무제한이 아닌 경우 유효성 검사
+        if (!unlimitedRisk.checked && (!risk || risk < 1000 || risk > 8000)) {
+            showToast('리스크 이슈 토큰 제한은 1000-8000 사이의 값이어야 합니다.');
+            return;
+        }
+        if (!unlimitedPartner.checked && (!partner || partner < 1000 || partner > 8000)) {
+            showToast('제휴처 탐색 토큰 제한은 1000-8000 사이의 값이어야 합니다.');
+            return;
+        }
+        if (!unlimitedTech.checked && (!tech || tech < 1000 || tech > 8000)) {
+            showToast('신기술 동향 토큰 제한은 1000-8000 사이의 값이어야 합니다.');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/token-limits`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ risk, partner, tech })
+            });
+            
+            if (response.ok) {
+                showToast('토큰 제한 설정이 저장되었습니다.');
+                logUserAction('토큰제한설정', { risk, partner, tech });
+            } else {
+                showToast('토큰 제한 설정 저장에 실패했습니다.');
+            }
+        } catch (error) {
+            console.error('토큰 제한 설정 저장 실패:', error);
+            showToast('토큰 제한 설정 저장 중 오류가 발생했습니다.');
         }
     });
 
