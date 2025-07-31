@@ -103,18 +103,18 @@ async function collectRiskNews() {
     // Perplexity AI를 사용한 뉴스 수집 및 분석
     if (keywords.length > 0) {
       try {
-        console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" Perplexity AI 수집 및 분석 시작`);
-        const aiResult = await collectNewsWithPerplexity(keywords[0], 'risk');
+        console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" Perplexity AI 수집 및 분석 시작`);
+        const aiResult = await collectNewsWithPerplexity(keywords, 'risk');
         
         if (aiResult && aiResult.news && aiResult.news.length > 0) {
-          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" 결과 ${aiResult.news.length}건 수집`);
+          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" 결과 ${aiResult.news.length}건 수집`);
           allNews.push(...aiResult.news);
           
           if (aiResult.analysis) {
             analysisResults.push(aiResult.analysis);
           }
         } else {
-          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords[0]}" 결과 없음`);
+          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" 결과 없음`);
         }
       } catch (e) {
         console.error(`[AI 수집][리스크이슈] Perplexity AI 실패:`, e.message);
@@ -188,16 +188,16 @@ async function collectPartnerNews() {
     
     console.log(`[AI 수집][제휴처탐색] ${today} 수집 시작 (조건 ${conds.length}개)`);
     
-    for (const kw of conds) {
+    if (conds.length > 0) {
       try {
-        console.log(`[AI 수집][제휴처탐색] 조건 "${kw}" Perplexity AI 수집 시작`);
-        console.log(`[AI 수집][partner] 조건 "${kw}" Perplexity AI 분석 시작`);
+        console.log(`[AI 수집][제휴처탐색] 조건 "${conds.join(', ')}" Perplexity AI 수집 시작`);
+        console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" Perplexity AI 분석 시작`);
         
         // Perplexity AI로 뉴스 수집 및 분석
-        const aiNewsData = await collectNewsWithPerplexity(kw, 'partner');
+        const aiNewsData = await collectNewsWithPerplexity(conds, 'partner');
         
-        if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
-          console.log(`[AI 수집][partner] 조건 "${kw}" 결과 ${aiNewsData.news.length}건 수집 및 분석 완료`);
+                  if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
+            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 ${aiNewsData.news.length}건 수집 및 분석 완료`);
           
           // === DB 저장 ===
           let insertedPartner = 0;
@@ -223,17 +223,17 @@ async function collectPartnerNews() {
           
           console.log(`[AI 수집][partner] 조건 "${kw}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
         } else {
-          console.log(`[AI 수집][partner] 조건 "${kw}" 결과 없음`);
+          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 없음`);
         }
         
       } catch (e) {
-        console.error(`[AI 수집][partner] 조건 "${kw}" 뉴스 수집 실패:`, e.message);
+        console.error(`[AI 수집][partner] 조건 "${conds.join(', ')}" 뉴스 수집 실패:`, e.message);
         
         // AI 수집 실패 시 네이버 뉴스 API로 폴백
         try {
-          console.log(`[AI 수집][partner] 조건 "${kw}" 네이버 뉴스 API 폴백 시도`);
+          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 네이버 뉴스 API 폴백 시도`);
           const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-            params: { query: kw, display: 100, sort: 'date' },
+            params: { query: conds[0], display: 100, sort: 'date' },
             headers: {
               'X-Naver-Client-Id': NAVER_CLIENT_ID,
               'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
@@ -241,7 +241,7 @@ async function collectPartnerNews() {
           });
           
           if (res.data.items && res.data.items.length > 0) {
-            console.log(`[AI 수집][partner] 조건 "${kw}" 폴백 결과 ${res.data.items.length}건 수집`);
+            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 폴백 결과 ${res.data.items.length}건 수집`);
             
             let insertedPartner = 0;
             let duplicatePartner = 0;
@@ -250,7 +250,7 @@ async function collectPartnerNews() {
               try {
                 const result = await PartnerNews.updateOne(
                   { link: item.link },
-                  { $setOnInsert: { ...item, keyword: kw } },
+                  { $setOnInsert: { ...item, keyword: conds[0] } },
                   { upsert: true }
                 );
                 
@@ -264,10 +264,10 @@ async function collectPartnerNews() {
               }
             }
             
-            console.log(`[AI 수집][partner] 조건 "${kw}" 폴백 DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
+            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 폴백 DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
           }
         } catch (fallbackError) {
-          console.error(`[AI 수집][partner] 조건 "${kw}" 폴백 실패:`, fallbackError.message);
+          console.error(`[AI 수집][partner] 조건 "${conds.join(', ')}" 폴백 실패:`, fallbackError.message);
         }
       }
     }
@@ -292,16 +292,16 @@ async function collectTechNews() {
     
     console.log(`[AI 수집][신기술동향] ${today} 수집 시작 (주제 ${topics.length}개)`);
     
-    for (const kw of topics) {
+    if (topics.length > 0) {
       try {
-        console.log(`[AI 수집][신기술동향] 주제 "${kw}" Perplexity AI 수집 시작`);
-        console.log(`[AI 수집][tech] 주제 "${kw}" Perplexity AI 분석 시작`);
+        console.log(`[AI 수집][신기술동향] 주제 "${topics.join(', ')}" Perplexity AI 수집 시작`);
+        console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" Perplexity AI 분석 시작`);
         
         // Perplexity AI로 뉴스 수집 및 분석
-        const aiNewsData = await collectNewsWithPerplexity(kw, 'tech');
+        const aiNewsData = await collectNewsWithPerplexity(topics, 'tech');
         
-        if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
-          console.log(`[AI 수집][tech] 주제 "${kw}" 결과 ${aiNewsData.news.length}건 수집 및 분석 완료`);
+                  if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
+            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 ${aiNewsData.news.length}건 수집 및 분석 완료`);
           
           // === DB 저장 ===
           let insertedTech = 0;
@@ -325,19 +325,19 @@ async function collectTechNews() {
             }
           }
           
-          console.log(`[AI 수집][tech] 주제 "${kw}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
+          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
         } else {
-          console.log(`[AI 수집][tech] 주제 "${kw}" 결과 없음`);
+          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 없음`);
         }
         
       } catch (e) {
-        console.error(`[AI 수집][tech] 주제 "${kw}" 뉴스 수집 실패:`, e.message);
+        console.error(`[AI 수집][tech] 주제 "${topics.join(', ')}" 뉴스 수집 실패:`, e.message);
         
         // AI 수집 실패 시 네이버 뉴스 API로 폴백
         try {
-          console.log(`[AI 수집][tech] 주제 "${kw}" 네이버 뉴스 API 폴백 시도`);
+          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 네이버 뉴스 API 폴백 시도`);
           const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-            params: { query: kw, display: 100, sort: 'date' },
+            params: { query: topics[0], display: 100, sort: 'date' },
             headers: {
               'X-Naver-Client-Id': NAVER_CLIENT_ID,
               'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
@@ -345,7 +345,7 @@ async function collectTechNews() {
           });
           
           if (res.data.items && res.data.items.length > 0) {
-            console.log(`[AI 수집][tech] 주제 "${kw}" 폴백 결과 ${res.data.items.length}건 수집`);
+            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 폴백 결과 ${res.data.items.length}건 수집`);
             
             let insertedTech = 0;
             let duplicateTech = 0;
@@ -354,7 +354,7 @@ async function collectTechNews() {
               try {
                 const result = await TechNews.updateOne(
                   { link: item.link },
-                  { $setOnInsert: { ...item, keyword: kw } },
+                  { $setOnInsert: { ...item, keyword: topics[0] } },
                   { upsert: true }
                 );
                 
@@ -368,10 +368,10 @@ async function collectTechNews() {
               }
             }
             
-            console.log(`[AI 수집][tech] 주제 "${kw}" 폴백 DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
+            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 폴백 DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
           }
         } catch (fallbackError) {
-          console.error(`[AI 수집][tech] 주제 "${kw}" 폴백 실패:`, fallbackError.message);
+          console.error(`[AI 수집][tech] 주제 "${topics.join(', ')}" 폴백 실패:`, fallbackError.message);
         }
       }
     }
@@ -441,9 +441,9 @@ async function scheduleNewsJob(isInit = false) {
 // === AI 기반 뉴스 수집 함수들 ===
 
 // Perplexity AI를 활용한 뉴스 수집 및 분석
-async function collectNewsWithPerplexity(keyword, category = 'risk') {
+async function collectNewsWithPerplexity(keywords, category = 'risk') {
   try {
-    console.log(`[AI 수집][${category}] 키워드 "${keyword}" Perplexity AI 분석 시작`);
+    console.log(`[AI 수집][${category}] 키워드 "${keywords.join(', ')}" Perplexity AI 분석 시작`);
     
     // DB에서 카테고리별 프롬프트 불러오기
     let customPrompt = '';
@@ -475,55 +475,19 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
     
         // 커스텀 프롬프트가 있으면 사용, 없으면 기본 프롬프트 사용
     const prompt = customPrompt || `
-다음 키워드에 대한 최신 뉴스를 검색하고 종합 분석해주세요: "${keyword}"
-    
-분석 컨텍스트: ${categoryContext}
-    
+당신은 뉴스 분석 전문가입니다. 다음 키워드들에 대한 최신 뉴스를 검색하고 분석해주세요: ${keywords.join(', ')}
+
+카테고리: ${category}
+
 요구사항:
 1. 최근 24시간 내의 뉴스만 수집
-2. 반드시 JSON 형식으로만 응답해주세요
-3. 각 뉴스에 대해 다음 정보를 제공:
-   {
-     "title": "뉴스 제목",
-     "link": "뉴스 링크",
-     "source": "언론사명",
-     "pubDate": "발행일",
-     "aiSummary": "AI 생성 요약 (2-3문장)",
-     "relatedKeywords": ["관련 키워드1", "관련 키워드2"],
-     "trendAnalysis": "개별 뉴스 트렌드 분석",
-     "futureOutlook": "개별 뉴스 향후 전망"
-   }
-4. 최대 5개 뉴스만 제공
-5. 중요도 순으로 정렬
-6. 전체 뉴스에 대한 종합 분석 포함:
-   {
-     "trendAnalysis": "전체적인 트렌드 분석 (2-3문장)",
-     "mainIssues": "주요 이슈 요약",
-     "futureOutlook": "향후 전망 예측",
-     "keyKeywords": ["핵심 키워드1", "핵심 키워드2"]
-   }
+2. 각 뉴스에 대해 제목, 링크, 언론사, 발행일, 요약을 제공
+3. 마지막에 전체 뉴스에 대한 분석 보고서를 추가
 
-반드시 다음 JSON 형식으로만 응답해주세요:
-{
-  "news": [
-    {
-      "title": "뉴스 제목",
-      "link": "뉴스 링크",
-      "source": "언론사명",
-      "pubDate": "발행일",
-      "aiSummary": "AI 생성 요약",
-      "relatedKeywords": ["키워드1", "키워드2"],
-      "trendAnalysis": "트렌드 분석",
-      "futureOutlook": "향후 전망"
-    }
-  ],
-  "analysis": {
-    "trendAnalysis": "트렌드 분석",
-    "mainIssues": "주요 이슈",
-    "futureOutlook": "향후 전망",
-    "keyKeywords": ["키워드1", "키워드2"]
-  }
-}
+분석 보고서 작성 시 다음 내용을 참고하여 작성해주세요:
+${categoryContext}
+
+구조화된 형태로 정리해서 응답해주세요.
 `;
 
     // Rate Limit 방지를 위한 지연
@@ -562,23 +526,9 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
       let newsData = [];
       if (result.news && Array.isArray(result.news)) {
         newsData = result.news.map(item => {
-          // sentiment 객체 정규화 - 임시로 문자열로 저장
-          let normalizedSentiment = 'neutral:0.5';
-          if (item.sentiment) {
-            if (typeof item.sentiment === 'string') {
-              normalizedSentiment = item.sentiment;
-            } else if (typeof item.sentiment === 'object') {
-              const type = item.sentiment.type || 'neutral';
-              const score = item.sentiment.score || 0.5;
-              normalizedSentiment = `${type}:${score}`;
-            }
-          }
-          
           return {
             ...item,
-            sentiment: normalizedSentiment,
             aiSummary: item.aiSummary || item.summary || 'AI 요약이 없습니다.',
-            importanceScore: item.importanceScore || 5,
             relatedKeywords: item.relatedKeywords || [],
             aiGeneratedAt: new Date(),
             analysisModel: 'perplexity-ai'
@@ -598,33 +548,30 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
       console.error(`[AI 수집][${category}] JSON 파싱 실패:`, parseError);
       console.error(`[AI 수집][${category}] 원본 응답:`, aiResponse);
       
-              // JSON 파싱 실패 시 텍스트에서 뉴스 정보 추출 시도
-        console.log(`[AI 수집][${category}] 텍스트에서 뉴스 정보 추출 시도`);
-        
-        // 텍스트 응답에서 뉴스 정보 추출
-        const extractedNews = extractNewsFromText(aiResponse, keyword);
-        if (extractedNews && extractedNews.length > 0) {
-          console.log(`[AI 수집][${category}] 텍스트에서 ${extractedNews.length}건 추출 성공`);
-          return { news: extractedNews, analysis: null };
-        }
-        
-        // 추출 실패 시 기본 뉴스 객체 생성
-        console.log(`[AI 수집][${category}] 기본 뉴스 객체 생성`);
-        const fallbackNews = [{
-          title: `AI 분석 결과: ${keyword}`,
-          link: '#',
-          source: 'AI 분석',
-          pubDate: new Date().toISOString(),
-          aiSummary: aiResponse.substring(0, 200) + '...',
-          relatedKeywords: [keyword],
-          trendAnalysis: 'AI 분석을 통해 수집된 정보입니다.',
-          futureOutlook: '추가 분석이 필요합니다.',
-          keyword: keyword,
-          aiGeneratedAt: new Date(),
-          analysisModel: 'perplexity-ai'
-        }];
-        
-        return { news: fallbackNews, analysis: null };
+      // JSON 파싱 실패 시 텍스트에서 뉴스 정보 추출 시도
+      console.log(`[AI 수집][${category}] 텍스트에서 뉴스 정보 추출 시도`);
+      
+      // 텍스트 응답에서 뉴스 정보 추출
+      const extractedResult = extractNewsFromText(aiResponse, keyword);
+      if (extractedResult && extractedResult.news && extractedResult.news.length > 0) {
+        console.log(`[AI 수집][${category}] 텍스트에서 ${extractedResult.news.length}건 추출 성공`);
+        return extractedResult;
+      }
+      
+      // 추출 실패 시 기본 뉴스 객체 생성
+      console.log(`[AI 수집][${category}] 기본 뉴스 객체 생성`);
+      const fallbackNews = [{
+        title: `AI 분석 결과: ${keyword}`,
+        link: '#',
+        source: 'AI 분석',
+        pubDate: new Date().toISOString(),
+        aiSummary: aiResponse.substring(0, 200) + '...',
+        relatedKeywords: [keyword],
+        aiGeneratedAt: new Date(),
+        analysisModel: 'perplexity-ai'
+      }];
+      
+      return { news: fallbackNews, analysis: null };
     }
     
   } catch (error) {
@@ -644,50 +591,83 @@ async function collectNewsWithPerplexity(keyword, category = 'risk') {
 // 텍스트에서 뉴스 정보 추출 (JSON 파싱 실패 시 대안)
 function extractNewsFromText(text, keyword) {
   const newsItems = [];
+  let newsAnalysis = '';
   
-  // 텍스트에서 뉴스 정보를 추출하는 로직
-  // Perplexity AI의 텍스트 응답에서 뉴스 제목이나 주요 내용을 찾아서 뉴스 객체로 변환
+  // 텍스트를 섹션으로 분할
+  const sections = text.split('---');
   
-  // 텍스트를 문단으로 분할
-  const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
-  
-  // 각 문단에서 뉴스 정보 추출
-  paragraphs.forEach((paragraph, index) => {
-    const lines = paragraph.split('\n');
-    let title = '';
-    let summary = '';
-    
-    // 첫 번째 줄을 제목으로 사용
-    if (lines[0] && lines[0].trim()) {
-      title = lines[0].trim().replace(/^[-*•]\s*/, '').replace(/^[0-9]+\.\s*/, '');
+  // 뉴스 섹션 찾기 (표 형태)
+  for (const section of sections) {
+    if (section.includes('| 제목 |') || section.includes('| 제목|')) {
+      // 표 형태의 뉴스 데이터 파싱
+      const lines = section.split('\n');
+      let inTable = false;
       
-      // 나머지 내용을 요약으로 사용
-      summary = lines.slice(1).join(' ').trim();
-      
-      // 제목이 너무 길면 요약으로 이동
-      if (title.length > 100) {
-        summary = title + ' ' + summary;
-        title = title.substring(0, 100) + '...';
-      }
-      
-      // 최소 길이 체크
-      if (title.length > 10 && summary.length > 20) {
-        newsItems.push({
-          title: title,
-          link: '#',
-          keyword: keyword,
-          pubDate: new Date().toISOString(),
-          source: 'AI 분석',
-          aiSummary: summary.substring(0, 300) + (summary.length > 300 ? '...' : ''),
-          relatedKeywords: [keyword],
-          trendAnalysis: 'AI 분석을 통해 수집된 정보입니다.',
-          futureOutlook: '추가 분석이 필요합니다.',
-          aiGeneratedAt: new Date(),
-          analysisModel: 'perplexity-ai'
-        });
+      for (const line of lines) {
+        if (line.includes('| 제목 |') || line.includes('| 제목|')) {
+          inTable = true;
+          continue;
+        }
+        
+        if (inTable && line.trim() && line.includes('|')) {
+          const columns = line.split('|').map(col => col.trim()).filter(col => col);
+          
+          if (columns.length >= 5) {
+            const [title, link, source, pubDate, summary] = columns;
+            
+            // 링크에서 실제 URL 추출
+            let actualLink = '#';
+            if (link.includes('[') && link.includes(']')) {
+              const linkMatch = link.match(/\[([^\]]+)\]\(([^)]+)\)/);
+              if (linkMatch) {
+                actualLink = linkMatch[2];
+              }
+            } else if (link.startsWith('http')) {
+              actualLink = link;
+            }
+            
+            // 제목 정리
+            let cleanTitle = title.replace(/^[-*•]\s*/, '').replace(/^[0-9]+\.\s*/, '');
+            if (cleanTitle.length > 100) {
+              cleanTitle = cleanTitle.substring(0, 100) + '...';
+            }
+            
+            // 요약 정리
+            let cleanSummary = summary;
+            if (cleanSummary.length > 300) {
+              cleanSummary = cleanSummary.substring(0, 300) + '...';
+            }
+            
+            // 관련 키워드 추출
+            const relatedKeywords = [keyword];
+            if (cleanTitle.includes('백종원')) relatedKeywords.push('백종원');
+            if (cleanTitle.includes('더본코리아')) relatedKeywords.push('더본코리아');
+            
+            newsItems.push({
+              title: cleanTitle,
+              link: actualLink,
+              source: source || 'AI 분석',
+              pubDate: pubDate || new Date().toISOString(),
+              aiSummary: cleanSummary,
+              relatedKeywords: relatedKeywords,
+              aiGeneratedAt: new Date(),
+              analysisModel: 'perplexity-ai'
+            });
+          }
+        }
+        
+        // 표 끝 확인
+        if (inTable && line.trim() === '') {
+          inTable = false;
+        }
       }
     }
-  });
+    
+    // 분석 보고서 섹션 찾기
+    if (section.includes('리스크 분석') || section.includes('전체 뉴스 분석')) {
+      newsAnalysis = section.trim();
+    }
+  }
   
   // 뉴스 항목이 없으면 전체 텍스트를 하나의 뉴스로 생성
   if (newsItems.length === 0 && text.length > 50) {
@@ -698,19 +678,16 @@ function extractNewsFromText(text, keyword) {
     newsItems.push({
       title: firstLine.length > 10 ? firstLine.substring(0, 100) : `AI 분석: ${keyword}`,
       link: '#',
-      keyword: keyword,
-      pubDate: new Date().toISOString(),
       source: 'AI 분석',
+      pubDate: new Date().toISOString(),
       aiSummary: remainingText.length > 0 ? remainingText.substring(0, 300) : text.substring(0, 300),
       relatedKeywords: [keyword],
-      trendAnalysis: 'AI 분석을 통해 수집된 정보입니다.',
-      futureOutlook: '추가 분석이 필요합니다.',
       aiGeneratedAt: new Date(),
       analysisModel: 'perplexity-ai'
     });
   }
   
-  return newsItems;
+  return { news: newsItems, analysis: newsAnalysis };
 }
 
 // 최신 뉴스 파일 반환

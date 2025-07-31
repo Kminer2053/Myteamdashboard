@@ -11,8 +11,6 @@ const PartnerNewsSchema = new mongoose.Schema({
   aiSummary: String,           // AI 요약
   source: String,              // 출처 (언론사)
   relatedKeywords: [String],   // 관련 키워드
-  trendAnalysis: String,       // 트렌드 분석
-  futureOutlook: String,       // 향후 전망
   aiGeneratedAt: Date,        // AI 분석 시간
   analysisModel: String        // 사용된 AI 모델
 });
