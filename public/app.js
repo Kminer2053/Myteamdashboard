@@ -487,7 +487,8 @@ document.addEventListener('DOMContentLoaded', function() {
         newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 로딩 중...</div></div>';
         const keywords = selectedKeywords || await loadKeywords();
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
-        const allNews = await getRes.json();
+        const response = await getRes.json();
+        const allNews = response.data || response; // 새로운 구조와 기존 구조 모두 지원
         const today = await getKoreaToday();
         let filtered = [];
         if (keywords.length > 0) {
@@ -773,7 +774,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // 최초 로딩/정보갱신 시 로딩 스피너 표시
         resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 로딩 중...</div></div>';
         const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
-        const allData = await getRes.json();
+        const response = await getRes.json();
+        const allData = response.data || response; // 새로운 구조와 기존 구조 모두 지원
         const today = await getKoreaToday();
         let filtered = [];
         if (selected && selected.length > 0) {
@@ -992,7 +994,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // 최초 로딩/정보갱신 시 로딩 스피너 표시
         resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 로딩 중...</div></div>';
         const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
-        const allData = await getRes.json();
+        const response = await getRes.json();
+        const allData = response.data || response; // 새로운 구조와 기존 구조 모두 지원
         const today = await getKoreaToday();
         let filtered = [];
         if (selected && selected.length > 0) {
