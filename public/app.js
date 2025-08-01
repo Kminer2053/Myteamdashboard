@@ -504,7 +504,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const todayCount = filtered.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
-            return itemDate.toDateString() === todayDate.toDateString();
+            // 날짜만 비교 (시간 제외)
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr === todayDateStr;
         }).length;
         newsFeed.innerHTML = '';
         
@@ -567,7 +570,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const todayNews = filtered.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
-            return itemDate.toDateString() === todayDate.toDateString();
+            // 날짜만 비교 (시간 제외)
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr === todayDateStr;
         });
         if (todayNews.length === 0 && filtered.length > 0) {
             // 오늘 데이터가 없고 누적 데이터가 있는 경우
