@@ -1897,6 +1897,26 @@ app.get('/api/risk-analysis/:date?', async (req, res) => {
   }
 });
 
+// === 리스크이슈 분석 보고서 삭제 API ===
+app.delete('/api/risk-analysis/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await RiskAnalysisReport.findByIdAndDelete(id);
+    
+    if (!result) {
+      return res.status(404).json({ error: '분석 보고서를 찾을 수 없습니다.' });
+    }
+    
+    res.json({
+      success: true,
+      message: '분석 보고서가 삭제되었습니다.'
+    });
+  } catch (error) {
+    console.error('리스크이슈 분석 보고서 삭제 실패:', error);
+    res.status(500).json({ error: '리스크이슈 분석 보고서 삭제 중 오류가 발생했습니다.' });
+  }
+});
+
 // === 제휴처탐색 분석 보고서 API ===
 app.get('/api/partner-analysis/:date?', async (req, res) => {
   try {
@@ -1925,6 +1945,26 @@ app.get('/api/partner-analysis/:date?', async (req, res) => {
   }
 });
 
+// === 제휴처탐색 분석 보고서 삭제 API ===
+app.delete('/api/partner-analysis/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await PartnerAnalysisReport.findByIdAndDelete(id);
+    
+    if (!result) {
+      return res.status(404).json({ error: '분석 보고서를 찾을 수 없습니다.' });
+    }
+    
+    res.json({
+      success: true,
+      message: '분석 보고서가 삭제되었습니다.'
+    });
+  } catch (error) {
+    console.error('제휴처탐색 분석 보고서 삭제 실패:', error);
+    res.status(500).json({ error: '제휴처탐색 분석 보고서 삭제 중 오류가 발생했습니다.' });
+  }
+});
+
 // === 신기술동향 분석 보고서 API ===
 app.get('/api/tech-analysis/:date?', async (req, res) => {
   try {
@@ -1950,6 +1990,26 @@ app.get('/api/tech-analysis/:date?', async (req, res) => {
   } catch (error) {
     console.error('신기술동향 분석 보고서 조회 실패:', error);
     res.status(500).json({ error: '신기술동향 분석 보고서 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// === 신기술동향 분석 보고서 삭제 API ===
+app.delete('/api/tech-analysis/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await TechAnalysisReport.findByIdAndDelete(id);
+    
+    if (!result) {
+      return res.status(404).json({ error: '분석 보고서를 찾을 수 없습니다.' });
+    }
+    
+    res.json({
+      success: true,
+      message: '분석 보고서가 삭제되었습니다.'
+    });
+  } catch (error) {
+    console.error('신기술동향 분석 보고서 삭제 실패:', error);
+    res.status(500).json({ error: '신기술동향 분석 보고서 삭제 중 오류가 발생했습니다.' });
   }
 });
 
