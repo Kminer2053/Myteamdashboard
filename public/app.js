@@ -834,7 +834,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const today = await getKoreaToday();
         // 키워드 필터링 제거 - 모든 뉴스 표시
         let filtered = allData;
-        const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
+        const todayCount = filtered.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            // 날짜만 비교 (시간 제외)
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr === todayDateStr;
+        }).length;
         resultsDiv.innerHTML = '';
         // 제휴처탐색 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
@@ -871,7 +878,14 @@ document.addEventListener('DOMContentLoaded', function() {
             await renderPartnerResults(conds);
         };
         // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
-        const todayNews = filtered.filter(item => extractDate(item.pubDate) === today);
+        const todayNews = filtered.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            // 날짜만 비교 (시간 제외)
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr === todayDateStr;
+        });
         if (todayNews.length === 0 && filtered.length > 0) {
             // 오늘 데이터가 없고 누적 데이터가 있는 경우
             const emptyDiv = document.createElement('div');
@@ -938,7 +952,14 @@ document.addEventListener('DOMContentLoaded', function() {
             resultsDiv.appendChild(recentDiv);
             
             // 오늘 데이터를 제외한 나머지 데이터
-            const otherNews = filtered.filter(item => extractDate(item.pubDate) !== today);
+            const otherNews = filtered.filter(item => {
+                const itemDate = new Date(item.pubDate);
+                const todayDate = new Date(today);
+                // 날짜만 비교 (시간 제외)
+                const itemDateStr = itemDate.toISOString().split('T')[0];
+                const todayDateStr = todayDate.toISOString().split('T')[0];
+                return itemDateStr !== todayDateStr;
+            });
             otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
             otherNews.forEach(item => {
                 const card = document.createElement('div');
@@ -1071,7 +1092,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const today = await getKoreaToday();
         // 키워드 필터링 제거 - 모든 뉴스 표시
         let filtered = allData;
-        const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
+        const todayCount = filtered.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            // 날짜만 비교 (시간 제외)
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr === todayDateStr;
+        }).length;
         resultsDiv.innerHTML = '';
         // 신기술동향 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
         const topBar = document.createElement('div');
@@ -1108,7 +1136,14 @@ document.addEventListener('DOMContentLoaded', function() {
             await renderTechTrendResults(topics);
         };
         // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
-        const todayNews = filtered.filter(item => extractDate(item.pubDate) === today);
+        const todayNews = filtered.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            // 날짜만 비교 (시간 제외)
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr === todayDateStr;
+        });
         if (todayNews.length === 0 && filtered.length > 0) {
             // 오늘 데이터가 없고 누적 데이터가 있는 경우
             const emptyDiv = document.createElement('div');

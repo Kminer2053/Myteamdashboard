@@ -424,7 +424,7 @@ async function collectNewsWithPerplexity(keywords, category = 'risk') {
    - 링크: 실제 뉴스 URL
    - 언론사: 출처 언론사명
    - 발행일: 뉴스 발행일
-   - 요약: 뉴스 내용 요약
+   - aiSummary: 뉴스 내용 요약
 3. 뉴스가 없을 경우 "금일은 뉴스가 없습니다" 표시
 4. 마지막에 전체 뉴스에 대한 종합 분석 보고서를 추가
 
@@ -444,7 +444,7 @@ ${categoryContext}
       "link": "https://example.com/news/123",
       "source": "언론사명",
       "pubDate": "2025-07-31",
-      "summary": "뉴스 요약"
+      "aiSummary": "뉴스 요약"
     }
   ],
   "analysis": "전체 분석 보고서"
