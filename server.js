@@ -97,6 +97,15 @@ async function saveNewsToDB(newsItems, model, category, keywords) {
   
   for (const item of newsItems) {
     try {
+      // 디버깅: 각 뉴스 아이템 정보 로그
+      console.log(`[DEBUG][${category}] ===== 뉴스 아이템 정보 =====`);
+      console.log(`제목: ${item.title}`);
+      console.log(`링크: ${item.link}`);
+      console.log(`언론사: ${item.source}`);
+      console.log(`발행일: ${item.pubDate}`);
+      console.log(`AI요약: ${item.aiSummary}`);
+      console.log(`[DEBUG][${category}] ===== 아이템 끝 =====`);
+      
       // AI 요약이 있는 뉴스만 DB에 저장
       if (!item.aiSummary) {
         console.log(`[AI 수집][${category}] AI 요약이 없는 뉴스 건너뜀: ${item.title}`);
@@ -471,6 +480,11 @@ ${categoryContext}
 }
 `;
 
+    // 디버깅: 실제 전송되는 프롬프트 로그
+    console.log(`[DEBUG][${category}] ===== 실제 전송되는 프롬프트 =====`);
+    console.log(prompt);
+    console.log(`[DEBUG][${category}] ===== 프롬프트 끝 =====`);
+
     // Rate Limit 방지를 위한 지연
     await new Promise(resolve => setTimeout(resolve, 2000));
 
@@ -511,6 +525,11 @@ ${categoryContext}
     console.log(`[AI 수집][${category}] Perplexity AI 응답 수신`);
     console.log(`[AI 수집][${category}] Finish reason: ${finishReason}`);
     console.log(`[AI 수집][${category}] Token usage: ${usage?.total_tokens || 'N/A'}/${usage?.completion_tokens || 'N/A'}`);
+    
+    // 디버깅: Perplexity AI 응답 로그
+    console.log(`[DEBUG][${category}] ===== Perplexity AI 응답 =====`);
+    console.log(aiResponse);
+    console.log(`[DEBUG][${category}] ===== 응답 끝 =====`);
     
     // 토큰 잘림 감지 및 재시도 로직
     if (finishReason === 'length') {
