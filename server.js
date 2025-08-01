@@ -1627,10 +1627,24 @@ app.post('/api/force-reset-schemas', async (req, res) => {
       }
     }
     
+    // 분석 보고서 컬렉션도 삭제
+    const reportCollections = ['riskanalysisreports', 'partneranalysisreports', 'techanalysisreports'];
+    for (const collectionName of reportCollections) {
+      try {
+        await mongoose.connection.collection(collectionName).drop();
+        console.log(`[강제 스키마 재설정] ${collectionName} 컬렉션 삭제 완료`);
+      } catch (error) {
+        console.log(`[강제 스키마 재설정] ${collectionName} 컬렉션이 없거나 이미 삭제됨`);
+      }
+    }
+    
     // 스키마 모델 캐시 삭제
     delete mongoose.models.RiskNews;
     delete mongoose.models.PartnerNews;
     delete mongoose.models.TechNews;
+    delete mongoose.models.RiskAnalysisReport;
+    delete mongoose.models.PartnerAnalysisReport;
+    delete mongoose.models.TechAnalysisReport;
     
     console.log('[강제 스키마 재설정] 스키마 모델 캐시 삭제 완료');
     console.log('[강제 스키마 재설정] 완료 - 모든 컬렉션이 새로운 스키마로 재생성됨');
