@@ -90,6 +90,60 @@ const NEWS_FILE = 'news-data.json';
 
 let newsCronJob = null;
 
+// === 공통 DB 저장 함수 ===
+async function saveNewsToDB(newsItems, model, category, keywords) {
+  let inserted = 0;
+  let duplicate = 0;
+  
+  for (const item of newsItems) {
+    try {
+      const newsData = {
+        ...item,
+        keyword: keywords.join(', '),
+        source: item.source || 'AI 분석',
+        relatedKeywords: item.relatedKeywords || keywords,
+        analysisModel: 'perplexity-ai'
+      };
+      
+      const result = await model.updateOne(
+        { link: item.link },
+        { $setOnInsert: newsData },
+        { upsert: true }
+      );
+      
+      if (result.upsertedCount > 0) {
+        inserted++;
+      } else {
+        duplicate++;
+      }
+    } catch (dbError) {
+      console.error(`[AI 수집][${category}] DB 저장 실패 (${item.title}):`, dbError.message);
+    }
+  }
+  
+  return { inserted, duplicate };
+}
+
+// === 공통 분석보고서 생성 함수 ===
+async function createAnalysisReport(today, category, newsCount, reportModel) {
+  try {
+    const reportData = {
+      date: new Date(today),
+      analysis: `${category} ${newsCount}건 수집 완료`,
+      totalNewsCount: newsCount
+    };
+    
+    await reportModel.findOneAndUpdate(
+      { date: new Date(today) },
+      reportData,
+      { upsert: true, new: true }
+    );
+    console.log(`[AI 수집][${category}] ${today} AI 분석 보고서 생성 완료`);
+  } catch (reportError) {
+    console.error(`[AI 수집][${category}] AI 분석 보고서 생성 실패:`, reportError.message);
+  }
+}
+
 // === AI 기반 자동 뉴스 수집: 리스크이슈 ===
 async function collectRiskNews() {
   const today = await getKoreaToday();
@@ -122,16 +176,7 @@ async function collectRiskNews() {
         }
       } catch (e) {
         console.error(`[AI 수집][리스크이슈] Perplexity AI 실패:`, e.message);
-        // 네이버 뉴스 API로 폴백
-        try {
-          console.log(`[AI 수집][리스크이슈] 네이버 뉴스 API로 폴백`);
-          const fallbackNews = await collectNewsWithNaver(keywords[0]);
-          if (fallbackNews && fallbackNews.length > 0) {
-            allNews.push(...fallbackNews);
-          }
-        } catch (fallbackError) {
-          console.error(`[AI 수집][리스크이슈] 네이버 뉴스 API 폴백 실패:`, fallbackError.message);
-        }
+        console.log(`[AI 수집][리스크이슈] 수집된 뉴스가 없습니다.`);
       }
     }
     
@@ -148,58 +193,12 @@ async function collectRiskNews() {
       }
       
       // === DB 저장 (AI 분석 결과 포함) ===
-      let insertedRisk = 0;
-      let duplicateRisk = 0;
-      for (const item of allNews) {
-        try {
-          const newsData = {
-            ...item,
-            keyword: keywords.join(', '), // 키워드 필드 추가
-            source: item.source || 'AI 분석', // 언론사/출처
-            relatedKeywords: item.relatedKeywords || keywords, // 관련 키워드
-            analysisModel: 'perplexity-ai' // AI 모델명
-          };
-          
-          const result = await RiskNews.updateOne(
-            { link: item.link },
-            { $setOnInsert: newsData },
-            { upsert: true }
-          );
-          
-          if (result.upsertedCount > 0) {
-            insertedRisk++;
-          } else {
-            duplicateRisk++;
-          }
-        } catch (dbError) {
-          console.error(`[AI 수집][리스크이슈] DB 저장 실패 (${item.title}):`, dbError.message);
-        }
-      }
+      const { inserted: insertedRisk, duplicate: duplicateRisk } = await saveNewsToDB(allNews, RiskNews, '리스크이슈', keywords);
       console.log(`[AI 수집][리스크이슈] ${today} DB 저장 완료 (신규: ${insertedRisk}건, 중복: ${duplicateRisk}건)`);
       
               // AI 분석 보고서 생성
-        if (allNews.length > 0 && analysisResults.length > 0) {
-          try {
-            // Object를 String으로 변환하여 저장
-            const analysisText = typeof analysisResults[0] === 'object' 
-              ? JSON.stringify(analysisResults[0], null, 2)
-              : (analysisResults[0] || 'AI 분석 보고서');
-            
-            const reportData = {
-              date: new Date(today),
-              analysis: analysisText,
-              totalNewsCount: allNews.length
-            };
-            
-            await RiskAnalysisReport.findOneAndUpdate(
-              { date: new Date(today) },
-              reportData,
-              { upsert: true, new: true }
-            );
-            console.log(`[AI 수집][리스크이슈] ${today} AI 분석 보고서 생성 완료`);
-          } catch (reportError) {
-            console.error(`[AI 수집][리스크이슈] AI 분석 보고서 생성 실패:`, reportError.message);
-          }
+        if (allNews.length > 0) {
+          await createAnalysisReport(today, '리스크이슈', allNews.length, RiskAnalysisReport);
         }
     }
   } catch (error) {
@@ -231,33 +230,7 @@ async function collectPartnerNews() {
             console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 ${aiNewsData.news.length}건 수집 및 분석 완료`);
           
           // === DB 저장 ===
-          let insertedPartner = 0;
-          let duplicatePartner = 0;
-          
-          for (const item of aiNewsData.news) {
-            try {
-              const result = await PartnerNews.updateOne(
-                { link: item.link },
-                { $set: { 
-                  ...item, 
-                  keyword: conds.join(', '),
-                  source: item.source || 'AI 분석',
-                  relatedKeywords: item.relatedKeywords || conds,
-                  analysisModel: 'perplexity-ai'
-                } },
-                { upsert: true }
-              );
-              
-              if (result.upsertedCount > 0) {
-                insertedPartner++;
-              } else {
-                duplicatePartner++;
-              }
-            } catch (dbError) {
-              console.error(`[AI 수집][partner] DB 저장 실패 (${item.title}):`, dbError.message);
-            }
-          }
-          
+          const { inserted: insertedPartner, duplicate: duplicatePartner } = await saveNewsToDB(aiNewsData.news, PartnerNews, '제휴처탐색', conds);
           console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
         } else {
           console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 없음`);
@@ -265,47 +238,7 @@ async function collectPartnerNews() {
         
               } catch (e) {
           console.error(`[AI 수집][partner] 조건 "${conds.join(', ')}" 뉴스 수집 실패:`, e.message);
-          
-          // AI 수집 실패 시 네이버 뉴스 API로 폴백
-          try {
-            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 네이버 뉴스 API 폴백 시도`);
-            const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-              params: { query: conds[0], display: 10, sort: 'date' },
-              headers: {
-                'X-Naver-Client-Id': NAVER_CLIENT_ID,
-                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-              }
-            });
-          
-          if (res.data.items && res.data.items.length > 0) {
-            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 폴백 결과 ${res.data.items.length}건 수집`);
-            
-            let insertedPartner = 0;
-            let duplicatePartner = 0;
-            
-            for (const item of res.data.items) {
-              try {
-                const result = await PartnerNews.updateOne(
-                  { link: item.link },
-                  { $setOnInsert: { ...item, keyword: conds[0] } },
-                  { upsert: true }
-                );
-                
-                if (result.upsertedCount > 0) {
-                  insertedPartner++;
-                } else {
-                  duplicatePartner++;
-                }
-              } catch (dbError) {
-                console.error(`[AI 수집][partner] 폴백 DB 저장 실패 (${item.title}):`, dbError.message);
-              }
-            }
-            
-            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 폴백 DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
-          }
-        } catch (fallbackError) {
-          console.error(`[AI 수집][partner] 조건 "${conds.join(', ')}" 폴백 실패:`, fallbackError.message);
-        }
+          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 수집된 뉴스가 없습니다.`);
       }
     }
     
@@ -319,18 +252,7 @@ async function collectPartnerNews() {
       }).sort({ createdAt: -1 });
       
       if (partnerNews.length > 0) {
-        const reportData = {
-          date: new Date(today),
-          analysis: `제휴처탐색 ${partnerNews.length}건 수집 완료`,
-          totalNewsCount: partnerNews.length
-        };
-        
-        await PartnerAnalysisReport.findOneAndUpdate(
-          { date: new Date(today) },
-          reportData,
-          { upsert: true, new: true }
-        );
-        console.log(`[AI 수집][제휴처탐색] ${today} AI 분석 보고서 생성 완료`);
+        await createAnalysisReport(today, '제휴처탐색', partnerNews.length, PartnerAnalysisReport);
       }
     } catch (reportError) {
       console.error(`[AI 수집][제휴처탐색] AI 분석 보고서 생성 실패:`, reportError.message);
@@ -368,33 +290,7 @@ async function collectTechNews() {
             console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 ${aiNewsData.news.length}건 수집 및 분석 완료`);
           
           // === DB 저장 ===
-          let insertedTech = 0;
-          let duplicateTech = 0;
-          
-          for (const item of aiNewsData.news) {
-            try {
-              const result = await TechNews.updateOne(
-                { link: item.link },
-                { $set: { 
-                  ...item, 
-                  keyword: topics.join(', '),
-                  source: item.source || 'AI 분석',
-                  relatedKeywords: item.relatedKeywords || topics,
-                  analysisModel: 'perplexity-ai'
-                } },
-                { upsert: true }
-              );
-              
-              if (result.upsertedCount > 0) {
-                insertedTech++;
-              } else {
-                duplicateTech++;
-              }
-            } catch (dbError) {
-              console.error(`[AI 수집][tech] DB 저장 실패 (${item.title}):`, dbError.message);
-            }
-          }
-          
+          const { inserted: insertedTech, duplicate: duplicateTech } = await saveNewsToDB(aiNewsData.news, TechNews, '신기술동향', topics);
           console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
         } else {
           console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 없음`);
@@ -402,47 +298,7 @@ async function collectTechNews() {
         
               } catch (e) {
           console.error(`[AI 수집][tech] 주제 "${topics.join(', ')}" 뉴스 수집 실패:`, e.message);
-          
-          // AI 수집 실패 시 네이버 뉴스 API로 폴백
-          try {
-            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 네이버 뉴스 API 폴백 시도`);
-            const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-              params: { query: topics[0], display: 10, sort: 'date' },
-              headers: {
-                'X-Naver-Client-Id': NAVER_CLIENT_ID,
-                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-              }
-            });
-          
-          if (res.data.items && res.data.items.length > 0) {
-            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 폴백 결과 ${res.data.items.length}건 수집`);
-            
-            let insertedTech = 0;
-            let duplicateTech = 0;
-            
-            for (const item of res.data.items) {
-              try {
-                const result = await TechNews.updateOne(
-                  { link: item.link },
-                  { $setOnInsert: { ...item, keyword: topics[0] } },
-                  { upsert: true }
-                );
-                
-                if (result.upsertedCount > 0) {
-                  insertedTech++;
-                } else {
-                  duplicateTech++;
-                }
-              } catch (dbError) {
-                console.error(`[AI 수집][tech] 폴백 DB 저장 실패 (${item.title}):`, dbError.message);
-              }
-            }
-            
-            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 폴백 DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
-          }
-        } catch (fallbackError) {
-          console.error(`[AI 수집][tech] 주제 "${topics.join(', ')}" 폴백 실패:`, fallbackError.message);
-        }
+          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 수집된 뉴스가 없습니다.`);
       }
     }
     
@@ -456,18 +312,7 @@ async function collectTechNews() {
       }).sort({ createdAt: -1 });
       
       if (techNews.length > 0) {
-        const reportData = {
-          date: new Date(today),
-          analysis: `신기술동향 ${techNews.length}건 수집 완료`,
-          totalNewsCount: techNews.length
-        };
-        
-        await TechAnalysisReport.findOneAndUpdate(
-          { date: new Date(today) },
-          reportData,
-          { upsert: true, new: true }
-        );
-        console.log(`[AI 수집][신기술동향] ${today} AI 분석 보고서 생성 완료`);
+        await createAnalysisReport(today, '신기술동향', techNews.length, TechAnalysisReport);
       }
     } catch (reportError) {
       console.error(`[AI 수집][신기술동향] AI 분석 보고서 생성 실패:`, reportError.message);
@@ -724,7 +569,7 @@ ${categoryContext}
     if (error.response && error.response.status === 429) {
       console.log(`[AI 수집][${category}] Rate Limit 도달, 30초 후 재시도...`);
       await new Promise(resolve => setTimeout(resolve, 30000));
-      return await collectNewsWithPerplexity(keyword, category);
+      return await collectNewsWithPerplexity(keywords, category);
     }
     console.error(`[AI 수집][${category}] Perplexity AI API 호출 실패:`, error.message);
     if (error.response) {
