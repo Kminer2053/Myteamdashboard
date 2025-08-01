@@ -466,38 +466,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const keywordText = keywords.join(', ');
         container.innerHTML = `<strong>설정된 키워드:</strong> ${keywordText}`;
         
-        // 분석 보고서 데이터 가져오기
-        let analysisReport = null;
-        try {
-            const reportRes = await fetch(`${API_BASE_URL}/api/risk-analysis`);
-            const reportResponse = await reportRes.json();
-            if (reportResponse.success && reportResponse.data && reportResponse.data.length > 0) {
-                analysisReport = reportResponse.data[0]; // 최신 분석 보고서
-            }
-        } catch (error) {
-            console.error('분석 보고서 조회 실패:', error);
-        }
-        
-        // 분석 보고서 표출
-        if (analysisReport) {
-            const analysisDiv = document.createElement('div');
-            analysisDiv.className = 'mt-3 p-3 bg-light border rounded';
-            analysisDiv.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h6 class="mb-0"><i class="fas fa-chart-line text-primary"></i> AI 분석 보고서</h6>
-                    <small class="text-muted">${analysisReport.analysisModel || 'perplexity-ai'}</small>
-                </div>
-                <div style="color: #666; line-height: 1.6; font-size: 0.9em;">
-                    ${analysisReport.analysis || '분석 데이터가 없습니다.'}
-                </div>
-                <div class="mt-2 text-muted small">
-                    <span class="me-3">총 뉴스: ${analysisReport.totalNewsCount || 0}건</span>
-                    <span>분석일: ${new Date(analysisReport.date).toLocaleDateString()}</span>
-                </div>
-            `;
-            container.appendChild(analysisDiv);
-        }
-        
         renderNews(keywords);
     }
 
@@ -535,6 +503,27 @@ document.addEventListener('DOMContentLoaded', function() {
         let filtered = allNews;
         const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
         newsFeed.innerHTML = '';
+        
+        // === 분석 보고서 표출 ===
+        if (analysisReport) {
+            const analysisDiv = document.createElement('div');
+            analysisDiv.className = 'mb-3 p-3 bg-light border rounded';
+            analysisDiv.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="mb-0"><i class="fas fa-chart-line text-primary"></i> AI 분석 보고서</h6>
+                    <small class="text-muted">${analysisReport.analysisModel || 'perplexity-ai'}</small>
+                </div>
+                <div style="color: #666; line-height: 1.6; font-size: 0.9em;">
+                    ${analysisReport.analysis || '분석 데이터가 없습니다.'}
+                </div>
+                <div class="mt-2 text-muted small">
+                    <span class="me-3">총 뉴스: ${analysisReport.totalNewsCount || 0}건</span>
+                    <span>분석일: ${new Date(analysisReport.date).toLocaleDateString()}</span>
+                </div>
+            `;
+            newsFeed.appendChild(analysisDiv);
+        }
+        
         // === 상단 건수/갱신 버튼 추가 ===
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
