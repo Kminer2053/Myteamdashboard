@@ -1659,6 +1659,35 @@ app.post('/api/force-reset-schemas', async (req, res) => {
   }
 });
 
+// === 뉴스 및 AI 분석 데이터만 삭제 API ===
+app.post('/api/clear-news-analysis-data', async (req, res) => {
+  try {
+    console.log('[뉴스 및 AI 분석 데이터 삭제] 시작...');
+    
+    // 뉴스 데이터 삭제
+    await RiskNews.deleteMany({});
+    await PartnerNews.deleteMany({});
+    await TechNews.deleteMany({});
+    console.log('[뉴스 및 AI 분석 데이터 삭제] 뉴스 데이터 삭제 완료');
+    
+    // 분석 보고서 데이터 삭제
+    await RiskAnalysisReport.deleteMany({});
+    await PartnerAnalysisReport.deleteMany({});
+    await TechAnalysisReport.deleteMany({});
+    console.log('[뉴스 및 AI 분석 데이터 삭제] 분석 보고서 데이터 삭제 완료');
+    
+    console.log('[뉴스 및 AI 분석 데이터 삭제] 완료');
+    
+    res.json({ 
+      success: true, 
+      message: '뉴스 및 AI 분석 데이터가 완전히 삭제되었습니다. 키워드/조건/주제 데이터는 유지됩니다.'
+    });
+  } catch (error) {
+    console.error('[뉴스 및 AI 분석 데이터 삭제] 오류:', error);
+    res.status(500).json({ error: '데이터 삭제 실패' });
+  }
+});
+
 // === 스키마 업데이트 API (안전한 방법) ===
 app.post('/api/update-schemas', async (req, res) => {
   try {
