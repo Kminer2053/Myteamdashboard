@@ -501,7 +501,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const today = await getKoreaToday();
         // 키워드 필터링 제거 - 모든 뉴스 표시
         let filtered = allNews;
-        const todayCount = filtered.filter(item => extractDate(item.pubDate) === today).length;
+        const todayCount = filtered.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            return itemDate.toDateString() === todayDate.toDateString();
+        }).length;
         newsFeed.innerHTML = '';
         
         // === 분석 보고서 표출 ===
@@ -560,7 +564,11 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
-        const todayNews = filtered.filter(item => extractDate(item.pubDate) === today);
+        const todayNews = filtered.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            return itemDate.toDateString() === todayDate.toDateString();
+        });
         if (todayNews.length === 0 && filtered.length > 0) {
             // 오늘 데이터가 없고 누적 데이터가 있는 경우
             const emptyDiv = document.createElement('div');

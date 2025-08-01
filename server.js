@@ -163,11 +163,12 @@ async function collectRiskNews() {
     let allNews = [];
     console.log(`[AI 수집][리스크이슈] ${today} 수집 시작 (키워드 ${keywords.length}개)`);
     
+    let aiResult = null;
     // Perplexity AI를 사용한 뉴스 수집 및 분석
     if (keywords.length > 0) {
       try {
         console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" Perplexity AI 수집 및 분석 시작`);
-        const aiResult = await collectNewsWithPerplexity(keywords, 'risk');
+        aiResult = await collectNewsWithPerplexity(keywords, 'risk');
         
         if (aiResult && aiResult.news && aiResult.news.length > 0) {
           console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" 결과 ${aiResult.news.length}건 수집`);
@@ -185,7 +186,7 @@ async function collectRiskNews() {
       try {
         fs.writeFileSync(`riskNews_${today}.json`, JSON.stringify({
           news: allNews,
-          analysis: analysisResults,
+          analysis: aiResult ? aiResult.analysis : null,
           collectedAt: new Date().toISOString()
         }, null, 2));
         console.log(`[AI 수집][리스크이슈] ${today} 수집 완료 (총 ${allNews.length}건)`);
