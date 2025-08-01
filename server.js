@@ -200,8 +200,17 @@ async function collectRiskNews() {
         aiResult = await collectNewsWithPerplexity(keywords, 'risk');
         
         if (aiResult && aiResult.news && aiResult.news.length > 0) {
-          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" 결과 ${aiResult.news.length}건 수집`);
-          allNews.push(...aiResult.news);
+          // 실제 뉴스가 있는지 확인 (undefined 필드가 아닌 유효한 뉴스)
+          const validNews = aiResult.news.filter(item => 
+            item && item.title && item.link && item.aiSummary
+          );
+          
+          if (validNews.length > 0) {
+            console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" 결과 ${validNews.length}건 수집`);
+            allNews.push(...validNews);
+          } else {
+            console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" 유효한 뉴스 없음`);
+          }
         } else {
           console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" 결과 없음`);
         }
@@ -258,19 +267,28 @@ async function collectPartnerNews() {
         const aiNewsData = await collectNewsWithPerplexity(conds, 'partner');
         
                   if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
-            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 ${aiNewsData.news.length}건 수집 및 분석 완료`);
-          
-          // === DB 저장 ===
-          const { inserted: insertedPartner, duplicate: duplicatePartner } = await saveNewsToDB(aiNewsData.news, PartnerNews, '제휴처탐색', conds);
-          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
-          
-                // AI 분석 보고서 생성 (Perplexity AI 분석 결과 사용)
-      if (aiNewsData.analysis) {
-        await createAnalysisReport(today, '제휴처탐색', aiNewsData.analysis, PartnerAnalysisReport, insertedPartner);
-      }
-        } else {
-          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 없음`);
-        }
+            // 실제 뉴스가 있는지 확인 (undefined 필드가 아닌 유효한 뉴스)
+            const validNews = aiNewsData.news.filter(item => 
+              item && item.title && item.link && item.aiSummary
+            );
+            
+            if (validNews.length > 0) {
+              console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 ${validNews.length}건 수집 및 분석 완료`);
+            
+              // === DB 저장 ===
+              const { inserted: insertedPartner, duplicate: duplicatePartner } = await saveNewsToDB(validNews, PartnerNews, '제휴처탐색', conds);
+              console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
+              
+              // AI 분석 보고서 생성 (Perplexity AI 분석 결과 사용)
+              if (aiNewsData.analysis) {
+                await createAnalysisReport(today, '제휴처탐색', aiNewsData.analysis, PartnerAnalysisReport, insertedPartner);
+              }
+            } else {
+              console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 유효한 뉴스 없음`);
+            }
+          } else {
+            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 없음`);
+          }
         
               } catch (e) {
           console.error(`[AI 수집][partner] 조건 "${conds.join(', ')}" 뉴스 수집 실패:`, e.message);
@@ -307,19 +325,28 @@ async function collectTechNews() {
         const aiNewsData = await collectNewsWithPerplexity(topics, 'tech');
         
                   if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
-            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 ${aiNewsData.news.length}건 수집 및 분석 완료`);
-          
-          // === DB 저장 ===
-          const { inserted: insertedTech, duplicate: duplicateTech } = await saveNewsToDB(aiNewsData.news, TechNews, '신기술동향', topics);
-          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
-          
-                // AI 분석 보고서 생성 (Perplexity AI 분석 결과 사용)
-      if (aiNewsData.analysis) {
-        await createAnalysisReport(today, '신기술동향', aiNewsData.analysis, TechAnalysisReport, insertedTech);
-      }
-        } else {
-          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 없음`);
-        }
+            // 실제 뉴스가 있는지 확인 (undefined 필드가 아닌 유효한 뉴스)
+            const validNews = aiNewsData.news.filter(item => 
+              item && item.title && item.link && item.aiSummary
+            );
+            
+            if (validNews.length > 0) {
+              console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 ${validNews.length}건 수집 및 분석 완료`);
+            
+              // === DB 저장 ===
+              const { inserted: insertedTech, duplicate: duplicateTech } = await saveNewsToDB(validNews, TechNews, '신기술동향', topics);
+              console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
+              
+              // AI 분석 보고서 생성 (Perplexity AI 분석 결과 사용)
+              if (aiNewsData.analysis) {
+                await createAnalysisReport(today, '신기술동향', aiNewsData.analysis, TechAnalysisReport, insertedTech);
+              }
+            } else {
+              console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 유효한 뉴스 없음`);
+            }
+          } else {
+            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 없음`);
+          }
         
               } catch (e) {
           console.error(`[AI 수집][tech] 주제 "${topics.join(', ')}" 뉴스 수집 실패:`, e.message);
