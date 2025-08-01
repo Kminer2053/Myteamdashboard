@@ -133,9 +133,29 @@ async function saveNewsToDB(newsItems, model, category, keywords) {
 // === 공통 분석보고서 생성 함수 ===
 async function createAnalysisReport(today, category, analysisContent, reportModel, savedNewsCount = 0) {
   try {
+    // analysisContent가 객체인 경우 문자열로 변환
+    let analysisText = analysisContent;
+    if (typeof analysisContent === 'object' && analysisContent !== null) {
+      if (category === '리스크이슈') {
+        // 리스크이슈의 경우 특별한 형식 처리 (서버 로그에서 확인된 실제 필드명 사용)
+        const 뉴스요약 = analysisContent.뉴스요약 || analysisContent['뉴스요약'] || 'N/A';
+        const 감성점수 = analysisContent.감성점수 || analysisContent['감성점수'] || 'N/A';
+        const 주가정보 = analysisContent.더본코리아주가 || analysisContent['더본코리아 주가'] || analysisContent['더본코리아주가'] || 'N/A';
+        
+        analysisText = `뉴스요약: ${뉴스요약}\n감성점수: ${감성점수}\n주가정보: ${주가정보}`;
+      } else {
+        // 일반적인 객체를 JSON 문자열로 변환
+        analysisText = JSON.stringify(analysisContent, null, 2);
+      }
+    } else if (typeof analysisContent === 'string') {
+      analysisText = analysisContent;
+    } else {
+      analysisText = `${category} 수집 완료`;
+    }
+    
     const reportData = {
       date: new Date(today),
-      analysis: analysisContent || `${category} 수집 완료`,
+      analysis: analysisText,
       totalNewsCount: savedNewsCount  // 실제 저장된 뉴스 건수 사용
     };
     
