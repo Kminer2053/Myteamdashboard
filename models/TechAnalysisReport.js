@@ -9,7 +9,7 @@ const TechAnalysisReportSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  summary: {
+  analysis: {              // summary → analysis로 통일
     type: String,
     required: true
   },

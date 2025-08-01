@@ -1,15 +1,24 @@
-// pubDate에서 YYYY-MM-DD 추출 함수 (전역)
+// pubDate에서 YYYY-MM-DD 추출 함수 (전역) - 한국시간 기준
 function extractDate(pubDate) {
     if (!pubDate) return '';
-    // 예: 2025. 5. 19. 오전 9:02:00
+    
+    // 이미 YYYY-MM-DD 형식인 경우
+    if (/^\d{4}-\d{2}-\d{2}$/.test(pubDate)) {
+        return pubDate;
+    }
+    
+    // 한국어 형식: 2025. 5. 19. 오전 9:02:00
     const match = pubDate.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\./);
     if (match) {
         const [, y, m, d] = match;
         return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
     }
-    // ISO 포맷(UTC)일 경우 9시간 더해서 KST로 변환
+    
+    // ISO 포맷(UTC)일 경우 한국시간으로 변환
     const d = new Date(pubDate);
     if (isNaN(d)) return '';
+    
+    // UTC를 한국시간(KST)으로 변환 (UTC+9)
     const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
     return kst.toISOString().slice(0, 10);
 }
@@ -456,6 +465,39 @@ document.addEventListener('DOMContentLoaded', function() {
         // 키워드를 텍스트로 표시
         const keywordText = keywords.join(', ');
         container.innerHTML = `<strong>설정된 키워드:</strong> ${keywordText}`;
+        
+        // 분석 보고서 데이터 가져오기
+        let analysisReport = null;
+        try {
+            const reportRes = await fetch(`${API_BASE_URL}/api/risk-analysis`);
+            const reportResponse = await reportRes.json();
+            if (reportResponse.success && reportResponse.data && reportResponse.data.length > 0) {
+                analysisReport = reportResponse.data[0]; // 최신 분석 보고서
+            }
+        } catch (error) {
+            console.error('분석 보고서 조회 실패:', error);
+        }
+        
+        // 분석 보고서 표출
+        if (analysisReport) {
+            const analysisDiv = document.createElement('div');
+            analysisDiv.className = 'mt-3 p-3 bg-light border rounded';
+            analysisDiv.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="mb-0"><i class="fas fa-chart-line text-primary"></i> AI 분석 보고서</h6>
+                    <small class="text-muted">${analysisReport.analysisModel || 'perplexity-ai'}</small>
+                </div>
+                <div style="color: #666; line-height: 1.6; font-size: 0.9em;">
+                    ${analysisReport.analysis || '분석 데이터가 없습니다.'}
+                </div>
+                <div class="mt-2 text-muted small">
+                    <span class="me-3">총 뉴스: ${analysisReport.totalNewsCount || 0}건</span>
+                    <span>분석일: ${new Date(analysisReport.date).toLocaleDateString()}</span>
+                </div>
+            `;
+            container.appendChild(analysisDiv);
+        }
+        
         renderNews(keywords);
     }
 
@@ -476,6 +518,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
         const response = await getRes.json();
         const allNews = response.data || response; // 새로운 구조와 기존 구조 모두 지원
+        
+        // 분석 보고서 데이터 가져오기
+        let analysisReport = null;
+        try {
+            const reportRes = await fetch(`${API_BASE_URL}/api/risk-analysis`);
+            const reportResponse = await reportRes.json();
+            if (reportResponse.success && reportResponse.data && reportResponse.data.length > 0) {
+                analysisReport = reportResponse.data[0]; // 최신 분석 보고서
+            }
+        } catch (error) {
+            console.error('분석 보고서 조회 실패:', error);
+        }
         const today = await getKoreaToday();
         // 키워드 필터링 제거 - 모든 뉴스 표시
         let filtered = allNews;
@@ -597,7 +651,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </h6>
                   </div>
                   <div class="card-body" style="padding: 20px;">
-                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                    ${item.description ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.description}</div>` : ''}
                     <div class="d-flex flex-wrap gap-1 mb-2">
                       ${(item.relatedKeywords || []).map(kw => 
                         `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
@@ -633,7 +687,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </h6>
               </div>
               <div class="card-body" style="padding: 20px;">
-                ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                ${item.description ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.description}</div>` : ''}
                 <div class="d-flex flex-wrap gap-1 mb-2">
                   ${(item.relatedKeywords || []).map(kw => 
                     `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
@@ -725,6 +779,39 @@ document.addEventListener('DOMContentLoaded', function() {
         // 조건을 텍스트로 표시
         const conditionText = conds.join(', ');
         container.innerHTML = `<strong>설정된 조건:</strong> ${conditionText}`;
+        
+        // 분석 보고서 데이터 가져오기
+        let analysisReport = null;
+        try {
+            const reportRes = await fetch(`${API_BASE_URL}/api/partner-analysis`);
+            const reportResponse = await reportRes.json();
+            if (reportResponse.success && reportResponse.data && reportResponse.data.length > 0) {
+                analysisReport = reportResponse.data[0]; // 최신 분석 보고서
+            }
+        } catch (error) {
+            console.error('분석 보고서 조회 실패:', error);
+        }
+        
+        // 분석 보고서 표출
+        if (analysisReport) {
+            const analysisDiv = document.createElement('div');
+            analysisDiv.className = 'mt-3 p-3 bg-light border rounded';
+            analysisDiv.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="mb-0"><i class="fas fa-chart-line text-primary"></i> AI 분석 보고서</h6>
+                    <small class="text-muted">${analysisReport.analysisModel || 'perplexity-ai'}</small>
+                </div>
+                <div style="color: #666; line-height: 1.6; font-size: 0.9em;">
+                    ${analysisReport.analysis || '분석 데이터가 없습니다.'}
+                </div>
+                <div class="mt-2 text-muted small">
+                    <span class="me-3">총 뉴스: ${analysisReport.totalNewsCount || 0}건</span>
+                    <span>분석일: ${new Date(analysisReport.date).toLocaleDateString()}</span>
+                </div>
+            `;
+            container.appendChild(analysisDiv);
+        }
+        
         renderPartnerResults(conds);
     }
     function renderPartnerResultsByChecked() {
@@ -929,6 +1016,39 @@ document.addEventListener('DOMContentLoaded', function() {
         // 주제를 텍스트로 표시
         const topicText = topics.join(', ');
         container.innerHTML = `<strong>설정된 주제:</strong> ${topicText}`;
+        
+        // 분석 보고서 데이터 가져오기
+        let analysisReport = null;
+        try {
+            const reportRes = await fetch(`${API_BASE_URL}/api/tech-analysis`);
+            const reportResponse = await reportRes.json();
+            if (reportResponse.success && reportResponse.data && reportResponse.data.length > 0) {
+                analysisReport = reportResponse.data[0]; // 최신 분석 보고서
+            }
+        } catch (error) {
+            console.error('분석 보고서 조회 실패:', error);
+        }
+        
+        // 분석 보고서 표출
+        if (analysisReport) {
+            const analysisDiv = document.createElement('div');
+            analysisDiv.className = 'mt-3 p-3 bg-light border rounded';
+            analysisDiv.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="mb-0"><i class="fas fa-chart-line text-primary"></i> AI 분석 보고서</h6>
+                    <small class="text-muted">${analysisReport.analysisModel || 'perplexity-ai'}</small>
+                </div>
+                <div style="color: #666; line-height: 1.6; font-size: 0.9em;">
+                    ${analysisReport.analysis || '분석 데이터가 없습니다.'}
+                </div>
+                <div class="mt-2 text-muted small">
+                    <span class="me-3">총 뉴스: ${analysisReport.totalNewsCount || 0}건</span>
+                    <span>분석일: ${new Date(analysisReport.date).toLocaleDateString()}</span>
+                </div>
+            `;
+            container.appendChild(analysisDiv);
+        }
+        
         renderTechTrendResults(topics);
     }
     function renderTechTrendResultsByChecked() {

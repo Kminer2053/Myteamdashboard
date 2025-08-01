@@ -157,8 +157,7 @@ async function collectRiskNews() {
             keyword: keywords.join(', '), // 키워드 필드 추가
             source: item.source || 'AI 분석', // 언론사/출처
             relatedKeywords: item.relatedKeywords || keywords, // 관련 키워드
-            analysisModel: 'perplexity-ai', // AI 모델명
-            aiGeneratedAt: new Date()
+            analysisModel: 'perplexity-ai' // AI 모델명
           };
           
           const result = await RiskNews.updateOne(
@@ -181,9 +180,14 @@ async function collectRiskNews() {
               // AI 분석 보고서 생성
         if (allNews.length > 0 && analysisResults.length > 0) {
           try {
+            // Object를 String으로 변환하여 저장
+            const analysisText = typeof analysisResults[0] === 'object' 
+              ? JSON.stringify(analysisResults[0], null, 2)
+              : (analysisResults[0] || 'AI 분석 보고서');
+            
             const reportData = {
               date: new Date(today),
-              summary: analysisResults[0] || 'AI 분석 보고서',
+              analysis: analysisText,
               totalNewsCount: allNews.length
             };
             
@@ -317,7 +321,7 @@ async function collectPartnerNews() {
       if (partnerNews.length > 0) {
         const reportData = {
           date: new Date(today),
-          summary: `제휴처탐색 ${partnerNews.length}건 수집 완료`,
+          analysis: `제휴처탐색 ${partnerNews.length}건 수집 완료`,
           totalNewsCount: partnerNews.length
         };
         
@@ -454,7 +458,7 @@ async function collectTechNews() {
       if (techNews.length > 0) {
         const reportData = {
           date: new Date(today),
-          summary: `신기술동향 ${techNews.length}건 수집 완료`,
+          analysis: `신기술동향 ${techNews.length}건 수집 완료`,
           totalNewsCount: techNews.length
         };
         
@@ -752,8 +756,7 @@ async function processAiResponse(aiResponse, keywords, category, maxTokens) {
             source: item.source || 'AI 분석', // 언론사/출처
             relatedKeywords: item.relatedKeywords || keywords, // 관련 키워드
             aiSummary: item.aiSummary || item.summary || 'AI 요약이 없습니다.',
-            analysisModel: 'perplexity-ai', // AI 모델명
-            aiGeneratedAt: new Date()
+            analysisModel: 'perplexity-ai' // AI 모델명
           };
         });
       }
@@ -798,8 +801,7 @@ function parseTextResponse(text, keywords, category) {
     keyword: keywords.join(', '), // 키워드 필드 추가
     relatedKeywords: keywords, // 관련 키워드
     aiSummary: text.substring(0, 200) + '...',
-    analysisModel: 'perplexity-ai', // AI 모델명
-    aiGeneratedAt: new Date()
+    analysisModel: 'perplexity-ai' // AI 모델명
   }];
   
   return { news: fallbackNews, analysis: null };
@@ -871,8 +873,7 @@ function extractNewsFromText(text, keyword) {
               keyword: keyword, // 키워드 필드 추가
               relatedKeywords: relatedKeywords, // 관련 키워드
               aiSummary: cleanSummary,
-              analysisModel: 'perplexity-ai', // AI 모델명
-              aiGeneratedAt: new Date()
+              analysisModel: 'perplexity-ai' // AI 모델명
             });
           }
         }
@@ -907,7 +908,6 @@ function extractNewsFromText(text, keyword) {
       pubDate: new Date().toISOString(),
       aiSummary: remainingText.length > 0 ? remainingText.substring(0, 300) : text.substring(0, 300),
       relatedKeywords: [keyword],
-      aiGeneratedAt: new Date(),
       analysisModel: 'perplexity-ai'
     });
   }
@@ -1384,7 +1384,7 @@ app.get('/api/risk-news', async (req, res) => {
     })
     .sort({ createdAt: -1 })
     .limit(parseInt(limit))
-    .select('title link description pubDate keyword source relatedKeywords analysisModel createdAt');
+    .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
     
     res.json({
       success: true,
@@ -1429,7 +1429,7 @@ app.get('/api/partner-news', async (req, res) => {
     })
     .sort({ createdAt: -1 })
     .limit(parseInt(limit))
-    .select('title link description pubDate keyword source relatedKeywords analysisModel createdAt');
+    .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
     
     res.json({
       success: true,
@@ -1474,7 +1474,7 @@ app.get('/api/tech-news', async (req, res) => {
     })
     .sort({ createdAt: -1 })
     .limit(parseInt(limit))
-    .select('title link description pubDate keyword source relatedKeywords analysisModel createdAt');
+    .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
     
     res.json({
       success: true,
@@ -1497,17 +1497,11 @@ app.post('/api/add-test-data', async (req, res) => {
     const partnerTestData = new PartnerNews({
       title: '[테스트] AI 기술 기업 간 협력 확대',
       link: 'https://example.com/partner-test-news',
-      description: 'AI 기술 기업들이 협력을 통해 시너지를 창출하고 있습니다.',
+      aiSummary: 'AI 기술 기업들이 전략적 파트너십을 통해 기술 혁신을 가속화하고 있다. 이는 시장 경쟁력 강화와 새로운 비즈니스 모델 창출로 이어질 것으로 예상된다.',
       pubDate: new Date().toISOString(),
       keyword: 'AI',
-      aiSummary: 'AI 기술 기업들이 전략적 파트너십을 통해 기술 혁신을 가속화하고 있다. 이는 시장 경쟁력 강화와 새로운 비즈니스 모델 창출로 이어질 것으로 예상된다.',
-      importanceScore: 7,
-      sentiment: 'positive:0.6',
       source: '테스트뉴스',
       relatedKeywords: ['AI 협력', '기술혁신', '파트너십'],
-      trendAnalysis: 'AI 기업 간 협력이 새로운 트렌드로 부상하고 있다.',
-      futureOutlook: 'AI 기술 발전과 함께 협력 모델이 더욱 확산될 것으로 전망된다.',
-      aiGeneratedAt: new Date(),
       analysisModel: 'perplexity-ai'
     });
     
@@ -1515,17 +1509,11 @@ app.post('/api/add-test-data', async (req, res) => {
     const techTestData = new TechNews({
       title: '[테스트] 인공지능 업무 활용 사례 증가',
       link: 'https://example.com/tech-test-news',
-      description: '기업들이 AI를 업무에 적극 활용하여 생산성을 향상시키고 있습니다.',
+      aiSummary: '기업들이 AI 기술을 업무 프로세스에 도입하여 업무 효율성을 크게 향상시키고 있다. 특히 문서 처리, 고객 서비스, 데이터 분석 분야에서 AI 활용이 두드러진다.',
       pubDate: new Date().toISOString(),
       keyword: '인공지능',
-      aiSummary: '기업들이 AI 기술을 업무 프로세스에 도입하여 업무 효율성을 크게 향상시키고 있다. 특히 문서 처리, 고객 서비스, 데이터 분석 분야에서 AI 활용이 두드러진다.',
-      importanceScore: 8,
-      sentiment: 'positive:0.7',
       source: '테스트뉴스',
       relatedKeywords: ['AI 업무', '생산성 향상', '자동화'],
-      trendAnalysis: 'AI 업무 활용이 기업의 디지털 전환 핵심 요소로 자리잡고 있다.',
-      futureOutlook: 'AI 기술 발전과 함께 업무 활용도가 더욱 확대될 것으로 예상된다.',
-      aiGeneratedAt: new Date(),
       analysisModel: 'perplexity-ai'
     });
     
@@ -1680,12 +1668,9 @@ app.post('/api/update-schemas', async (req, res) => {
     if (existingPartnerNews.length > 0) {
       const updatedPartnerNews = existingPartnerNews.map(item => ({
         ...item.toObject(),
-        aiSummary: item.aiSummary || '기존 데이터',
-        importanceScore: item.importanceScore || 5,
-        sentiment: item.sentiment || { type: 'neutral', score: 0.5 },
+        aiSummary: item.aiSummary || item.description || '기존 데이터',
         source: item.source || '기존 수집',
         relatedKeywords: item.relatedKeywords || [],
-        aiGeneratedAt: item.aiGeneratedAt || new Date(),
         analysisModel: item.analysisModel || 'legacy'
       }));
       
@@ -1696,12 +1681,9 @@ app.post('/api/update-schemas', async (req, res) => {
     if (existingTechNews.length > 0) {
       const updatedTechNews = existingTechNews.map(item => ({
         ...item.toObject(),
-        aiSummary: item.aiSummary || '기존 데이터',
-        importanceScore: item.importanceScore || 5,
-        sentiment: item.sentiment || { type: 'neutral', score: 0.5 },
+        aiSummary: item.aiSummary || item.description || '기존 데이터',
         source: item.source || '기존 수집',
         relatedKeywords: item.relatedKeywords || [],
-        aiGeneratedAt: item.aiGeneratedAt || new Date(),
         analysisModel: item.analysisModel || 'legacy'
       }));
       
@@ -1712,12 +1694,9 @@ app.post('/api/update-schemas', async (req, res) => {
     if (existingRiskNews.length > 0) {
       const updatedRiskNews = existingRiskNews.map(item => ({
         ...item.toObject(),
-        aiSummary: item.aiSummary || '기존 데이터',
-        importanceScore: item.importanceScore || 5,
-        sentiment: item.sentiment || { type: 'neutral', score: 0.5 },
+        aiSummary: item.aiSummary || item.description || '기존 데이터',
         source: item.source || '기존 수집',
         relatedKeywords: item.relatedKeywords || [],
-        aiGeneratedAt: item.aiGeneratedAt || new Date(),
         analysisModel: item.analysisModel || 'legacy'
       }));
       
@@ -1765,21 +1744,15 @@ app.get('/api/ai-analysis/:category', async (req, res) => {
     cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
     
     const news = await model.find({
-      aiGeneratedAt: { $gte: cutoffDate }
+      createdAt: { $gte: cutoffDate }
     })
-    .sort({ aiGeneratedAt: -1 })
+    .sort({ createdAt: -1 })
     .limit(parseInt(limit))
-    .select('title link source importanceScore sentiment aiSummary relatedKeywords aiGeneratedAt');
+    .select('title link source aiSummary relatedKeywords analysisModel');
     
     // AI 분석 통계
     const stats = {
       total: news.length,
-      bySentiment: {
-        positive: news.filter(n => n.sentiment?.type === 'positive').length,
-        negative: news.filter(n => n.sentiment?.type === 'negative').length,
-        neutral: news.filter(n => n.sentiment?.type === 'neutral').length
-      },
-      avgImportance: news.reduce((sum, n) => sum + (n.importanceScore || 5), 0) / news.length,
       topKeywords: news.reduce((acc, n) => {
         if (n.relatedKeywords) {
           n.relatedKeywords.forEach(kw => {
@@ -1815,9 +1788,9 @@ app.get('/api/db-status', async (req, res) => {
     
     // 각 카테고리별 데이터 현황
     const [riskNews, partnerNews, techNews] = await Promise.all([
-      RiskNews.find({ aiGeneratedAt: { $gte: today, $lt: tomorrow } }).sort({ aiGeneratedAt: -1 }),
-      PartnerNews.find({ aiGeneratedAt: { $gte: today, $lt: tomorrow } }).sort({ aiGeneratedAt: -1 }),
-      TechNews.find({ aiGeneratedAt: { $gte: today, $lt: tomorrow } }).sort({ aiGeneratedAt: -1 })
+      RiskNews.find({ createdAt: { $gte: today, $lt: tomorrow } }).sort({ createdAt: -1 }),
+      PartnerNews.find({ createdAt: { $gte: today, $lt: tomorrow } }).sort({ createdAt: -1 }),
+      TechNews.find({ createdAt: { $gte: today, $lt: tomorrow } }).sort({ createdAt: -1 })
     ]);
     
     // 전체 데이터 수도 확인
@@ -2257,15 +2230,17 @@ app.get('/api/db-diagnosis', async (req, res) => {
     
     // 최근 데이터 샘플
     const [recentRisk, recentPartner, recentTech] = await Promise.all([
-      RiskNews.findOne().sort({ aiGeneratedAt: -1 }),
-      PartnerNews.findOne().sort({ aiGeneratedAt: -1 }),
-      TechNews.findOne().sort({ aiGeneratedAt: -1 })
+      RiskNews.findOne().sort({ createdAt: -1 }),
+      PartnerNews.findOne().sort({ createdAt: -1 }),
+      TechNews.findOne().sort({ createdAt: -1 })
     ]);
     
     // AI 분석 보고서 현황
     const [reportCount, todayReport] = await Promise.all([
-      AIAnalysisReport.countDocuments(),
-      AIAnalysisReport.countDocuments({ date: { $gte: today, $lt: tomorrow } })
+      RiskAnalysisReport.countDocuments() + PartnerAnalysisReport.countDocuments() + TechAnalysisReport.countDocuments(),
+      RiskAnalysisReport.countDocuments({ date: { $gte: today, $lt: tomorrow } }) + 
+      PartnerAnalysisReport.countDocuments({ date: { $gte: today, $lt: tomorrow } }) + 
+      TechAnalysisReport.countDocuments({ date: { $gte: today, $lt: tomorrow } })
     ]);
     
     res.json({
