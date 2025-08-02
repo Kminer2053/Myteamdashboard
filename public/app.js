@@ -815,37 +815,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const conditionText = conds.join(', ');
         container.innerHTML = `<strong>설정된 조건:</strong> ${conditionText}`;
         
-        // 분석 보고서 데이터 가져오기
-        let analysisReport = null;
-        try {
-            const reportRes = await fetch(`${API_BASE_URL}/api/partner-analysis`);
-            const reportResponse = await reportRes.json();
-            if (reportResponse.success && reportResponse.data && reportResponse.data.length > 0) {
-                analysisReport = reportResponse.data[0]; // 최신 분석 보고서
-            }
-        } catch (error) {
-            console.error('분석 보고서 조회 실패:', error);
-        }
-        
-        // 분석 보고서 표출
-        if (analysisReport) {
-            const analysisDiv = document.createElement('div');
-            analysisDiv.className = 'mt-3 p-3 bg-light border rounded';
-            analysisDiv.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h6 class="mb-0"><i class="fas fa-chart-line text-primary"></i> AI 분석 보고서</h6>
-                    <small class="text-muted">${analysisReport.analysisModel || 'perplexity-ai'}</small>
-                </div>
-                <div style="color: #666; line-height: 1.6; font-size: 0.9em;">
-                    ${analysisReport.analysis || '분석 데이터가 없습니다.'}
-                </div>
-                <div class="mt-2 text-muted small">
-                    <span class="me-3">총 뉴스: ${analysisReport.totalNewsCount || 0}건</span>
-                    <span>분석일: ${new Date(analysisReport.date).toLocaleDateString()}</span>
-                </div>
-            `;
-            container.appendChild(analysisDiv);
-        }
+        // 기존 AI 분석 보고서 표출 제거 (새로운 디자인으로 대체)
         
         renderPartnerResults(conds);
     }
@@ -1114,37 +1084,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topicText = topics.join(', ');
         container.innerHTML = `<strong>설정된 주제:</strong> ${topicText}`;
         
-        // 분석 보고서 데이터 가져오기
-        let analysisReport = null;
-        try {
-            const reportRes = await fetch(`${API_BASE_URL}/api/tech-analysis`);
-            const reportResponse = await reportRes.json();
-            if (reportResponse.success && reportResponse.data && reportResponse.data.length > 0) {
-                analysisReport = reportResponse.data[0]; // 최신 분석 보고서
-            }
-        } catch (error) {
-            console.error('분석 보고서 조회 실패:', error);
-        }
-        
-        // 분석 보고서 표출
-        if (analysisReport) {
-            const analysisDiv = document.createElement('div');
-            analysisDiv.className = 'mt-3 p-3 bg-light border rounded';
-            analysisDiv.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h6 class="mb-0"><i class="fas fa-chart-line text-primary"></i> AI 분석 보고서</h6>
-                    <small class="text-muted">${analysisReport.analysisModel || 'perplexity-ai'}</small>
-                </div>
-                <div style="color: #666; line-height: 1.6; font-size: 0.9em;">
-                    ${analysisReport.analysis || '분석 데이터가 없습니다.'}
-                </div>
-                <div class="mt-2 text-muted small">
-                    <span class="me-3">총 뉴스: ${analysisReport.totalNewsCount || 0}건</span>
-                    <span>분석일: ${new Date(analysisReport.date).toLocaleDateString()}</span>
-                </div>
-            `;
-            container.appendChild(analysisDiv);
-        }
+        // 기존 AI 분석 보고서 표출 제거 (새로운 디자인으로 대체)
         
         renderTechTrendResults(topics);
     }
