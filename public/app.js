@@ -887,15 +887,24 @@ document.addEventListener('DOMContentLoaded', function() {
         partnerNewsData.loading = true;
         const resultsDiv = document.getElementById('partnerResults');
         
+        console.log('🔍 제휴처 뉴스 로딩 시작:', {
+            offset: partnerNewsData.offset,
+            limit: partnerNewsData.limit,
+            hasMore: partnerNewsData.hasMore
+        });
+        
         try {
             const response = await fetch(`${API_BASE_URL}/api/partner-news?limit=${partnerNewsData.limit}&offset=${partnerNewsData.offset}`);
             const data = await response.json();
+            
+            console.log('📥 제휴처 뉴스 응답:', data);
             
             if (data.success) {
                 // 첫 번째 로드인 경우 기존 데이터 초기화
                 if (partnerNewsData.offset === 0) {
                     partnerNewsData.items = [];
                     resultsDiv.innerHTML = '';
+                    console.log('🔄 첫 번째 로드 - 데이터 초기화');
                 }
                 
                 // 새 데이터 추가
@@ -904,10 +913,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 partnerNewsData.hasMore = data.hasMore;
                 partnerNewsData.offset += data.data.length;
                 
+                console.log('📊 제휴처 뉴스 데이터 업데이트:', {
+                    itemsCount: partnerNewsData.items.length,
+                    totalCount: partnerNewsData.totalCount,
+                    hasMore: partnerNewsData.hasMore,
+                    offset: partnerNewsData.offset
+                });
+                
                 await renderPartnerNewsContent();
             }
         } catch (error) {
-            console.error('제휴처 뉴스 로드 실패:', error);
+            console.error('❌ 제휴처 뉴스 로드 실패:', error);
             if (partnerNewsData.offset === 0) {
                 resultsDiv.innerHTML = '<div class="alert alert-danger">뉴스를 불러오는데 실패했습니다.</div>';
             }
@@ -920,54 +936,52 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultsDiv = document.getElementById('partnerResults');
         const today = await getKoreaToday();
         
-        // 첫 번째 로드인 경우에만 전체 내용 렌더링 (조건 수정)
-        if (partnerNewsData.offset === partnerNewsData.limit) {
-            resultsDiv.innerHTML = '';
+        // 항상 전체 내용 렌더링 (조건 제거)
+        resultsDiv.innerHTML = '';
+        
+        // === 상단 건수/정보갱신 버튼 ===
+        const todayCount = partnerNewsData.items.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr === todayDateStr;
+        }).length;
+        
+        const topBar = document.createElement('div');
+        topBar.className = 'd-flex justify-content-end align-items-center mb-2';
+        topBar.innerHTML = `
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${partnerNewsData.totalCount}</b>건</span>
+            <button class="btn btn-sm btn-outline-primary" id="refreshPartnerBtn">정보갱신</button>
+        `;
+        resultsDiv.appendChild(topBar);
+        
+        // 정보갱신 버튼 이벤트
+        document.getElementById('refreshPartnerBtn').onclick = async function() {
+            const conds = await loadPartnerConditions();
+            if (!conds.length) {
+                alert('등록된 조건이 없습니다.');
+                return;
+            }
+            resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 정보갱신 중...</div></div>';
             
-            // === 상단 건수/정보갱신 버튼 ===
-            const todayCount = partnerNewsData.items.filter(item => {
-                const itemDate = new Date(item.pubDate);
-                const todayDate = new Date(today);
-                const itemDateStr = itemDate.toISOString().split('T')[0];
-                const todayDateStr = todayDate.toISOString().split('T')[0];
-                return itemDateStr === todayDateStr;
-            }).length;
-            
-            const topBar = document.createElement('div');
-            topBar.className = 'd-flex justify-content-end align-items-center mb-2';
-            topBar.innerHTML = `
-                <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${partnerNewsData.totalCount}</b>건</span>
-                <button class="btn btn-sm btn-outline-primary" id="refreshPartnerBtn">정보갱신</button>
-            `;
-            resultsDiv.appendChild(topBar);
-            
-            // 정보갱신 버튼 이벤트
-            document.getElementById('refreshPartnerBtn').onclick = async function() {
-                const conds = await loadPartnerConditions();
-                if (!conds.length) {
-                    alert('등록된 조건이 없습니다.');
-                    return;
-                }
-                resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 정보갱신 중...</div></div>';
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/collect-news/partner`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
                 
-                try {
-                    const response = await fetch(`${API_BASE_URL}/api/collect-news/partner`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    
-                    if (response.ok) {
-                        console.log('제휴처탐색 뉴스 수집 완료');
-                    } else {
-                        console.error('제휴처탐색 뉴스 수집 실패');
-                    }
-                } catch (error) {
-                    console.error('제휴처탐색 뉴스 수집 오류:', error);
+                if (response.ok) {
+                    console.log('제휴처탐색 뉴스 수집 완료');
+                } else {
+                    console.error('제휴처탐색 뉴스 수집 실패');
                 }
-                
-                await renderPartnerResults(conds);
-            };
-        }
+            } catch (error) {
+                console.error('제휴처탐색 뉴스 수집 오류:', error);
+            }
+            
+            await renderPartnerResults(conds);
+        };
         
         // === 뉴스 목록 렌더링 ===
         const todayNews = partnerNewsData.items.filter(item => {
@@ -986,8 +1000,14 @@ document.addEventListener('DOMContentLoaded', function() {
             return itemDateStr !== todayDateStr;
         });
         
-        // 오늘 뉴스 표시 (중복 방지)
-        if (todayNews.length > 0 && !document.querySelector('#partnerResults h6:contains("오늘의 뉴스")')) {
+        console.log('📋 제휴처 뉴스 렌더링:', {
+            totalItems: partnerNewsData.items.length,
+            todayNews: todayNews.length,
+            otherNews: otherNews.length
+        });
+        
+        // 오늘 뉴스 표시
+        if (todayNews.length > 0) {
             const todayDiv = document.createElement('div');
             todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
             resultsDiv.appendChild(todayDiv);
@@ -999,8 +1019,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // 누적 뉴스 표시 (중복 방지)
-        if (otherNews.length > 0 && !document.querySelector('#partnerResults h6:contains("최근 누적 뉴스")')) {
+        // 누적 뉴스 표시
+        if (otherNews.length > 0) {
             const recentDiv = document.createElement('div');
             recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
             resultsDiv.appendChild(recentDiv);
@@ -1012,12 +1032,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // 무한 스크롤 로딩 표시 (기존 제거 후 새로 추가)
-        const existingLoading = document.getElementById('partnerLoadingIndicator');
-        if (existingLoading) {
-            existingLoading.remove();
-        }
-        
+        // 무한 스크롤 로딩 표시
         if (partnerNewsData.hasMore) {
             const loadingDiv = document.createElement('div');
             loadingDiv.id = 'partnerLoadingIndicator';
@@ -1165,54 +1180,52 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultsDiv = document.getElementById('techTrendResults');
         const today = await getKoreaToday();
         
-        // 첫 번째 로드인 경우에만 전체 내용 렌더링 (조건 수정)
-        if (techNewsData.offset === techNewsData.limit) {
-            resultsDiv.innerHTML = '';
+        // 항상 전체 내용 렌더링 (조건 제거)
+        resultsDiv.innerHTML = '';
+        
+        // === 상단 건수/정보갱신 버튼 ===
+        const todayCount = techNewsData.items.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr === todayDateStr;
+        }).length;
+        
+        const topBar = document.createElement('div');
+        topBar.className = 'd-flex justify-content-end align-items-center mb-2';
+        topBar.innerHTML = `
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${techNewsData.totalCount}</b>건</span>
+            <button class="btn btn-sm btn-outline-success" id="refreshTechBtn">정보갱신</button>
+        `;
+        resultsDiv.appendChild(topBar);
+        
+        // 정보갱신 버튼 이벤트
+        document.getElementById('refreshTechBtn').onclick = async function() {
+            const topics = await loadTechTopics();
+            if (!topics.length) {
+                alert('등록된 주제가 없습니다.');
+                return;
+            }
+            resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 정보갱신 중...</div></div>';
             
-            // === 상단 건수/정보갱신 버튼 ===
-            const todayCount = techNewsData.items.filter(item => {
-                const itemDate = new Date(item.pubDate);
-                const todayDate = new Date(today);
-                const itemDateStr = itemDate.toISOString().split('T')[0];
-                const todayDateStr = todayDate.toISOString().split('T')[0];
-                return itemDateStr === todayDateStr;
-            }).length;
-            
-            const topBar = document.createElement('div');
-            topBar.className = 'd-flex justify-content-end align-items-center mb-2';
-            topBar.innerHTML = `
-                <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${techNewsData.totalCount}</b>건</span>
-                <button class="btn btn-sm btn-outline-success" id="refreshTechBtn">정보갱신</button>
-            `;
-            resultsDiv.appendChild(topBar);
-            
-            // 정보갱신 버튼 이벤트
-            document.getElementById('refreshTechBtn').onclick = async function() {
-                const topics = await loadTechTopics();
-                if (!topics.length) {
-                    alert('등록된 주제가 없습니다.');
-                    return;
-                }
-                resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 정보갱신 중...</div></div>';
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/collect-news/tech`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
                 
-                try {
-                    const response = await fetch(`${API_BASE_URL}/api/collect-news/tech`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    
-                    if (response.ok) {
-                        console.log('신기술동향 뉴스 수집 완료');
-                    } else {
-                        console.error('신기술동향 뉴스 수집 실패');
-                    }
-                } catch (error) {
-                    console.error('신기술동향 뉴스 수집 오류:', error);
+                if (response.ok) {
+                    console.log('신기술동향 뉴스 수집 완료');
+                } else {
+                    console.error('신기술동향 뉴스 수집 실패');
                 }
-                
-                await renderTechTrendResults(topics);
-            };
-        }
+            } catch (error) {
+                console.error('신기술동향 뉴스 수집 오류:', error);
+            }
+            
+            await renderTechTrendResults(topics);
+        };
         
         // === 뉴스 목록 렌더링 ===
         const todayNews = techNewsData.items.filter(item => {
@@ -1231,8 +1244,14 @@ document.addEventListener('DOMContentLoaded', function() {
             return itemDateStr !== todayDateStr;
         });
         
-        // 오늘 뉴스 표시 (중복 방지)
-        if (todayNews.length > 0 && !document.querySelector('#techTrendResults h6:contains("오늘의 뉴스")')) {
+        console.log('📋 신기술 뉴스 렌더링:', {
+            totalItems: techNewsData.items.length,
+            todayNews: todayNews.length,
+            otherNews: otherNews.length
+        });
+        
+        // 오늘 뉴스 표시
+        if (todayNews.length > 0) {
             const todayDiv = document.createElement('div');
             todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
             resultsDiv.appendChild(todayDiv);
@@ -1244,8 +1263,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // 누적 뉴스 표시 (중복 방지)
-        if (otherNews.length > 0 && !document.querySelector('#techTrendResults h6:contains("최근 누적 뉴스")')) {
+        // 누적 뉴스 표시
+        if (otherNews.length > 0) {
             const recentDiv = document.createElement('div');
             recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
             resultsDiv.appendChild(recentDiv);
@@ -1257,12 +1276,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // 무한 스크롤 로딩 표시 (기존 제거 후 새로 추가)
-        const existingLoading = document.getElementById('techLoadingIndicator');
-        if (existingLoading) {
-            existingLoading.remove();
-        }
-        
+        // 무한 스크롤 로딩 표시
         if (techNewsData.hasMore) {
             const loadingDiv = document.createElement('div');
             loadingDiv.id = 'techLoadingIndicator';
