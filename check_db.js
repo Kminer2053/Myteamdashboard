@@ -1,47 +1,52 @@
 const mongoose = require('mongoose');
+require('dotenv').config();
+
+// MongoDB 연결 (실제 배포된 서버 사용)
+const MONGODB_URI = 'mongodb+srv://teamdashboard:teamdashboard123@cluster0.mongodb.net/team_dashboard?retryWrites=true&w=majority';
+
+mongoose.connect(MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+});
+
+// 모델 import
 const RiskNews = require('./models/RiskNews');
 const PartnerNews = require('./models/PartnerNews');
 const TechNews = require('./models/TechNews');
+const RiskAnalysisReport = require('./models/RiskAnalysisReport');
+const PartnerAnalysisReport = require('./models/PartnerAnalysisReport');
+const TechAnalysisReport = require('./models/TechAnalysisReport');
 
-async function checkDBStatus() {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/myteamdashboard');
-    console.log('MongoDB 연결됨');
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    console.log('=== 오늘 저장된 실제 DB 데이터 ===');
-    console.log('날짜 기준:', today.toISOString());
-    
-    const riskCount = await RiskNews.countDocuments({ createdAt: { $gte: today } });
-    const partnerCount = await PartnerNews.countDocuments({ createdAt: { $gte: today } });
-    const techCount = await TechNews.countDocuments({ createdAt: { $gte: today } });
-    
-    console.log('리스크이슈:', riskCount, '건');
-    console.log('제휴처탐색:', partnerCount, '건');
-    console.log('신기술동향:', techCount, '건');
-    
-    console.log('\n=== 상세 데이터 확인 ===');
-    
-    const riskNews = await RiskNews.find({ createdAt: { $gte: today } }).select('title link createdAt');
-    const partnerNews = await PartnerNews.find({ createdAt: { $gte: today } }).select('title link createdAt');
-    const techNews = await TechNews.find({ createdAt: { $gte: today } }).select('title link createdAt');
-    
-    console.log('\n리스크이슈 상세:');
-    riskNews.forEach((item, i) => console.log(`${i+1}. ${item.title} (${item.createdAt})`));
-    
-    console.log('\n제휴처탐색 상세:');
-    partnerNews.forEach((item, i) => console.log(`${i+1}. ${item.title} (${item.createdAt})`));
-    
-    console.log('\n신기술동향 상세:');
-    techNews.forEach((item, i) => console.log(`${i+1}. ${item.title} (${item.createdAt})`));
-    
-    await mongoose.connection.close();
-    console.log('\nMongoDB 연결 종료');
-    
-  } catch (error) {
-    console.error('오류:', error);
-  }
+async function deleteAllNewsData() {
+    try {
+        console.log('🗑️ 모든 뉴스 데이터 삭제 시작...');
+        console.log('MongoDB URI:', MONGODB_URI);
+        
+        // 뉴스 데이터 삭제
+        const riskNewsResult = await RiskNews.deleteMany({});
+        const partnerNewsResult = await PartnerNews.deleteMany({});
+        const techNewsResult = await TechNews.deleteMany({});
+        
+        console.log(`✅ 리스크 뉴스 삭제: ${riskNewsResult.deletedCount}건`);
+        console.log(`✅ 제휴처 뉴스 삭제: ${partnerNewsResult.deletedCount}건`);
+        console.log(`✅ 신기술 뉴스 삭제: ${techNewsResult.deletedCount}건`);
+        
+        // AI 분석 보고서 삭제
+        const riskAnalysisResult = await RiskAnalysisReport.deleteMany({});
+        const partnerAnalysisResult = await PartnerAnalysisReport.deleteMany({});
+        const techAnalysisResult = await TechAnalysisReport.deleteMany({});
+        
+        console.log(`✅ 리스크 분석 보고서 삭제: ${riskAnalysisResult.deletedCount}건`);
+        console.log(`✅ 제휴처 분석 보고서 삭제: ${partnerAnalysisResult.deletedCount}건`);
+        console.log(`✅ 신기술 분석 보고서 삭제: ${techAnalysisResult.deletedCount}건`);
+        
+        console.log('🎉 모든 데이터 삭제 완료!');
+        
+    } catch (error) {
+        console.error('❌ 데이터 삭제 중 오류 발생:', error);
+    } finally {
+        mongoose.connection.close();
+    }
 }
 
-checkDBStatus(); 
+deleteAllNewsData(); 

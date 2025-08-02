@@ -2565,3 +2565,40 @@ ${categoryContext}
     }
   }
 });
+
+// 데이터 삭제 API (개발용)
+app.delete('/api/clear-all-news', async (req, res) => {
+    try {
+        console.log('🗑️ 모든 뉴스 데이터 삭제 시작...');
+        
+        // 뉴스 데이터 삭제
+        const riskNewsResult = await RiskNews.deleteMany({});
+        const partnerNewsResult = await PartnerNews.deleteMany({});
+        const techNewsResult = await TechNews.deleteMany({});
+        
+        // AI 분석 보고서 삭제
+        const riskAnalysisResult = await RiskAnalysisReport.deleteMany({});
+        const partnerAnalysisResult = await PartnerAnalysisReport.deleteMany({});
+        const techAnalysisResult = await TechAnalysisReport.deleteMany({});
+        
+        const result = {
+            success: true,
+            message: '모든 뉴스 데이터 삭제 완료',
+            deleted: {
+                riskNews: riskNewsResult.deletedCount,
+                partnerNews: partnerNewsResult.deletedCount,
+                techNews: techNewsResult.deletedCount,
+                riskAnalysis: riskAnalysisResult.deletedCount,
+                partnerAnalysis: partnerAnalysisResult.deletedCount,
+                techAnalysis: techAnalysisResult.deletedCount
+            }
+        };
+        
+        console.log('✅ 삭제 결과:', result);
+        res.json(result);
+        
+    } catch (error) {
+        console.error('❌ 데이터 삭제 중 오류:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
