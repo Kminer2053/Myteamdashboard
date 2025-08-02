@@ -560,8 +560,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const newsFeed = document.getElementById('newsFeed');
         const today = await getKoreaToday();
         
-        // 첫 번째 로드인 경우에만 전체 내용 렌더링
-        if (riskNewsData.offset === riskNewsData.limit) {
+        // 첫 번째 로드인 경우에만 전체 내용 렌더링 (조건 수정)
+        if (riskNewsData.offset === riskNewsData.limit && riskNewsData.items.length === riskNewsData.limit) {
             newsFeed.innerHTML = '';
             
             // === 분석 보고서 표출 ===
@@ -574,7 +574,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport.analysisModel || 'perplexity-ai'}</small></h6>
                     </div>
                     <div class="card-body" style="padding: 20px;">
-                        <div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${analysisReport.newsSummary || '분석 내용이 없습니다.'}</div>
+                        <div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${analysisReport.newsSummary || analysisReport.analysis || '분석 내용이 없습니다.'}</div>
                         <div class="row">
                             <div class="col-md-3">
                                 <small class="text-muted">감성점수</small><br>
@@ -586,7 +586,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                             <div class="col-md-3">
                                 <small class="text-muted">총 뉴스</small><br>
-                                <span class="badge badge-secondary">${analysisReport.newsCount || 0}건</span>
+                                <span class="badge badge-secondary">${analysisReport.newsCount || analysisReport.totalNewsCount || 0}건</span>
                             </div>
                             <div class="col-md-3">
                                 <small class="text-muted">분석일</small><br>
@@ -931,8 +931,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultsDiv = document.getElementById('partnerResults');
         const today = await getKoreaToday();
         
-        // 첫 번째 로드인 경우에만 전체 내용 렌더링
-        if (partnerNewsData.offset === partnerNewsData.limit) {
+        // 첫 번째 로드인 경우에만 전체 내용 렌더링 (조건 수정)
+        if (partnerNewsData.offset === partnerNewsData.limit && partnerNewsData.items.length === partnerNewsData.limit) {
             resultsDiv.innerHTML = '';
             
             // === 상단 건수/정보갱신 버튼 ===
@@ -997,8 +997,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return itemDateStr !== todayDateStr;
         });
         
-        // 오늘 뉴스 표시
-        if (todayNews.length > 0) {
+        // 오늘 뉴스 표시 (중복 방지)
+        if (todayNews.length > 0 && !document.querySelector('#partnerResults h6:contains("오늘의 뉴스")')) {
             const todayDiv = document.createElement('div');
             todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
             resultsDiv.appendChild(todayDiv);
@@ -1010,8 +1010,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // 누적 뉴스 표시
-        if (otherNews.length > 0) {
+        // 누적 뉴스 표시 (중복 방지)
+        if (otherNews.length > 0 && !document.querySelector('#partnerResults h6:contains("최근 누적 뉴스")')) {
             const recentDiv = document.createElement('div');
             recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
             resultsDiv.appendChild(recentDiv);
@@ -1023,7 +1023,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // 무한 스크롤 로딩 표시
+        // 무한 스크롤 로딩 표시 (기존 제거 후 새로 추가)
+        const existingLoading = document.getElementById('partnerLoadingIndicator');
+        if (existingLoading) {
+            existingLoading.remove();
+        }
+        
         if (partnerNewsData.hasMore) {
             const loadingDiv = document.createElement('div');
             loadingDiv.id = 'partnerLoadingIndicator';
@@ -1171,8 +1176,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultsDiv = document.getElementById('techTrendResults');
         const today = await getKoreaToday();
         
-        // 첫 번째 로드인 경우에만 전체 내용 렌더링
-        if (techNewsData.offset === techNewsData.limit) {
+        // 첫 번째 로드인 경우에만 전체 내용 렌더링 (조건 수정)
+        if (techNewsData.offset === techNewsData.limit && techNewsData.items.length === techNewsData.limit) {
             resultsDiv.innerHTML = '';
             
             // === 상단 건수/정보갱신 버튼 ===
@@ -1237,8 +1242,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return itemDateStr !== todayDateStr;
         });
         
-        // 오늘 뉴스 표시
-        if (todayNews.length > 0) {
+        // 오늘 뉴스 표시 (중복 방지)
+        if (todayNews.length > 0 && !document.querySelector('#techTrendResults h6:contains("오늘의 뉴스")')) {
             const todayDiv = document.createElement('div');
             todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
             resultsDiv.appendChild(todayDiv);
@@ -1250,8 +1255,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // 누적 뉴스 표시
-        if (otherNews.length > 0) {
+        // 누적 뉴스 표시 (중복 방지)
+        if (otherNews.length > 0 && !document.querySelector('#techTrendResults h6:contains("최근 누적 뉴스")')) {
             const recentDiv = document.createElement('div');
             recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
             resultsDiv.appendChild(recentDiv);
@@ -1263,7 +1268,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // 무한 스크롤 로딩 표시
+        // 무한 스크롤 로딩 표시 (기존 제거 후 새로 추가)
+        const existingLoading = document.getElementById('techLoadingIndicator');
+        if (existingLoading) {
+            existingLoading.remove();
+        }
+        
         if (techNewsData.hasMore) {
             const loadingDiv = document.createElement('div');
             loadingDiv.id = 'techLoadingIndicator';
