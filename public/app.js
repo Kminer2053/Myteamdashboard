@@ -530,19 +530,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 riskNewsData.hasMore = data.hasMore;
                 riskNewsData.offset += data.data.length;
                 
-                // 분석 보고서 데이터 가져오기 (첫 번째 로드 시에만)
-                let analysisReport = null;
-                if (riskNewsData.offset === data.data.length) {
-                    try {
-                        const reportRes = await fetch(`${API_BASE_URL}/api/risk-analysis`);
-                        const reportResponse = await reportRes.json();
-                        if (reportResponse.success && reportResponse.data && reportResponse.data.length > 0) {
-                            analysisReport = reportResponse.data[0];
-                        }
-                    } catch (error) {
-                        console.error('분석 보고서 조회 실패:', error);
-                    }
-                }
+                // 분석 보고서 데이터 (백엔드에서 전달받음)
+                const analysisReport = data.analysisReport;
                 
                 await renderRiskNewsContent(analysisReport);
             }
@@ -932,7 +921,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const today = await getKoreaToday();
         
         // 첫 번째 로드인 경우에만 전체 내용 렌더링 (조건 수정)
-        if (partnerNewsData.offset === partnerNewsData.limit && partnerNewsData.items.length === partnerNewsData.limit) {
+        if (partnerNewsData.offset === partnerNewsData.limit) {
             resultsDiv.innerHTML = '';
             
             // === 상단 건수/정보갱신 버튼 ===
@@ -1177,7 +1166,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const today = await getKoreaToday();
         
         // 첫 번째 로드인 경우에만 전체 내용 렌더링 (조건 수정)
-        if (techNewsData.offset === techNewsData.limit && techNewsData.items.length === techNewsData.limit) {
+        if (techNewsData.offset === techNewsData.limit) {
             resultsDiv.innerHTML = '';
             
             // === 상단 건수/정보갱신 버튼 ===

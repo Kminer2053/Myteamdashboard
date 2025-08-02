@@ -1282,6 +1282,9 @@ app.get('/api/risk-news', async (req, res) => {
     .skip(parseInt(offset))
     .limit(parseInt(limit))
     .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
+
+    // 최신 분석 보고서 조회
+    const analysisReport = await RiskAnalysisReport.findOne().sort({ createdAt: -1 });
     
     res.json({
       success: true,
@@ -1290,7 +1293,8 @@ app.get('/api/risk-news', async (req, res) => {
       totalCount: totalCount,
       hasMore: parseInt(offset) + parseInt(limit) < totalCount,
       offset: parseInt(offset),
-      limit: parseInt(limit)
+      limit: parseInt(limit),
+      analysisReport: analysisReport
     });
   } catch (error) {
     console.error('리스크 뉴스 조회 실패:', error);
