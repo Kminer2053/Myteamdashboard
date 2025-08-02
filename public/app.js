@@ -549,88 +549,86 @@ document.addEventListener('DOMContentLoaded', function() {
         const newsFeed = document.getElementById('newsFeed');
         const today = await getKoreaToday();
         
-        // 첫 번째 로드인 경우에만 전체 내용 렌더링 (조건 수정)
-        if (riskNewsData.offset === riskNewsData.limit && riskNewsData.items.length === riskNewsData.limit) {
-            newsFeed.innerHTML = '';
-            
-            // === 분석 보고서 표출 ===
-            if (analysisReport) {
-                const reportDiv = document.createElement('div');
-                reportDiv.className = 'card mb-4';
-                reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #dc3545;';
-                reportDiv.innerHTML = `
-                    <div class="card-header" style="background: linear-gradient(135deg, #dc3545, #c82333); color: white; padding: 15px 20px;">
-                        <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport.analysisModel || 'perplexity-ai'}</small></h6>
-                    </div>
-                    <div class="card-body" style="padding: 20px;">
-                        <div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${analysisReport.newsSummary || analysisReport.analysis || '분석 내용이 없습니다.'}</div>
-                        <div class="row">
-                            <div class="col-md-3">
-                                <small class="text-muted">감성점수</small><br>
-                                <span class="badge" style="background: ${analysisReport.sentimentScore > 50 ? '#28a745' : analysisReport.sentimentScore > 30 ? '#ffc107' : '#dc3545'}; color: white;">${analysisReport.sentimentScore || 0}점</span>
-                            </div>
-                            <div class="col-md-3">
-                                <small class="text-muted">주가정보</small><br>
-                                <span class="text-muted">${analysisReport.stockInfo || '정보 없음'}</span>
-                            </div>
-                            <div class="col-md-3">
-                                <small class="text-muted">총 뉴스</small><br>
-                                <span class="badge badge-secondary">${analysisReport.newsCount || analysisReport.totalNewsCount || 0}건</span>
-                            </div>
-                            <div class="col-md-3">
-                                <small class="text-muted">분석일</small><br>
-                                <span class="text-muted">${analysisReport.analysisDate || new Date().toLocaleDateString()}</span>
-                            </div>
+        // 항상 전체 내용 렌더링 (조건 제거)
+        newsFeed.innerHTML = '';
+        
+        // === 분석 보고서 표출 ===
+        if (analysisReport) {
+            const reportDiv = document.createElement('div');
+            reportDiv.className = 'card mb-4';
+            reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #dc3545;';
+            reportDiv.innerHTML = `
+                <div class="card-header" style="background: linear-gradient(135deg, #dc3545, #c82333); color: white; padding: 15px 20px;">
+                    <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport.analysisModel || 'perplexity-ai'}</small></h6>
+                </div>
+                <div class="card-body" style="padding: 20px;">
+                    <div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${analysisReport.newsSummary || analysisReport.analysis || '분석 내용이 없습니다.'}</div>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <small class="text-muted">감성점수</small><br>
+                            <span class="badge" style="background: ${analysisReport.sentimentScore > 50 ? '#28a745' : analysisReport.sentimentScore > 30 ? '#ffc107' : '#dc3545'}; color: white;">${analysisReport.sentimentScore || 0}점</span>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">주가정보</small><br>
+                            <span class="text-muted">${analysisReport.stockInfo || '정보 없음'}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">총 뉴스</small><br>
+                            <span class="badge badge-secondary">${analysisReport.newsCount || analysisReport.totalNewsCount || 0}건</span>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">분석일</small><br>
+                            <span class="text-muted">${analysisReport.analysisDate || new Date().toLocaleDateString()}</span>
                         </div>
                     </div>
-                `;
-                newsFeed.appendChild(reportDiv);
+                </div>
+            `;
+            newsFeed.appendChild(reportDiv);
+        }
+        
+        // === 뉴스 현황 표시 ===
+        const todayCount = riskNewsData.items.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr === todayDateStr;
+        }).length;
+        
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'd-flex justify-content-end align-items-center mb-3';
+        statusDiv.innerHTML = `
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${riskNewsData.totalCount}</b>건</span>
+            <button class="btn btn-sm btn-outline-danger" id="refreshRiskBtn">정보갱신</button>
+        `;
+        newsFeed.appendChild(statusDiv);
+        
+        // 정보갱신 버튼 이벤트
+        document.getElementById('refreshRiskBtn').onclick = async function() {
+            const keywords = await loadKeywords();
+            if (!keywords.length) {
+                alert('등록된 키워드가 없습니다.');
+                return;
+            }
+            newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 정보갱신 중...</div></div>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/collect-news/risk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    console.log('리스크 뉴스 수집 완료');
+                } else {
+                    console.error('리스크 뉴스 수집 실패');
+                }
+            } catch (error) {
+                console.error('리스크 뉴스 수집 오류:', error);
             }
             
-            // === 뉴스 현황 표시 ===
-            const todayCount = riskNewsData.items.filter(item => {
-                const itemDate = new Date(item.pubDate);
-                const todayDate = new Date(today);
-                const itemDateStr = itemDate.toISOString().split('T')[0];
-                const todayDateStr = todayDate.toISOString().split('T')[0];
-                return itemDateStr === todayDateStr;
-            }).length;
-            
-            const statusDiv = document.createElement('div');
-            statusDiv.className = 'd-flex justify-content-end align-items-center mb-3';
-            statusDiv.innerHTML = `
-                <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${riskNewsData.totalCount}</b>건</span>
-                <button class="btn btn-sm btn-outline-danger" id="refreshRiskBtn">정보갱신</button>
-            `;
-            newsFeed.appendChild(statusDiv);
-            
-            // 정보갱신 버튼 이벤트
-            document.getElementById('refreshRiskBtn').onclick = async function() {
-                const keywords = await loadKeywords();
-                if (!keywords.length) {
-                    alert('등록된 키워드가 없습니다.');
-                    return;
-                }
-                newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 정보갱신 중...</div></div>';
-                
-                try {
-                    const response = await fetch(`${API_BASE_URL}/api/collect-news/risk`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                    
-                    if (response.ok) {
-                        console.log('리스크 뉴스 수집 완료');
-                    } else {
-                        console.error('리스크 뉴스 수집 실패');
-                    }
-                } catch (error) {
-                    console.error('리스크 뉴스 수집 오류:', error);
-                }
-                
-                await renderNews(keywords);
-            };
-        }
+            await renderNews(keywords);
+        };
         
         // === 뉴스 목록 렌더링 ===
         const todayNews = riskNewsData.items.filter(item => {
@@ -647,6 +645,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const itemDateStr = itemDate.toISOString().split('T')[0];
             const todayDateStr = todayDate.toISOString().split('T')[0];
             return itemDateStr !== todayDateStr;
+        });
+        
+        console.log('📋 리스크 뉴스 렌더링:', {
+            totalItems: riskNewsData.items.length,
+            todayNews: todayNews.length,
+            otherNews: otherNews.length
         });
         
         // 오늘 뉴스 표시
