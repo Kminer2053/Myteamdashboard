@@ -477,106 +477,226 @@ document.addEventListener('DOMContentLoaded', function() {
         renderNews(checked);
     }
 
-    // 리스크 이슈 모니터링 뉴스 UI 렌더링 (체크박스 기반 필터)
+    // 리스크 이슈 모니터링 뉴스 UI 렌더링 (무한 스크롤 적용)
+    let riskNewsData = {
+        items: [],
+        totalCount: 0,
+        offset: 0,
+        limit: 50,
+        loading: false,
+        hasMore: true
+    };
+
     async function renderNews(selectedKeywords) {
         const newsFeed = document.getElementById('newsFeed');
         if (!newsFeed) return;
-        newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 로딩 중...</div></div>';
-        const keywords = selectedKeywords || await loadKeywords();
-        const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
-        const response = await getRes.json();
-        const allNews = response.data || response; // 새로운 구조와 기존 구조 모두 지원
         
-        // 분석 보고서 데이터 가져오기
-        let analysisReport = null;
+        // 초기 로딩
+        newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 로딩 중...</div></div>';
+        
+        // 데이터 초기화
+        riskNewsData = {
+            items: [],
+            totalCount: 0,
+            offset: 0,
+            limit: 50,
+            loading: false,
+            hasMore: true
+        };
+        
+        await loadMoreRiskNews();
+    }
+
+    async function loadMoreRiskNews() {
+        if (riskNewsData.loading || !riskNewsData.hasMore) return;
+        
+        riskNewsData.loading = true;
+        const newsFeed = document.getElementById('newsFeed');
+        
         try {
-            const reportRes = await fetch(`${API_BASE_URL}/api/risk-analysis`);
-            const reportResponse = await reportRes.json();
-            if (reportResponse.success && reportResponse.data && reportResponse.data.length > 0) {
-                analysisReport = reportResponse.data[0]; // 최신 분석 보고서
+            const response = await fetch(`${API_BASE_URL}/api/risk-news?limit=${riskNewsData.limit}&offset=${riskNewsData.offset}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                // 첫 번째 로드인 경우 기존 데이터 초기화
+                if (riskNewsData.offset === 0) {
+                    riskNewsData.items = [];
+                    newsFeed.innerHTML = '';
+                }
+                
+                // 새 데이터 추가
+                riskNewsData.items = [...riskNewsData.items, ...data.data];
+                riskNewsData.totalCount = data.totalCount;
+                riskNewsData.hasMore = data.hasMore;
+                riskNewsData.offset += data.data.length;
+                
+                // 분석 보고서 데이터 가져오기 (첫 번째 로드 시에만)
+                let analysisReport = null;
+                if (riskNewsData.offset === data.data.length) {
+                    try {
+                        const reportRes = await fetch(`${API_BASE_URL}/api/risk-analysis`);
+                        const reportResponse = await reportRes.json();
+                        if (reportResponse.success && reportResponse.data && reportResponse.data.length > 0) {
+                            analysisReport = reportResponse.data[0];
+                        }
+                    } catch (error) {
+                        console.error('분석 보고서 조회 실패:', error);
+                    }
+                }
+                
+                await renderRiskNewsContent(analysisReport);
             }
         } catch (error) {
-            console.error('분석 보고서 조회 실패:', error);
-        }
-        const today = await getKoreaToday();
-        // 키워드 필터링 제거 - 모든 뉴스 표시
-        let filtered = allNews;
-        const todayCount = filtered.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            // 날짜만 비교 (시간 제외)
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr === todayDateStr;
-        }).length;
-        newsFeed.innerHTML = '';
-        
-        // === 분석 보고서 표출 ===
-        if (analysisReport) {
-            const analysisDiv = document.createElement('div');
-            analysisDiv.className = 'mb-3 p-3 bg-light border rounded';
-            analysisDiv.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h6 class="mb-0"><i class="fas fa-chart-line text-primary"></i> AI 분석 보고서</h6>
-                    <small class="text-muted">${analysisReport.analysisModel || 'perplexity-ai'}</small>
-                </div>
-                <div style="color: #666; line-height: 1.6; font-size: 0.9em;">
-                    ${analysisReport.analysis || '분석 데이터가 없습니다.'}
-                </div>
-                <div class="mt-2 text-muted small">
-                    <span class="me-3">총 뉴스: ${analysisReport.totalNewsCount || 0}건</span>
-                    <span>분석일: ${new Date(analysisReport.date).toLocaleDateString()}</span>
-                </div>
-            `;
-            newsFeed.appendChild(analysisDiv);
-        }
-        
-        // === 상단 건수/갱신 버튼 추가 ===
-        const topBar = document.createElement('div');
-        topBar.className = 'd-flex justify-content-end align-items-center mb-2';
-        topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${filtered.length}</b>건</span>
-            <button class="btn btn-sm btn-outline-section-risk" id="refreshNewsBtn">정보갱신</button>
-        `;
-        newsFeed.appendChild(topBar);
-        document.getElementById('refreshNewsBtn').onclick = async function() {
-            const keywords = await loadKeywords();
-            if (!keywords.length) {
-                alert('등록된 키워드가 없습니다.');
-                return;
+            console.error('리스크 뉴스 로드 실패:', error);
+            if (riskNewsData.offset === 0) {
+                newsFeed.innerHTML = '<div class="alert alert-danger">뉴스를 불러오는데 실패했습니다.</div>';
             }
-            newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 정보갱신 중...</div></div>';
-            
-            try {
-                // Perplexity AI 기반 뉴스 수집
-                const response = await fetch(`${API_BASE_URL}/api/collect-news/risk`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (response.ok) {
-                    console.log('리스크이슈 뉴스 수집 완료');
-                } else {
-                    console.error('리스크이슈 뉴스 수집 실패');
-                }
-            } catch (error) {
-                console.error('리스크이슈 뉴스 수집 오류:', error);
-            }
-            
-            await renderNews(keywords);
-        };
+        } finally {
+            riskNewsData.loading = false;
+        }
+    }
 
-        // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
-        const todayNews = filtered.filter(item => {
+    async function renderRiskNewsContent(analysisReport) {
+        const newsFeed = document.getElementById('newsFeed');
+        const today = await getKoreaToday();
+        
+        // 첫 번째 로드인 경우에만 전체 내용 렌더링
+        if (riskNewsData.offset === riskNewsData.limit) {
+            newsFeed.innerHTML = '';
+            
+            // === 분석 보고서 표출 ===
+            if (analysisReport) {
+                const reportDiv = document.createElement('div');
+                reportDiv.className = 'card mb-4';
+                reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #dc3545;';
+                reportDiv.innerHTML = `
+                    <div class="card-header" style="background: linear-gradient(135deg, #dc3545, #c82333); color: white; padding: 15px 20px;">
+                        <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport.analysisModel || 'perplexity-ai'}</small></h6>
+                    </div>
+                    <div class="card-body" style="padding: 20px;">
+                        <div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${analysisReport.newsSummary || '분석 내용이 없습니다.'}</div>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <small class="text-muted">감성점수</small><br>
+                                <span class="badge" style="background: ${analysisReport.sentimentScore > 50 ? '#28a745' : analysisReport.sentimentScore > 30 ? '#ffc107' : '#dc3545'}; color: white;">${analysisReport.sentimentScore || 0}점</span>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted">주가정보</small><br>
+                                <span class="text-muted">${analysisReport.stockInfo || '정보 없음'}</span>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted">총 뉴스</small><br>
+                                <span class="badge badge-secondary">${analysisReport.newsCount || 0}건</span>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted">분석일</small><br>
+                                <span class="text-muted">${analysisReport.analysisDate || new Date().toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                newsFeed.appendChild(reportDiv);
+            }
+            
+            // === 뉴스 현황 표시 ===
+            const todayCount = riskNewsData.items.filter(item => {
+                const itemDate = new Date(item.pubDate);
+                const todayDate = new Date(today);
+                const itemDateStr = itemDate.toISOString().split('T')[0];
+                const todayDateStr = todayDate.toISOString().split('T')[0];
+                return itemDateStr === todayDateStr;
+            }).length;
+            
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'd-flex justify-content-end align-items-center mb-3';
+            statusDiv.innerHTML = `
+                <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${riskNewsData.totalCount}</b>건</span>
+                <button class="btn btn-sm btn-outline-danger" id="refreshRiskBtn">정보갱신</button>
+            `;
+            newsFeed.appendChild(statusDiv);
+            
+            // 정보갱신 버튼 이벤트
+            document.getElementById('refreshRiskBtn').onclick = async function() {
+                const keywords = await loadKeywords();
+                if (!keywords.length) {
+                    alert('등록된 키워드가 없습니다.');
+                    return;
+                }
+                newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 정보갱신 중...</div></div>';
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/collect-news/risk`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (response.ok) {
+                        console.log('리스크 뉴스 수집 완료');
+                    } else {
+                        console.error('리스크 뉴스 수집 실패');
+                    }
+                } catch (error) {
+                    console.error('리스크 뉴스 수집 오류:', error);
+                }
+                
+                await renderNews(keywords);
+            };
+        }
+        
+        // === 뉴스 목록 렌더링 ===
+        const todayNews = riskNewsData.items.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
-            // 날짜만 비교 (시간 제외)
             const itemDateStr = itemDate.toISOString().split('T')[0];
             const todayDateStr = todayDate.toISOString().split('T')[0];
             return itemDateStr === todayDateStr;
         });
-        if (todayNews.length === 0 && filtered.length > 0) {
-            // 오늘 데이터가 없고 누적 데이터가 있는 경우
+        
+        const otherNews = riskNewsData.items.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr !== todayDateStr;
+        });
+        
+        // 오늘 뉴스 표시
+        if (todayNews.length > 0) {
+            const todayDiv = document.createElement('div');
+            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+            newsFeed.appendChild(todayDiv);
+            
+            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            todayNews.forEach(item => {
+                const card = createNewsCard(item, 'risk', 'Today');
+                newsFeed.appendChild(card);
+            });
+        }
+        
+        // 누적 뉴스 표시
+        if (otherNews.length > 0) {
+            const recentDiv = document.createElement('div');
+            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+            newsFeed.appendChild(recentDiv);
+            
+            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            otherNews.forEach(item => {
+                const card = createNewsCard(item, 'risk');
+                newsFeed.appendChild(card);
+            });
+        }
+        
+        // 무한 스크롤 로딩 표시
+        if (riskNewsData.hasMore) {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'riskLoadingIndicator';
+            loadingDiv.className = 'd-flex justify-content-center my-3';
+            loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+            newsFeed.appendChild(loadingDiv);
+        }
+        
+        // 뉴스가 없는 경우
+        if (riskNewsData.items.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'alert alert-info';
             emptyDiv.innerHTML = `
@@ -587,181 +707,100 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
             newsFeed.appendChild(emptyDiv);
-            
-            // 기존 누적 데이터 표출
-            const recentDiv = document.createElement('div');
-            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
-            newsFeed.appendChild(recentDiv);
-        } else if (filtered.length === 0) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'news-item';
-            emptyDiv.textContent = '표시할 뉴스가 없습니다.';
-            newsFeed.appendChild(emptyDiv);
-            return;
-        } else if (todayNews.length > 0 && filtered.length > todayNews.length) {
-            // 오늘 데이터가 있고 누적 데이터도 있는 경우
-            const todayDiv = document.createElement('div');
-            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
-            newsFeed.appendChild(todayDiv);
-            
-            // 오늘 데이터 표출
-            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            todayNews.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'card mb-3';
-                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
-                card.classList.add('border-primary', 'bg-light');
-                card.innerHTML = `
-                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
-                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
-                      <span class="badge badge-section-risk me-2">Today</span>
-                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
-                    </h6>
-                  </div>
-                  <div class="card-body" style="padding: 20px;">
-                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
-                    <div class="d-flex flex-wrap gap-1 mb-2">
-                      ${(item.relatedKeywords || []).map(kw => 
-                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
-                      ).join('')}
-                    </div>
-                    <div style="font-size: 0.8em; color: #999;">
-                      출처: ${item.source || '알 수 없음'} | 
-                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
-                      <span class="badge badge-section-risk">${item.keyword}</span>
-                    </div>
-                  </div>
-                `;
-                newsFeed.appendChild(card);
-            });
-            
-            // 누적 데이터 표출
-            const recentDiv = document.createElement('div');
-            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
-            newsFeed.appendChild(recentDiv);
-            
-            // 오늘 데이터를 제외한 나머지 데이터
-            const otherNews = filtered.filter(item => extractDate(item.pubDate) !== today);
-            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            otherNews.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'card mb-3';
-                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
-                card.innerHTML = `
-                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
-                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
-                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
-                    </h6>
-                  </div>
-                  <div class="card-body" style="padding: 20px;">
-                    ${item.description ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.description}</div>` : ''}
-                    <div class="d-flex flex-wrap gap-1 mb-2">
-                      ${(item.relatedKeywords || []).map(kw => 
-                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
-                      ).join('')}
-                    </div>
-                    <div style="font-size: 0.8em; color: #999;">
-                      출처: ${item.source || '알 수 없음'} | 
-                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
-                      <span class="badge badge-section-risk">${item.keyword}</span>
-                      ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
-                        `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
-                    </div>
-                  </div>
-                `;
-                newsFeed.appendChild(card);
-            });
-            return;
         }
-        filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-        filtered.forEach(item => {
-            const isToday = extractDate(item.pubDate) === today;
-            const card = document.createElement('div');
-            card.className = 'card mb-3';
-            card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
-            if (isToday) {
-                card.classList.add('border-primary', 'bg-light');
-            }
-            card.innerHTML = `
-              <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
+    }
+
+    // 뉴스 카드 생성 함수
+    function createNewsCard(item, category, badge = '') {
+        const card = document.createElement('div');
+        card.className = 'card mb-3';
+        card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
+        card.classList.add(`border-${category === 'risk' ? 'danger' : category === 'partner' ? 'primary' : 'success'}`, 'bg-light');
+        
+        const badgeHtml = badge ? `<span class="badge badge-section-${category} me-2">${badge}</span>` : '';
+        
+        card.innerHTML = `
+            <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
                 <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
-                  ${isToday ? '<span class="badge badge-section-risk me-2">Today</span>' : ''}
-                  <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
+                    ${badgeHtml}
+                    <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
                 </h6>
-              </div>
-              <div class="card-body" style="padding: 20px;">
-                ${item.description ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.description}</div>` : ''}
+            </div>
+            <div class="card-body" style="padding: 20px;">
+                ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
                 <div class="d-flex flex-wrap gap-1 mb-2">
-                  ${(item.relatedKeywords || []).map(kw => 
-                    `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
-                  ).join('')}
+                    ${(item.relatedKeywords || []).map(kw => 
+                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
+                    ).join('')}
                 </div>
                 <div style="font-size: 0.8em; color: #999;">
-                  출처: ${item.source || '알 수 없음'} | 
-                  ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
-                  <span class="badge badge-section-risk">${item.keyword}</span>
-                  ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
-                    `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
+                    출처: ${item.source || '알 수 없음'} | 
+                    ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
+                    <span class="badge badge-section-${category}">${item.keyword}</span>
                 </div>
-              </div>
-            `;
-            newsFeed.appendChild(card);
-        });
+            </div>
+        `;
+        return card;
     }
 
-    // fetchAndSaveAllNews를 체크된 키워드만 대상으로 동작하도록 개선
-    async function fetchAndSaveAllNews(keywordsParam) {
-        const keywords = keywordsParam || await loadKeywords();
-        if (!Array.isArray(keywords) || keywords.length === 0) return;
-        const today = await getKoreaToday();
-        let allNews = [];
-        for (const kw of keywords) {
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/naver-news?query=${encodeURIComponent(kw)}&max=100`);
-                if (!res.ok) {
-                    continue;
+    // 무한 스크롤 이벤트 리스너
+    function setupAllInfiniteScrolls() {
+        // 리스크 뉴스 무한 스크롤
+        const riskObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !riskNewsData.loading && riskNewsData.hasMore) {
+                    loadMoreRiskNews();
                 }
-                const data = await res.json();
-                if (data.items) {
-                    data.items.forEach(item => {
-                        if (!allNews.some(n => n.link === item.link)) {
-                            allNews.push({ ...item, keyword: kw });
-                        }
-                    });
+            });
+        }, { threshold: 0.1 });
+        
+        // 제휴처 뉴스 무한 스크롤
+        const partnerObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !partnerNewsData.loading && partnerNewsData.hasMore) {
+                    loadMorePartnerNews();
                 }
-            } catch (e) {
+            });
+        }, { threshold: 0.1 });
+        
+        // 신기술 뉴스 무한 스크롤
+        const techObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !techNewsData.loading && techNewsData.hasMore) {
+                    loadMoreTechNews();
+                }
+            });
+        }, { threshold: 0.1 });
+        
+        // 로딩 인디케이터 관찰 시작
+        function observeLoadingIndicators() {
+            const riskLoadingIndicator = document.getElementById('riskLoadingIndicator');
+            const partnerLoadingIndicator = document.getElementById('partnerLoadingIndicator');
+            const techLoadingIndicator = document.getElementById('techLoadingIndicator');
+            
+            if (riskLoadingIndicator) {
+                riskObserver.observe(riskLoadingIndicator);
+            }
+            if (partnerLoadingIndicator) {
+                partnerObserver.observe(partnerLoadingIndicator);
+            }
+            if (techLoadingIndicator) {
+                techObserver.observe(techLoadingIndicator);
             }
         }
-        // 서버에 저장
-        await fetch(`${API_BASE_URL}/api/risk-news`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: allNews })
-        });
-        // 서버에서 최신 데이터 GET
-        const getRes = await fetch(`${API_BASE_URL}/api/risk-news`);
-        const news = await getRes.json();
         
-        // 선택된 키워드에 해당하는 뉴스만 필터링
-        const filteredNews = news.filter(item => keywords.includes(item.keyword));
-        
-        // 최근 일주일 데이터만 필터링
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        const recentNews = filteredNews.filter(item => {
-            const pubDate = new Date(item.pubDate);
-            return pubDate >= oneWeekAgo;
+        // DOM 변경 감지하여 새로운 로딩 인디케이터 관찰
+        const observer = new MutationObserver(() => {
+            observeLoadingIndicators();
         });
         
-        localStorage.setItem(`riskNews_${today}`, JSON.stringify(recentNews));
-        localStorage.setItem('riskNews_lastUpdate', today);
-    }
-
-    // 대시보드 진입 시 자동 뉴스 갱신 체크 및 체크박스/뉴스 렌더링 순서 보장
-    if (document.getElementById('newsFeed')) {
-        renderKeywordDisplay().then(() => {
-            renderNewsByChecked();
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
         });
+        
+        // 초기 관찰 시작
+        observeLoadingIndicators();
     }
 
     // 제휴처 탐색, 신기술 동향도 체크박스 렌더링 후 필터링 함수 실행
@@ -823,71 +862,178 @@ document.addEventListener('DOMContentLoaded', function() {
         const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
         renderPartnerResults(checked);
     }
+    // 제휴처 탐색 뉴스 렌더링 (무한 스크롤 적용)
+    let partnerNewsData = {
+        items: [],
+        totalCount: 0,
+        offset: 0,
+        limit: 50,
+        loading: false,
+        hasMore: true
+    };
+
     async function renderPartnerResults(selected) {
         const resultsDiv = document.getElementById('partnerResults');
         if (!resultsDiv) return;
-        // 최초 로딩/정보갱신 시 로딩 스피너 표시
+        
+        // 초기 로딩
         resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 로딩 중...</div></div>';
-        const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
-        const response = await getRes.json();
-        const allData = response.data || response; // 새로운 구조와 기존 구조 모두 지원
-        const today = await getKoreaToday();
-        // 키워드 필터링 제거 - 모든 뉴스 표시
-        let filtered = allData;
-        const todayCount = filtered.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            // 날짜만 비교 (시간 제외)
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr === todayDateStr;
-        }).length;
-        resultsDiv.innerHTML = '';
-        // 제휴처탐색 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
-        const topBar = document.createElement('div');
-        topBar.className = 'd-flex justify-content-end align-items-center mb-2';
-        topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${filtered.length}</b>건</span>
-            <button class="btn btn-sm btn-outline-section-partner" id="refreshPartnerBtn">정보갱신</button>
-        `;
-        resultsDiv.appendChild(topBar);
-        document.getElementById('refreshPartnerBtn').onclick = async function() {
-            const conds = await loadPartnerConditions();
-            if (!conds.length) {
-                alert('등록된 조건이 없습니다.');
-                return;
-            }
-            resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 정보갱신 중...</div></div>';
-            
-            try {
-                // Perplexity AI 기반 뉴스 수집
-                const response = await fetch(`${API_BASE_URL}/api/collect-news/partner`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (response.ok) {
-                    console.log('제휴처탐색 뉴스 수집 완료');
-                } else {
-                    console.error('제휴처탐색 뉴스 수집 실패');
-                }
-            } catch (error) {
-                console.error('제휴처탐색 뉴스 수집 오류:', error);
-            }
-            
-            await renderPartnerResults(conds);
+        
+        // 데이터 초기화
+        partnerNewsData = {
+            items: [],
+            totalCount: 0,
+            offset: 0,
+            limit: 50,
+            loading: false,
+            hasMore: true
         };
-        // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
-        const todayNews = filtered.filter(item => {
+        
+        await loadMorePartnerNews();
+    }
+
+    async function loadMorePartnerNews() {
+        if (partnerNewsData.loading || !partnerNewsData.hasMore) return;
+        
+        partnerNewsData.loading = true;
+        const resultsDiv = document.getElementById('partnerResults');
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/partner-news?limit=${partnerNewsData.limit}&offset=${partnerNewsData.offset}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                // 첫 번째 로드인 경우 기존 데이터 초기화
+                if (partnerNewsData.offset === 0) {
+                    partnerNewsData.items = [];
+                    resultsDiv.innerHTML = '';
+                }
+                
+                // 새 데이터 추가
+                partnerNewsData.items = [...partnerNewsData.items, ...data.data];
+                partnerNewsData.totalCount = data.totalCount;
+                partnerNewsData.hasMore = data.hasMore;
+                partnerNewsData.offset += data.data.length;
+                
+                await renderPartnerNewsContent();
+            }
+        } catch (error) {
+            console.error('제휴처 뉴스 로드 실패:', error);
+            if (partnerNewsData.offset === 0) {
+                resultsDiv.innerHTML = '<div class="alert alert-danger">뉴스를 불러오는데 실패했습니다.</div>';
+            }
+        } finally {
+            partnerNewsData.loading = false;
+        }
+    }
+
+    async function renderPartnerNewsContent() {
+        const resultsDiv = document.getElementById('partnerResults');
+        const today = await getKoreaToday();
+        
+        // 첫 번째 로드인 경우에만 전체 내용 렌더링
+        if (partnerNewsData.offset === partnerNewsData.limit) {
+            resultsDiv.innerHTML = '';
+            
+            // === 상단 건수/정보갱신 버튼 ===
+            const todayCount = partnerNewsData.items.filter(item => {
+                const itemDate = new Date(item.pubDate);
+                const todayDate = new Date(today);
+                const itemDateStr = itemDate.toISOString().split('T')[0];
+                const todayDateStr = todayDate.toISOString().split('T')[0];
+                return itemDateStr === todayDateStr;
+            }).length;
+            
+            const topBar = document.createElement('div');
+            topBar.className = 'd-flex justify-content-end align-items-center mb-2';
+            topBar.innerHTML = `
+                <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${partnerNewsData.totalCount}</b>건</span>
+                <button class="btn btn-sm btn-outline-primary" id="refreshPartnerBtn">정보갱신</button>
+            `;
+            resultsDiv.appendChild(topBar);
+            
+            // 정보갱신 버튼 이벤트
+            document.getElementById('refreshPartnerBtn').onclick = async function() {
+                const conds = await loadPartnerConditions();
+                if (!conds.length) {
+                    alert('등록된 조건이 없습니다.');
+                    return;
+                }
+                resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 정보갱신 중...</div></div>';
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/collect-news/partner`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (response.ok) {
+                        console.log('제휴처탐색 뉴스 수집 완료');
+                    } else {
+                        console.error('제휴처탐색 뉴스 수집 실패');
+                    }
+                } catch (error) {
+                    console.error('제휴처탐색 뉴스 수집 오류:', error);
+                }
+                
+                await renderPartnerResults(conds);
+            };
+        }
+        
+        // === 뉴스 목록 렌더링 ===
+        const todayNews = partnerNewsData.items.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
-            // 날짜만 비교 (시간 제외)
             const itemDateStr = itemDate.toISOString().split('T')[0];
             const todayDateStr = todayDate.toISOString().split('T')[0];
             return itemDateStr === todayDateStr;
         });
-        if (todayNews.length === 0 && filtered.length > 0) {
-            // 오늘 데이터가 없고 누적 데이터가 있는 경우
+        
+        const otherNews = partnerNewsData.items.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr !== todayDateStr;
+        });
+        
+        // 오늘 뉴스 표시
+        if (todayNews.length > 0) {
+            const todayDiv = document.createElement('div');
+            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+            resultsDiv.appendChild(todayDiv);
+            
+            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            todayNews.forEach(item => {
+                const card = createNewsCard(item, 'partner', 'Today');
+                resultsDiv.appendChild(card);
+            });
+        }
+        
+        // 누적 뉴스 표시
+        if (otherNews.length > 0) {
+            const recentDiv = document.createElement('div');
+            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+            resultsDiv.appendChild(recentDiv);
+            
+            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            otherNews.forEach(item => {
+                const card = createNewsCard(item, 'partner');
+                resultsDiv.appendChild(card);
+            });
+        }
+        
+        // 무한 스크롤 로딩 표시
+        if (partnerNewsData.hasMore) {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'partnerLoadingIndicator';
+            loadingDiv.className = 'd-flex justify-content-center my-3';
+            loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+            resultsDiv.appendChild(loadingDiv);
+        }
+        
+        // 뉴스가 없는 경우
+        if (partnerNewsData.items.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'alert alert-info';
             emptyDiv.innerHTML = `
@@ -898,134 +1044,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
             resultsDiv.appendChild(emptyDiv);
-            
-            // 기존 누적 데이터 표출
-            const recentDiv = document.createElement('div');
-            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
-            resultsDiv.appendChild(recentDiv);
-        } else if (filtered.length === 0) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'news-item';
-            emptyDiv.textContent = '표시할 정보가 없습니다.';
-            resultsDiv.appendChild(emptyDiv);
-            return;
-        } else if (todayNews.length > 0 && filtered.length > todayNews.length) {
-            // 오늘 데이터가 있고 누적 데이터도 있는 경우
-            const todayDiv = document.createElement('div');
-            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
-            resultsDiv.appendChild(todayDiv);
-            
-            // 오늘 데이터 표출
-            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            todayNews.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'card mb-3';
-                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
-                card.classList.add('border-primary', 'bg-light');
-                card.innerHTML = `
-                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
-                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
-                      <span class="badge badge-section-partner me-2">Today</span>
-                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
-                    </h6>
-                  </div>
-                  <div class="card-body" style="padding: 20px;">
-                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
-                    <div class="d-flex flex-wrap gap-1 mb-2">
-                      ${(item.relatedKeywords || []).map(kw => 
-                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
-                      ).join('')}
-                    </div>
-                    <div style="font-size: 0.8em; color: #999;">
-                      출처: ${item.source || '알 수 없음'} | 
-                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
-                      <span class="badge badge-section-partner">${item.keyword}</span>
-                    </div>
-                  </div>
-                `;
-                resultsDiv.appendChild(card);
-            });
-            
-            // 누적 데이터 표출
-            const recentDiv = document.createElement('div');
-            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
-            resultsDiv.appendChild(recentDiv);
-            
-            // 오늘 데이터를 제외한 나머지 데이터
-            const otherNews = filtered.filter(item => {
-                const itemDate = new Date(item.pubDate);
-                const todayDate = new Date(today);
-                // 날짜만 비교 (시간 제외)
-                const itemDateStr = itemDate.toISOString().split('T')[0];
-                const todayDateStr = todayDate.toISOString().split('T')[0];
-                return itemDateStr !== todayDateStr;
-            });
-            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            otherNews.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'card mb-3';
-                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
-                card.innerHTML = `
-                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
-                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
-                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
-                    </h6>
-                  </div>
-                  <div class="card-body" style="padding: 20px;">
-                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
-                    <div class="d-flex flex-wrap gap-1 mb-2">
-                      ${(item.relatedKeywords || []).map(kw => 
-                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
-                      ).join('')}
-                    </div>
-                    <div style="font-size: 0.8em; color: #999;">
-                      출처: ${item.source || '알 수 없음'} | 
-                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
-                      <span class="badge badge-section-partner">${item.keyword}</span>
-                      ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
-                        `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
-                    </div>
-                  </div>
-                `;
-                resultsDiv.appendChild(card);
-            });
-            return;
         }
-        filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-        filtered.forEach(item => {
-            const isToday = extractDate(item.pubDate) === today;
-            const card = document.createElement('div');
-            card.className = 'card mb-3';
-            card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
-            if (isToday) {
-                card.classList.add('border-primary', 'bg-light');
-            }
-            card.innerHTML = `
-              <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
-                <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
-                  ${isToday ? '<span class="badge badge-section-partner me-2">Today</span>' : ''}
-                  <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
-                </h6>
-              </div>
-              <div class="card-body" style="padding: 20px;">
-                ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
-                <div class="d-flex flex-wrap gap-1 mb-2">
-                  ${(item.relatedKeywords || []).map(kw => 
-                    `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
-                  ).join('')}
-                </div>
-                <div style="font-size: 0.8em; color: #999;">
-                  출처: ${item.source || '알 수 없음'} | 
-                  ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
-                  <span class="badge badge-section-partner">${item.keyword}</span>
-                  ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
-                    `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
-                </div>
-              </div>
-            `;
-            resultsDiv.appendChild(card);
-        });
     }
+
     // 신기술 동향 키워드 관리
     async function renderTechDisplay() {
         const topics = await loadTechTopics();
@@ -1081,71 +1102,178 @@ document.addEventListener('DOMContentLoaded', function() {
         const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
         renderTechTrendResults(checked);
     }
+    // 신기술 동향 뉴스 렌더링 (무한 스크롤 적용)
+    let techNewsData = {
+        items: [],
+        totalCount: 0,
+        offset: 0,
+        limit: 50,
+        loading: false,
+        hasMore: true
+    };
+
     async function renderTechTrendResults(selected) {
         const resultsDiv = document.getElementById('techTrendResults');
         if (!resultsDiv) return;
-        // 최초 로딩/정보갱신 시 로딩 스피너 표시
+        
+        // 초기 로딩
         resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 로딩 중...</div></div>';
-        const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
-        const response = await getRes.json();
-        const allData = response.data || response; // 새로운 구조와 기존 구조 모두 지원
-        const today = await getKoreaToday();
-        // 키워드 필터링 제거 - 모든 뉴스 표시
-        let filtered = allData;
-        const todayCount = filtered.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            // 날짜만 비교 (시간 제외)
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr === todayDateStr;
-        }).length;
-        resultsDiv.innerHTML = '';
-        // 신기술동향 상단 건수/정보갱신 버튼 - '금일: x건, 누적: y건' 형식
-        const topBar = document.createElement('div');
-        topBar.className = 'd-flex justify-content-end align-items-center mb-2';
-        topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${filtered.length}</b>건</span>
-            <button class="btn btn-sm btn-outline-section-tech" id="refreshTechBtn">정보갱신</button>
-        `;
-        resultsDiv.appendChild(topBar);
-        document.getElementById('refreshTechBtn').onclick = async function() {
-            const topics = await loadTechTopics();
-            if (!topics.length) {
-                alert('등록된 주제가 없습니다.');
-                return;
-            }
-            resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 정보갱신 중...</div></div>';
-            
-            try {
-                // Perplexity AI 기반 뉴스 수집
-                const response = await fetch(`${API_BASE_URL}/api/collect-news/tech`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (response.ok) {
-                    console.log('신기술동향 뉴스 수집 완료');
-                } else {
-                    console.error('신기술동향 뉴스 수집 실패');
-                }
-            } catch (error) {
-                console.error('신기술동향 뉴스 수집 오류:', error);
-            }
-            
-            await renderTechTrendResults(topics);
+        
+        // 데이터 초기화
+        techNewsData = {
+            items: [],
+            totalCount: 0,
+            offset: 0,
+            limit: 50,
+            loading: false,
+            hasMore: true
         };
-        // 오늘 데이터가 있으면 오늘 데이터 + 누적 데이터 모두 표출
-        const todayNews = filtered.filter(item => {
+        
+        await loadMoreTechNews();
+    }
+
+    async function loadMoreTechNews() {
+        if (techNewsData.loading || !techNewsData.hasMore) return;
+        
+        techNewsData.loading = true;
+        const resultsDiv = document.getElementById('techTrendResults');
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/tech-news?limit=${techNewsData.limit}&offset=${techNewsData.offset}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                // 첫 번째 로드인 경우 기존 데이터 초기화
+                if (techNewsData.offset === 0) {
+                    techNewsData.items = [];
+                    resultsDiv.innerHTML = '';
+                }
+                
+                // 새 데이터 추가
+                techNewsData.items = [...techNewsData.items, ...data.data];
+                techNewsData.totalCount = data.totalCount;
+                techNewsData.hasMore = data.hasMore;
+                techNewsData.offset += data.data.length;
+                
+                await renderTechNewsContent();
+            }
+        } catch (error) {
+            console.error('신기술 뉴스 로드 실패:', error);
+            if (techNewsData.offset === 0) {
+                resultsDiv.innerHTML = '<div class="alert alert-danger">뉴스를 불러오는데 실패했습니다.</div>';
+            }
+        } finally {
+            techNewsData.loading = false;
+        }
+    }
+
+    async function renderTechNewsContent() {
+        const resultsDiv = document.getElementById('techTrendResults');
+        const today = await getKoreaToday();
+        
+        // 첫 번째 로드인 경우에만 전체 내용 렌더링
+        if (techNewsData.offset === techNewsData.limit) {
+            resultsDiv.innerHTML = '';
+            
+            // === 상단 건수/정보갱신 버튼 ===
+            const todayCount = techNewsData.items.filter(item => {
+                const itemDate = new Date(item.pubDate);
+                const todayDate = new Date(today);
+                const itemDateStr = itemDate.toISOString().split('T')[0];
+                const todayDateStr = todayDate.toISOString().split('T')[0];
+                return itemDateStr === todayDateStr;
+            }).length;
+            
+            const topBar = document.createElement('div');
+            topBar.className = 'd-flex justify-content-end align-items-center mb-2';
+            topBar.innerHTML = `
+                <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${techNewsData.totalCount}</b>건</span>
+                <button class="btn btn-sm btn-outline-success" id="refreshTechBtn">정보갱신</button>
+            `;
+            resultsDiv.appendChild(topBar);
+            
+            // 정보갱신 버튼 이벤트
+            document.getElementById('refreshTechBtn').onclick = async function() {
+                const topics = await loadTechTopics();
+                if (!topics.length) {
+                    alert('등록된 주제가 없습니다.');
+                    return;
+                }
+                resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 정보갱신 중...</div></div>';
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/collect-news/tech`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (response.ok) {
+                        console.log('신기술동향 뉴스 수집 완료');
+                    } else {
+                        console.error('신기술동향 뉴스 수집 실패');
+                    }
+                } catch (error) {
+                    console.error('신기술동향 뉴스 수집 오류:', error);
+                }
+                
+                await renderTechTrendResults(topics);
+            };
+        }
+        
+        // === 뉴스 목록 렌더링 ===
+        const todayNews = techNewsData.items.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
-            // 날짜만 비교 (시간 제외)
             const itemDateStr = itemDate.toISOString().split('T')[0];
             const todayDateStr = todayDate.toISOString().split('T')[0];
             return itemDateStr === todayDateStr;
         });
-        if (todayNews.length === 0 && filtered.length > 0) {
-            // 오늘 데이터가 없고 누적 데이터가 있는 경우
+        
+        const otherNews = techNewsData.items.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr !== todayDateStr;
+        });
+        
+        // 오늘 뉴스 표시
+        if (todayNews.length > 0) {
+            const todayDiv = document.createElement('div');
+            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+            resultsDiv.appendChild(todayDiv);
+            
+            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            todayNews.forEach(item => {
+                const card = createNewsCard(item, 'tech', 'Today');
+                resultsDiv.appendChild(card);
+            });
+        }
+        
+        // 누적 뉴스 표시
+        if (otherNews.length > 0) {
+            const recentDiv = document.createElement('div');
+            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+            resultsDiv.appendChild(recentDiv);
+            
+            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            otherNews.forEach(item => {
+                const card = createNewsCard(item, 'tech');
+                resultsDiv.appendChild(card);
+            });
+        }
+        
+        // 무한 스크롤 로딩 표시
+        if (techNewsData.hasMore) {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'techLoadingIndicator';
+            loadingDiv.className = 'd-flex justify-content-center my-3';
+            loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+            resultsDiv.appendChild(loadingDiv);
+        }
+        
+        // 뉴스가 없는 경우
+        if (techNewsData.items.length === 0) {
             const emptyDiv = document.createElement('div');
             emptyDiv.className = 'alert alert-info';
             emptyDiv.innerHTML = `
@@ -1156,126 +1284,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
             resultsDiv.appendChild(emptyDiv);
-            
-            // 기존 누적 데이터 표출
-            const recentDiv = document.createElement('div');
-            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
-            resultsDiv.appendChild(recentDiv);
-        } else if (filtered.length === 0) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'news-item';
-            emptyDiv.textContent = '표시할 정보가 없습니다.';
-            resultsDiv.appendChild(emptyDiv);
-            return;
-        } else if (todayNews.length > 0 && filtered.length > todayNews.length) {
-            // 오늘 데이터가 있고 누적 데이터도 있는 경우
-            const todayDiv = document.createElement('div');
-            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
-            resultsDiv.appendChild(todayDiv);
-            
-            // 오늘 데이터 표출
-            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            todayNews.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'card mb-3';
-                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
-                card.classList.add('border-primary', 'bg-light');
-                card.innerHTML = `
-                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
-                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
-                      <span class="badge badge-section-tech me-2">Today</span>
-                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
-                    </h6>
-                  </div>
-                  <div class="card-body" style="padding: 20px;">
-                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
-                    <div class="d-flex flex-wrap gap-1 mb-2">
-                      ${(item.relatedKeywords || []).map(kw => 
-                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
-                      ).join('')}
-                    </div>
-                    <div style="font-size: 0.8em; color: #999;">
-                      출처: ${item.source || '알 수 없음'} | 
-                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
-                      <span class="badge badge-section-tech">${item.keyword}</span>
-                    </div>
-                  </div>
-                `;
-                resultsDiv.appendChild(card);
-            });
-            
-            // 누적 데이터 표출
-            const recentDiv = document.createElement('div');
-            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
-            resultsDiv.appendChild(recentDiv);
-            
-            // 오늘 데이터를 제외한 나머지 데이터
-            const otherNews = filtered.filter(item => extractDate(item.pubDate) !== today);
-            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            otherNews.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'card mb-3';
-                card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
-                card.innerHTML = `
-                  <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
-                    <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
-                      <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
-                    </h6>
-                  </div>
-                  <div class="card-body" style="padding: 20px;">
-                    ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
-                    <div class="d-flex flex-wrap gap-1 mb-2">
-                      ${(item.relatedKeywords || []).map(kw => 
-                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
-                      ).join('')}
-                    </div>
-                    <div style="font-size: 0.8em; color: #999;">
-                      출처: ${item.source || '알 수 없음'} | 
-                      ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
-                      <span class="badge badge-section-tech">${item.keyword}</span>
-                      ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
-                        `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
-                    </div>
-                  </div>
-                `;
-                resultsDiv.appendChild(card);
-            });
-            return;
         }
-        filtered.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-        filtered.forEach(item => {
-            const isToday = extractDate(item.pubDate) === today;
-            const card = document.createElement('div');
-            card.className = 'card mb-3';
-            card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
-            if (isToday) {
-                card.classList.add('border-primary', 'bg-light');
-            }
-            card.innerHTML = `
-              <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
-                <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
-                  ${isToday ? '<span class="badge badge-section-tech me-2">Today</span>' : ''}
-                  <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
-                </h6>
-              </div>
-              <div class="card-body" style="padding: 20px;">
-                ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
-                <div class="d-flex flex-wrap gap-1 mb-2">
-                  ${(item.relatedKeywords || []).map(kw => 
-                    `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
-                  ).join('')}
-                </div>
-                <div style="font-size: 0.8em; color: #999;">
-                  출처: ${item.source || '알 수 없음'} | 
-                  ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
-                  <span class="badge badge-section-tech">${item.keyword}</span>
-                  ${item.relatedKeywords && item.relatedKeywords.length > 0 ? 
-                    `<br>관련키워드: ${item.relatedKeywords.join(', ')}` : ''}
-                </div>
-              </div>
-            `;
-            resultsDiv.appendChild(card);
-        });
     }
 
     // 제휴처 탐색 정보 수집 및 저장
@@ -1476,6 +1485,18 @@ document.addEventListener('DOMContentLoaded', function() {
             logUserAction('신기술동향정보갱신');
         }
     });
+
+    setupAllInfiniteScrolls();
+
+    // 대시보드 진입 시 자동 뉴스 갱신 체크 및 체크박스/뉴스 렌더링 순서 보장
+    if (document.getElementById('newsFeed')) {
+        renderKeywordDisplay().then(() => {
+            renderNewsByChecked();
+        });
+    }
+
+    // 무한 스크롤 초기화
+    setupAllInfiniteScrolls();
 });
 
 // 디바운스 유틸리티 함수

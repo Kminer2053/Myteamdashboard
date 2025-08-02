@@ -1265,15 +1265,21 @@ app.post('/api/risk-news', async (req, res) => {
 });
 app.get('/api/risk-news', async (req, res) => {
   try {
-    const { limit = 50, days = 7 } = req.query;
+    const { limit = 50, days = 7, offset = 0 } = req.query;
     
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
+    
+    // 전체 건수 조회
+    const totalCount = await RiskNews.countDocuments({
+      createdAt: { $gte: cutoffDate }
+    });
     
     const news = await RiskNews.find({
       createdAt: { $gte: cutoffDate }
     })
     .sort({ createdAt: -1 })
+    .skip(parseInt(offset))
     .limit(parseInt(limit))
     .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
     
@@ -1281,7 +1287,10 @@ app.get('/api/risk-news', async (req, res) => {
       success: true,
       data: news,
       count: news.length,
-      totalCount: await RiskNews.countDocuments()
+      totalCount: totalCount,
+      hasMore: parseInt(offset) + parseInt(limit) < totalCount,
+      offset: parseInt(offset),
+      limit: parseInt(limit)
     });
   } catch (error) {
     console.error('리스크 뉴스 조회 실패:', error);
@@ -1310,15 +1319,21 @@ app.post('/api/partner-news', async (req, res) => {
 });
 app.get('/api/partner-news', async (req, res) => {
   try {
-    const { limit = 50, days = 7 } = req.query;
+    const { limit = 50, days = 7, offset = 0 } = req.query;
     
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
+    
+    // 전체 건수 조회
+    const totalCount = await PartnerNews.countDocuments({
+      createdAt: { $gte: cutoffDate }
+    });
     
     const news = await PartnerNews.find({
       createdAt: { $gte: cutoffDate }
     })
     .sort({ createdAt: -1 })
+    .skip(parseInt(offset))
     .limit(parseInt(limit))
     .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
     
@@ -1326,7 +1341,10 @@ app.get('/api/partner-news', async (req, res) => {
       success: true,
       data: news,
       count: news.length,
-      totalCount: await PartnerNews.countDocuments()
+      totalCount: totalCount,
+      hasMore: parseInt(offset) + parseInt(limit) < totalCount,
+      offset: parseInt(offset),
+      limit: parseInt(limit)
     });
   } catch (error) {
     console.error('제휴처 뉴스 조회 실패:', error);
@@ -1355,15 +1373,21 @@ app.post('/api/tech-news', async (req, res) => {
 });
 app.get('/api/tech-news', async (req, res) => {
   try {
-    const { limit = 50, days = 7 } = req.query;
+    const { limit = 50, days = 7, offset = 0 } = req.query;
     
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
+    
+    // 전체 건수 조회
+    const totalCount = await TechNews.countDocuments({
+      createdAt: { $gte: cutoffDate }
+    });
     
     const news = await TechNews.find({
       createdAt: { $gte: cutoffDate }
     })
     .sort({ createdAt: -1 })
+    .skip(parseInt(offset))
     .limit(parseInt(limit))
     .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
     
@@ -1371,7 +1395,10 @@ app.get('/api/tech-news', async (req, res) => {
       success: true,
       data: news,
       count: news.length,
-      totalCount: await TechNews.countDocuments()
+      totalCount: totalCount,
+      hasMore: parseInt(offset) + parseInt(limit) < totalCount,
+      offset: parseInt(offset),
+      limit: parseInt(limit)
     });
   } catch (error) {
     console.error('신기술 뉴스 조회 실패:', error);
