@@ -1322,46 +1322,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // 제휴처 탐색 정보 수집 및 저장
+    // 제휴처 탐색 정보 수집 및 저장 (네이버 뉴스 API 비활성화, 퍼플렉시티 API만 사용)
     async function fetchAndSaveAllPartners(keywordsParam) {
-        const keywords = keywordsParam || await loadPartnerConditions();
-        if (!Array.isArray(keywords) || keywords.length === 0) return;
-        const today = await getKoreaToday();
-        let allNews = [];
-        for (const kw of keywords) {
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/naver-news?query=${encodeURIComponent(kw)}&max=100`);
-                const data = await res.json();
-                if (data.items) {
-                    data.items.forEach(item => {
-                        if (!allNews.some(n => n.link === item.link)) {
-                            allNews.push({ ...item, keyword: kw });
-                        }
-                    });
-                }
-            } catch (e) { /* 네트워크 오류 등 무시 */ }
-        }
-        await fetch(`${API_BASE_URL}/api/partner-news`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: allNews })
-        });
-        const getRes = await fetch(`${API_BASE_URL}/api/partner-news`);
-        const news = await getRes.json();
-        
-        // 선택된 조건에 해당하는 뉴스만 필터링
-        const filteredNews = news.filter(item => keywords.includes(item.keyword));
-        
-        // 최근 일주일 데이터만 필터링
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        const recentNews = filteredNews.filter(item => {
-            const pubDate = new Date(item.pubDate);
-            return pubDate >= oneWeekAgo;
-        });
-        
-        localStorage.setItem(`partnerNews_${today}`, JSON.stringify(recentNews));
-        localStorage.setItem('partnerNews_lastUpdate', today);
+        // 네이버 뉴스 API 수집 비활성화 - 퍼플렉시티 API만 사용
+        console.log('네이버 뉴스 API 수집 비활성화됨 - 퍼플렉시티 API만 사용');
+        return;
     }
     async function checkAndUpdatePartnerNews() {
         const today = await getKoreaToday();
@@ -1377,46 +1342,11 @@ document.addEventListener('DOMContentLoaded', function() {
             await renderPartnerResults(loadPartnerConditions());
         }
     }
-    // 신기술 동향 정보 수집 및 저장
+    // 신기술 동향 정보 수집 및 저장 (네이버 뉴스 API 비활성화, 퍼플렉시티 API만 사용)
     async function fetchAndSaveAllTechs(keywordsParam) {
-        const keywords = keywordsParam || await loadTechTopics();
-        if (!Array.isArray(keywords) || keywords.length === 0) return;
-        const today = await getKoreaToday();
-        let allNews = [];
-        for (const kw of keywords) {
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/naver-news?query=${encodeURIComponent(kw)}&max=100`);
-                const data = await res.json();
-                if (data.items) {
-                    data.items.forEach(item => {
-                        if (!allNews.some(n => n.link === item.link)) {
-                            allNews.push({ ...item, keyword: kw });
-                        }
-                    });
-                }
-            } catch (e) { /* 네트워크 오류 등 무시 */ }
-        }
-        await fetch(`${API_BASE_URL}/api/tech-news`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: allNews })
-        });
-        const getRes = await fetch(`${API_BASE_URL}/api/tech-news`);
-        const news = await getRes.json();
-        
-        // 선택된 키워드에 해당하는 뉴스만 필터링
-        const filteredNews = news.filter(item => keywords.includes(item.keyword));
-        
-        // 최근 일주일 데이터만 필터링
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        const recentNews = filteredNews.filter(item => {
-            const pubDate = new Date(item.pubDate);
-            return pubDate >= oneWeekAgo;
-        });
-        
-        localStorage.setItem(`techNews_${today}`, JSON.stringify(recentNews));
-        localStorage.setItem('techNews_lastUpdate', today);
+        // 네이버 뉴스 API 수집 비활성화 - 퍼플렉시티 API만 사용
+        console.log('네이버 뉴스 API 수집 비활성화됨 - 퍼플렉시티 API만 사용');
+        return;
     }
     async function checkAndUpdateTechNews() {
         const today = await getKoreaToday();
