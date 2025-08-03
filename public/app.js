@@ -929,7 +929,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultsDiv = document.getElementById('partnerResults');
         const today = await getKoreaToday();
         
-        // 전체 내용 렌더링 (초기화는 loadMorePartnerNews에서만 수행)
+        // 항상 전체 내용 렌더링 (조건 제거)
+        resultsDiv.innerHTML = '';
         
         // === AI 분석 보고서 표출 ===
         const analysisReport = partnerNewsData.analysisReport;
@@ -1033,17 +1034,24 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.appendChild(recentDiv);
         
         // 누적 뉴스는 현재 표시된 뉴스와 동일 (서버에서 이미 금일 뉴스만 저장하므로)
-        // 중복 렌더링 방지를 위해 빈 상태로 표시
-        const emptyRecentDiv = document.createElement('div');
-        emptyRecentDiv.className = 'alert alert-info';
-        emptyRecentDiv.innerHTML = `
-            <div style="text-align: center; padding: 20px;">
-                <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
-                <h5>누적 뉴스가 없습니다</h5>
-                <p class="text-muted">기존 누적 데이터가 없습니다.</p>
-            </div>
-        `;
-        resultsDiv.appendChild(emptyRecentDiv);
+        if (uniqueItems.length > 0) {
+            uniqueItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            uniqueItems.forEach(item => {
+                const card = createNewsCard(item, 'partner');
+                resultsDiv.appendChild(card);
+            });
+        } else {
+            const emptyRecentDiv = document.createElement('div');
+            emptyRecentDiv.className = 'alert alert-info';
+            emptyRecentDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>누적 뉴스가 없습니다</h5>
+                    <p class="text-muted">기존 누적 데이터가 없습니다.</p>
+                </div>
+            `;
+            resultsDiv.appendChild(emptyRecentDiv);
+        }
         
         // 무한 스크롤 로딩 표시
         if (partnerNewsData.hasMore) {
