@@ -654,30 +654,52 @@ document.addEventListener('DOMContentLoaded', function() {
             otherNews: otherNews.length
         });
         
-        // 오늘 뉴스 표시
+        // === 오늘의 뉴스 섹션 (항상 표시) ===
+        const todayDiv = document.createElement('div');
+        todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+        newsFeed.appendChild(todayDiv);
+        
         if (todayNews.length > 0) {
-            const todayDiv = document.createElement('div');
-            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
-            newsFeed.appendChild(todayDiv);
-            
             todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
             todayNews.forEach(item => {
                 const card = createNewsCard(item, 'risk', 'Today');
                 newsFeed.appendChild(card);
             });
+        } else {
+            const emptyTodayDiv = document.createElement('div');
+            emptyTodayDiv.className = 'alert alert-info';
+            emptyTodayDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>금일은 뉴스가 없습니다</h5>
+                    <p class="text-muted">오늘 수집된 뉴스가 없습니다.</p>
+                </div>
+            `;
+            newsFeed.appendChild(emptyTodayDiv);
         }
         
-        // 누적 뉴스 표시
+        // === 최근 누적 뉴스 섹션 (항상 표시) ===
+        const recentDiv = document.createElement('div');
+        recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+        newsFeed.appendChild(recentDiv);
+        
         if (otherNews.length > 0) {
-            const recentDiv = document.createElement('div');
-            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
-            newsFeed.appendChild(recentDiv);
-            
             otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
             otherNews.forEach(item => {
                 const card = createNewsCard(item, 'risk');
                 newsFeed.appendChild(card);
             });
+        } else {
+            const emptyRecentDiv = document.createElement('div');
+            emptyRecentDiv.className = 'alert alert-info';
+            emptyRecentDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>누적 뉴스가 없습니다</h5>
+                    <p class="text-muted">기존 누적 데이터가 없습니다.</p>
+                </div>
+            `;
+            newsFeed.appendChild(emptyRecentDiv);
         }
         
         // 무한 스크롤 로딩 표시
@@ -687,20 +709,6 @@ document.addEventListener('DOMContentLoaded', function() {
             loadingDiv.className = 'd-flex justify-content-center my-3';
             loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
             newsFeed.appendChild(loadingDiv);
-        }
-        
-        // 뉴스가 없는 경우
-        if (riskNewsData.items.length === 0) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'alert alert-info';
-            emptyDiv.innerHTML = `
-                <div style="text-align: center; padding: 20px;">
-                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
-                    <h5>금일은 뉴스가 없습니다</h5>
-                    <p class="text-muted">오늘 수집된 뉴스가 없습니다. 기존 누적 데이터를 확인해보세요.</p>
-                </div>
-            `;
-            newsFeed.appendChild(emptyDiv);
         }
     }
 
@@ -1038,30 +1046,52 @@ document.addEventListener('DOMContentLoaded', function() {
             otherNews: otherNews.length
         });
         
-        // 오늘 뉴스 표시
+        // === 오늘의 뉴스 섹션 (항상 표시) ===
+        const todayDiv = document.createElement('div');
+        todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+        resultsDiv.appendChild(todayDiv);
+        
         if (todayNews.length > 0) {
-            const todayDiv = document.createElement('div');
-            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
-            resultsDiv.appendChild(todayDiv);
-            
             todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
             todayNews.forEach(item => {
                 const card = createNewsCard(item, 'partner', 'Today');
                 resultsDiv.appendChild(card);
             });
+        } else {
+            const emptyTodayDiv = document.createElement('div');
+            emptyTodayDiv.className = 'alert alert-info';
+            emptyTodayDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>금일은 뉴스가 없습니다</h5>
+                    <p class="text-muted">오늘 수집된 뉴스가 없습니다.</p>
+                </div>
+            `;
+            resultsDiv.appendChild(emptyTodayDiv);
         }
         
-        // 누적 뉴스 표시
+        // === 최근 누적 뉴스 섹션 (항상 표시) ===
+        const recentDiv = document.createElement('div');
+        recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+        resultsDiv.appendChild(recentDiv);
+        
         if (otherNews.length > 0) {
-            const recentDiv = document.createElement('div');
-            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
-            resultsDiv.appendChild(recentDiv);
-            
             otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
             otherNews.forEach(item => {
                 const card = createNewsCard(item, 'partner');
                 resultsDiv.appendChild(card);
             });
+        } else {
+            const emptyRecentDiv = document.createElement('div');
+            emptyRecentDiv.className = 'alert alert-info';
+            emptyRecentDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>누적 뉴스가 없습니다</h5>
+                    <p class="text-muted">기존 누적 데이터가 없습니다.</p>
+                </div>
+            `;
+            resultsDiv.appendChild(emptyRecentDiv);
         }
         
         // 무한 스크롤 로딩 표시
@@ -1071,20 +1101,6 @@ document.addEventListener('DOMContentLoaded', function() {
             loadingDiv.className = 'd-flex justify-content-center my-3';
             loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
             resultsDiv.appendChild(loadingDiv);
-        }
-        
-        // 뉴스가 없는 경우
-        if (partnerNewsData.items.length === 0) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'alert alert-info';
-            emptyDiv.innerHTML = `
-                <div style="text-align: center; padding: 20px;">
-                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
-                    <h5>금일은 뉴스가 없습니다</h5>
-                    <p class="text-muted">오늘 수집된 뉴스가 없습니다. 기존 누적 데이터를 확인해보세요.</p>
-                </div>
-            `;
-            resultsDiv.appendChild(emptyDiv);
         }
     }
 
@@ -1170,7 +1186,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (techNewsData.offset === data.data.length) {
                     await renderTechNewsContent();
                 } else {
-                    // 추가 로드인 경우 뉴스 목록만 추가
+                    // 추가 로드인 경우 뉴스 목록만 추가 (기존 뉴스 목록 제거 후 새로 렌더링)
+                    const existingNewsList = resultsDiv.querySelector('.news-list-container');
+                    if (existingNewsList) {
+                        existingNewsList.remove();
+                    }
                     await renderTechNewsList();
                 }
             }
@@ -1309,54 +1329,75 @@ document.addEventListener('DOMContentLoaded', function() {
             otherNews: otherNews.length
         });
         
-        // 오늘 뉴스 표시
+        // 기존 뉴스 목록 컨테이너 제거
+        const existingNewsList = resultsDiv.querySelector('.news-list-container');
+        if (existingNewsList) {
+            existingNewsList.remove();
+        }
+        
+        // 뉴스 목록 컨테이너 생성
+        const newsListContainer = document.createElement('div');
+        newsListContainer.className = 'news-list-container';
+        
+        // === 오늘의 뉴스 섹션 (항상 표시) ===
+        const todayDiv = document.createElement('div');
+        todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+        newsListContainer.appendChild(todayDiv);
+        
         if (todayNews.length > 0) {
-            const todayDiv = document.createElement('div');
-            todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
-            resultsDiv.appendChild(todayDiv);
-            
             todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
             todayNews.forEach(item => {
                 const card = createNewsCard(item, 'tech', 'Today');
-                resultsDiv.appendChild(card);
-            });
-        }
-        
-        // 누적 뉴스 표시
-        if (otherNews.length > 0) {
-            const recentDiv = document.createElement('div');
-            recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
-            resultsDiv.appendChild(recentDiv);
-            
-            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            otherNews.forEach(item => {
-                const card = createNewsCard(item, 'tech');
-                resultsDiv.appendChild(card);
-            });
-        }
-        
-        // 무한 스크롤 로딩 표시
-        if (techNewsData.hasMore) {
-            const loadingDiv = document.createElement('div');
-            loadingDiv.id = 'techLoadingIndicator';
-            loadingDiv.className = 'd-flex justify-content-center my-3';
-            loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
-            resultsDiv.appendChild(loadingDiv);
-        }
-        
-        // 뉴스가 없는 경우
-        if (techNewsData.items.length === 0) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'alert alert-info';
-            emptyDiv.innerHTML = `
-                <div style="text-align: center; padding: 20px;">
-                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
-                    <h5>금일은 뉴스가 없습니다</h5>
-                    <p class="text-muted">오늘 수집된 뉴스가 없습니다. 기존 누적 데이터를 확인해보세요.</p>
-                </div>
-            `;
-            resultsDiv.appendChild(emptyDiv);
-        }
+                            newsListContainer.appendChild(card);
+        });
+    } else {
+        const emptyTodayDiv = document.createElement('div');
+        emptyTodayDiv.className = 'alert alert-info';
+        emptyTodayDiv.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                <h5>금일은 뉴스가 없습니다</h5>
+                <p class="text-muted">오늘 수집된 뉴스가 없습니다.</p>
+            </div>
+        `;
+        newsListContainer.appendChild(emptyTodayDiv);
+    }
+    
+    // === 최근 누적 뉴스 섹션 (항상 표시) ===
+    const recentDiv = document.createElement('div');
+    recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+    newsListContainer.appendChild(recentDiv);
+    
+    if (otherNews.length > 0) {
+        otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+        otherNews.forEach(item => {
+            const card = createNewsCard(item, 'tech');
+            newsListContainer.appendChild(card);
+        });
+    } else {
+        const emptyRecentDiv = document.createElement('div');
+        emptyRecentDiv.className = 'alert alert-info';
+        emptyRecentDiv.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                <h5>누적 뉴스가 없습니다</h5>
+                <p class="text-muted">기존 누적 데이터가 없습니다.</p>
+            </div>
+        `;
+        newsListContainer.appendChild(emptyRecentDiv);
+    }
+    
+    // 뉴스 목록 컨테이너를 resultsDiv에 추가
+    resultsDiv.appendChild(newsListContainer);
+    
+    // 무한 스크롤 로딩 표시
+    if (techNewsData.hasMore) {
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'techLoadingIndicator';
+        loadingDiv.className = 'd-flex justify-content-center my-3';
+        loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+        resultsDiv.appendChild(loadingDiv);
+    }
     }
 
     // 제휴처 탐색 정보 수집 및 저장 (네이버 뉴스 API 비활성화, 퍼플렉시티 API만 사용)
