@@ -530,10 +530,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 riskNewsData.hasMore = data.hasMore;
                 riskNewsData.offset += data.data.length;
                 
-                // 분석 보고서 데이터 (백엔드에서 전달받음)
-                const analysisReport = data.analysisReport;
+                // 분석 보고서 데이터 저장
+                riskNewsData.analysisReport = data.analysisReport;
                 
-                await renderRiskNewsContent(analysisReport);
+                await renderRiskNewsContent();
             }
         } catch (error) {
             console.error('리스크 뉴스 로드 실패:', error);
@@ -545,7 +545,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    async function renderRiskNewsContent(analysisReport) {
+    async function renderRiskNewsContent() {
         const newsFeed = document.getElementById('newsFeed');
         const today = await getKoreaToday();
         
@@ -553,6 +553,7 @@ document.addEventListener('DOMContentLoaded', function() {
         newsFeed.innerHTML = '';
         
         // === 분석 보고서 표출 ===
+        const analysisReport = riskNewsData.analysisReport;
         if (analysisReport) {
             const reportDiv = document.createElement('div');
             reportDiv.className = 'card mb-4';

@@ -199,10 +199,12 @@ async function collectRiskNews() {
         console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" Perplexity AI 수집 및 분석 시작`);
         aiResult = await collectNewsWithPerplexity(keywords, 'risk');
         
-        // 뉴스가 있든 없든 AI분석보고서는 항상 생성
+        // AI분석보고서 생성 (뉴스가 있든 없든 항상 생성)
         if (aiResult && aiResult.analysis) {
           console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" AI분석보고서 생성`);
           await createAnalysisReport(today, '리스크이슈', aiResult.analysis, RiskAnalysisReport, 0);
+        } else {
+          console.log(`[DEBUG][risk] analysis가 없음:`, aiResult);
         }
         
         if (aiResult && aiResult.news && aiResult.news.length > 0) {
@@ -242,8 +244,8 @@ async function collectRiskNews() {
       const { inserted: insertedRisk, duplicate: duplicateRisk } = await saveNewsToDB(allNews, RiskNews, '리스크이슈', keywords);
       console.log(`[AI 수집][리스크이슈] ${today} DB 저장 완료 (신규: ${insertedRisk}건, 중복: ${duplicateRisk}건)`);
       
-      // AI 분석 보고서 생성 (Perplexity AI 분석 결과 사용)
-      if (aiResult && aiResult.analysis) {
+      // 뉴스가 있을 때 분석보고서 업데이트 (totalNewsCount만 업데이트)
+      if (aiResult && aiResult.analysis && insertedRisk > 0) {
         await createAnalysisReport(today, '리스크이슈', aiResult.analysis, RiskAnalysisReport, insertedRisk);
       }
     }
@@ -272,10 +274,9 @@ async function collectPartnerNews() {
         // Perplexity AI로 뉴스 수집 및 분석
         const aiNewsData = await collectNewsWithPerplexity(conds, 'partner');
         
-        // 뉴스가 있든 없든 AI분석보고서는 항상 생성
+        // AI분석보고서 생성 (뉴스가 있든 없든 항상 생성)
         if (aiNewsData && aiNewsData.analysis) {
           console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" AI분석보고서 생성`);
-          console.log(`[DEBUG][partner] analysis 내용:`, aiNewsData.analysis);
           await createAnalysisReport(today, '제휴처탐색', aiNewsData.analysis, PartnerAnalysisReport, 0);
         } else {
           console.log(`[DEBUG][partner] analysis가 없음:`, aiNewsData);
@@ -294,8 +295,8 @@ async function collectPartnerNews() {
             const { inserted: insertedPartner, duplicate: duplicatePartner } = await saveNewsToDB(validNews, PartnerNews, '제휴처탐색', conds);
             console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
             
-            // 뉴스가 있을 때는 분석보고서 업데이트
-            if (aiNewsData.analysis) {
+            // 뉴스가 있을 때 분석보고서 업데이트 (totalNewsCount만 업데이트)
+            if (aiNewsData.analysis && insertedPartner > 0) {
               await createAnalysisReport(today, '제휴처탐색', aiNewsData.analysis, PartnerAnalysisReport, insertedPartner);
             }
           } else {
@@ -339,10 +340,12 @@ async function collectTechNews() {
         // Perplexity AI로 뉴스 수집 및 분석
         const aiNewsData = await collectNewsWithPerplexity(topics, 'tech');
         
-        // 뉴스가 있든 없든 AI분석보고서는 항상 생성
+        // AI분석보고서 생성 (뉴스가 있든 없든 항상 생성)
         if (aiNewsData && aiNewsData.analysis) {
           console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" AI분석보고서 생성`);
           await createAnalysisReport(today, '신기술동향', aiNewsData.analysis, TechAnalysisReport, 0);
+        } else {
+          console.log(`[DEBUG][tech] analysis가 없음:`, aiNewsData);
         }
         
         if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
@@ -358,8 +361,8 @@ async function collectTechNews() {
             const { inserted: insertedTech, duplicate: duplicateTech } = await saveNewsToDB(validNews, TechNews, '신기술동향', topics);
             console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
             
-            // 뉴스가 있을 때는 분석보고서 업데이트
-            if (aiNewsData.analysis) {
+            // 뉴스가 있을 때 분석보고서 업데이트 (totalNewsCount만 업데이트)
+            if (aiNewsData.analysis && insertedTech > 0) {
               await createAnalysisReport(today, '신기술동향', aiNewsData.analysis, TechAnalysisReport, insertedTech);
             }
           } else {
@@ -1244,8 +1247,11 @@ app.get('/api/risk-news', async (req, res) => {
     .limit(parseInt(limit))
     .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
 
-    // 최신 분석 보고서 조회
-    const analysisReport = await RiskAnalysisReport.findOne().sort({ createdAt: -1 });
+    // 오늘 날짜의 분석보고서 조회
+    const today = await getKoreaToday();
+    const analysisReport = await RiskAnalysisReport.findOne({
+      date: { $gte: new Date(today + 'T00:00:00.000Z') }
+    }).sort({ date: -1 });
     
     res.json({
       success: true,
