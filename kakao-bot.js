@@ -504,6 +504,16 @@ router.post('/message', async (req, res) => {
                 responseMessage += `- 제휴처 탐색: ${todayAllPartnerNews.length}건\n`;
                 responseMessage += `- 신기술 동향: ${todayAllTechNews.length}건\n\n`;
                 
+                // 리스크 이슈 AI 분석보고서 (먼저 표시)
+                if (allRiskNewsResponse.data.analysisReport && allRiskNewsResponse.data.analysisReport.analysis) {
+                    responseMessage += "📰 리스크 이슈\n";
+                    responseMessage += "🤖 AI 분석보고서\n";
+                    responseMessage += "━━━━━━━━━━━━━━━━━━━━\n";
+                    responseMessage += formatAnalysisText(allRiskNewsResponse.data.analysisReport.analysis);
+                    responseMessage += "\n━━━━━━━━━━━━━━━━━━━━\n\n";
+                }
+                
+                // 리스크 이슈 뉴스 (AI 분석보고서 후에 표시)
                 if (todayAllRiskNews.length > 0) {
                     responseMessage += "📰 리스크 이슈 뉴스\n";
                     todayAllRiskNews.slice(0, 3).forEach((item, index) => {
@@ -514,15 +524,16 @@ router.post('/message', async (req, res) => {
                     });
                 }
                 
-                // 리스크 이슈 AI 분석보고서
-                if (allRiskNewsResponse.data.analysisReport && allRiskNewsResponse.data.analysisReport.analysis) {
-                    responseMessage += "\n📰 리스크 이슈\n";
+                // 제휴처 탐색 AI 분석보고서 (먼저 표시)
+                if (allPartnerNewsResponse.data.analysisReport && allPartnerNewsResponse.data.analysisReport.analysis) {
+                    responseMessage += "🤝 제휴처 탐색\n";
                     responseMessage += "🤖 AI 분석보고서\n";
                     responseMessage += "━━━━━━━━━━━━━━━━━━━━\n";
-                    responseMessage += formatAnalysisText(allRiskNewsResponse.data.analysisReport.analysis);
+                    responseMessage += formatAnalysisText(allPartnerNewsResponse.data.analysisReport.analysis);
                     responseMessage += "\n━━━━━━━━━━━━━━━━━━━━\n\n";
                 }
                 
+                // 제휴처 탐색 뉴스 (AI 분석보고서 후에 표시)
                 if (todayAllPartnerNews.length > 0) {
                     responseMessage += "🤝 제휴처 탐색 뉴스\n";
                     todayAllPartnerNews.slice(0, 3).forEach((item, index) => {
@@ -533,15 +544,16 @@ router.post('/message', async (req, res) => {
                     });
                 }
                 
-                // 제휴처 탐색 AI 분석보고서
-                if (allPartnerNewsResponse.data.analysisReport && allPartnerNewsResponse.data.analysisReport.analysis) {
-                    responseMessage += "\n🤝 제휴처 탐색\n";
+                // 신기술 동향 AI 분석보고서 (먼저 표시)
+                if (allTechNewsResponse.data.analysisReport && allTechNewsResponse.data.analysisReport.analysis) {
+                    responseMessage += "🔬 신기술 동향\n";
                     responseMessage += "🤖 AI 분석보고서\n";
                     responseMessage += "━━━━━━━━━━━━━━━━━━━━\n";
-                    responseMessage += formatAnalysisText(allPartnerNewsResponse.data.analysisReport.analysis);
+                    responseMessage += formatAnalysisText(allTechNewsResponse.data.analysisReport.analysis);
                     responseMessage += "\n━━━━━━━━━━━━━━━━━━━━\n\n";
                 }
                 
+                // 신기술 동향 뉴스 (AI 분석보고서 후에 표시)
                 if (todayAllTechNews.length > 0) {
                     responseMessage += "🔬 신기술 동향 뉴스\n";
                     todayAllTechNews.slice(0, 3).forEach((item, index) => {
@@ -550,15 +562,6 @@ router.post('/message', async (req, res) => {
                         if (item.link) responseMessage += `🔗 ${item.link}\n`;
                         responseMessage += `📅 ${formatKST(item.pubDate)}\n\n`;
                     });
-                }
-                
-                // 신기술 동향 AI 분석보고서
-                if (allTechNewsResponse.data.analysisReport && allTechNewsResponse.data.analysisReport.analysis) {
-                    responseMessage += "\n🔬 신기술 동향\n";
-                    responseMessage += "🤖 AI 분석보고서\n";
-                    responseMessage += "━━━━━━━━━━━━━━━━━━━━\n";
-                    responseMessage += formatAnalysisText(allTechNewsResponse.data.analysisReport.analysis);
-                    responseMessage += "\n━━━━━━━━━━━━━━━━━━━━\n\n";
                 }
                 break;
             }
@@ -606,7 +609,16 @@ async function generateNewsSummary() {
         summary += `- 제휴처 탐색: ${todayPartnerNews.length}건\n`;
         summary += `- 신기술 동향: ${todayTechNews.length}건\n\n`;
         
-        // 리스크 이슈 뉴스 상세 (제한 없이 모두 표기)
+        // 리스크 이슈 AI 분석보고서 (먼저 표시)
+        if (riskNewsResponse.data.analysisReport && riskNewsResponse.data.analysisReport.analysis) {
+            summary += '📰 리스크 이슈\n';
+            summary += '🤖 AI 분석보고서\n';
+            summary += '━━━━━━━━━━━━━━━━━━━━\n';
+            summary += formatAnalysisText(riskNewsResponse.data.analysisReport.analysis);
+            summary += '\n━━━━━━━━━━━━━━━━━━━━\n\n';
+        }
+        
+        // 리스크 이슈 뉴스 상세 (AI 분석보고서 후에 표시)
         if (todayRiskNews.length > 0) {
             summary += '[리스크 이슈 주요 뉴스]\n';
             todayRiskNews.forEach((news, idx) => {
@@ -616,16 +628,16 @@ async function generateNewsSummary() {
             summary += '\n';
         }
         
-        // 리스크 이슈 AI 분석보고서
-        if (riskNewsResponse.data.analysisReport && riskNewsResponse.data.analysisReport.analysis) {
-            summary += '📰 리스크 이슈\n';
+        // 제휴처 탐색 AI 분석보고서 (먼저 표시)
+        if (partnerNewsResponse.data.analysisReport && partnerNewsResponse.data.analysisReport.analysis) {
+            summary += '🤝 제휴처 탐색\n';
             summary += '🤖 AI 분석보고서\n';
             summary += '━━━━━━━━━━━━━━━━━━━━\n';
-            summary += formatAnalysisText(riskNewsResponse.data.analysisReport.analysis);
+            summary += formatAnalysisText(partnerNewsResponse.data.analysisReport.analysis);
             summary += '\n━━━━━━━━━━━━━━━━━━━━\n\n';
         }
         
-        // 제휴처 탐색 뉴스 상세 (제한 없이 모두 표기)
+        // 제휴처 탐색 뉴스 상세 (AI 분석보고서 후에 표시)
         if (todayPartnerNews.length > 0) {
             summary += '[제휴처 탐색 주요 뉴스]\n';
             todayPartnerNews.forEach((news, idx) => {
@@ -635,16 +647,16 @@ async function generateNewsSummary() {
             summary += '\n';
         }
         
-        // 제휴처 탐색 AI 분석보고서
-        if (partnerNewsResponse.data.analysisReport && partnerNewsResponse.data.analysisReport.analysis) {
-            summary += '🤝 제휴처 탐색\n';
+        // 신기술 동향 AI 분석보고서 (먼저 표시)
+        if (techNewsResponse.data.analysisReport && techNewsResponse.data.analysisReport.analysis) {
+            summary += '🔬 신기술 동향\n';
             summary += '🤖 AI 분석보고서\n';
             summary += '━━━━━━━━━━━━━━━━━━━━\n';
-            summary += formatAnalysisText(partnerNewsResponse.data.analysisReport.analysis);
+            summary += formatAnalysisText(techNewsResponse.data.analysisReport.analysis);
             summary += '\n━━━━━━━━━━━━━━━━━━━━\n\n';
         }
         
-        // 신기술 동향 뉴스 상세 (1건이라도 있으면 모두 표기)
+        // 신기술 동향 뉴스 상세 (AI 분석보고서 후에 표시)
         if (todayTechNews.length > 0) {
             summary += '[신기술 동향 주요 뉴스]\n';
             todayTechNews.forEach((news, idx) => {
@@ -652,15 +664,6 @@ async function generateNewsSummary() {
                 summary += `   ${news.link}\n`;
             });
             summary += '\n';
-        }
-        
-        // 신기술 동향 AI 분석보고서
-        if (techNewsResponse.data.analysisReport && techNewsResponse.data.analysisReport.analysis) {
-            summary += '🔬 신기술 동향\n';
-            summary += '🤖 AI 분석보고서\n';
-            summary += '━━━━━━━━━━━━━━━━━━━━\n';
-            summary += formatAnalysisText(techNewsResponse.data.analysisReport.analysis);
-            summary += '\n━━━━━━━━━━━━━━━━━━━━\n\n';
         }
     } catch (error) {
         console.error('뉴스 요약 생성 중 에러 발생:', error);
