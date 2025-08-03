@@ -557,9 +557,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (analysisReport) {
             const reportDiv = document.createElement('div');
             reportDiv.className = 'card mb-4';
-            reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #dc3545;';
+            reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #6c757d;';
             reportDiv.innerHTML = `
-                <div class="card-header" style="background: linear-gradient(135deg, #dc3545, #c82333); color: white; padding: 15px 20px;">
+                <div class="card-header" style="background: linear-gradient(135deg, #6c757d, #495057); color: white; padding: 15px 20px;">
                     <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport.analysisModel || 'perplexity-ai'}</small></h6>
                 </div>
                 <div class="card-body" style="padding: 20px;">
@@ -632,7 +632,12 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         
         // === 뉴스 목록 렌더링 ===
-        const todayNews = riskNewsData.items.filter(item => {
+        // 중복 제거 (link 기준)
+        const uniqueItems = riskNewsData.items.filter((item, index, self) => 
+            index === self.findIndex(t => t.link === item.link)
+        );
+        
+        const todayNews = uniqueItems.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
             const itemDateStr = itemDate.toISOString().split('T')[0];
@@ -640,7 +645,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return itemDateStr === todayDateStr;
         });
         
-        const otherNews = riskNewsData.items.filter(item => {
+        const otherNews = uniqueItems.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
             const itemDateStr = itemDate.toISOString().split('T')[0];
@@ -903,13 +908,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     offset: partnerNewsData.offset
                 });
                 
-                // 첫 번째 로드인 경우에만 전체 렌더링
-                if (partnerNewsData.offset === data.data.length) {
-                    await renderPartnerNewsContent();
-                } else {
-                    // 추가 로드인 경우 뉴스 목록만 추가
-                    await renderPartnerNewsList();
-                }
+                // 항상 전체 렌더링 (리스크 뉴스와 동일한 방식)
+                await renderPartnerNewsContent();
             }
         } catch (error) {
             console.error('❌ 제휴처 뉴스 로드 실패:', error);
@@ -1024,7 +1024,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultsDiv = document.getElementById('partnerResults');
         const today = await getKoreaToday();
         
-        const todayNews = partnerNewsData.items.filter(item => {
+        // 중복 제거 (link 기준)
+        const uniqueItems = partnerNewsData.items.filter((item, index, self) => 
+            index === self.findIndex(t => t.link === item.link)
+        );
+        
+        const todayNews = uniqueItems.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
             const itemDateStr = itemDate.toISOString().split('T')[0];
@@ -1032,7 +1037,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return itemDateStr === todayDateStr;
         });
         
-        const otherNews = partnerNewsData.items.filter(item => {
+        const otherNews = uniqueItems.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
             const itemDateStr = itemDate.toISOString().split('T')[0];
@@ -1182,17 +1187,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 techNewsData.hasMore = data.hasMore;
                 techNewsData.offset += data.data.length;
                 
-                // 첫 번째 로드인 경우에만 전체 렌더링
-                if (techNewsData.offset === data.data.length) {
-                    await renderTechNewsContent();
-                } else {
-                    // 추가 로드인 경우 뉴스 목록만 추가 (기존 뉴스 목록 제거 후 새로 렌더링)
-                    const existingNewsList = resultsDiv.querySelector('.news-list-container');
-                    if (existingNewsList) {
-                        existingNewsList.remove();
-                    }
-                    await renderTechNewsList();
-                }
+                // 항상 전체 렌더링 (리스크 뉴스와 동일한 방식)
+                await renderTechNewsContent();
             }
         } catch (error) {
             console.error('신기술 뉴스 로드 실패:', error);
@@ -1307,7 +1303,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultsDiv = document.getElementById('techTrendResults');
         const today = await getKoreaToday();
         
-        const todayNews = techNewsData.items.filter(item => {
+        const todayNews = uniqueItems.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
             const itemDateStr = itemDate.toISOString().split('T')[0];
@@ -1315,7 +1311,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return itemDateStr === todayDateStr;
         });
         
-        const otherNews = techNewsData.items.filter(item => {
+        // 중복 제거 (link 기준)
+        const uniqueItems = techNewsData.items.filter((item, index, self) => 
+            index === self.findIndex(t => t.link === item.link)
+        );
+        
+        const otherNews = uniqueItems.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
             const itemDateStr = itemDate.toISOString().split('T')[0];
