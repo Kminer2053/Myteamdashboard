@@ -287,6 +287,21 @@ function cleanHtml(str) {
     return text;
 }
 
+// AI 분석보고서 텍스트 정리 함수
+function formatAnalysisText(text) {
+    if (!text) return '분석 내용이 없습니다.';
+    
+    // 줄바꿈을 카카오톡에서 보기 좋게 처리
+    let formatted = text.replace(/\n/g, '\n');
+    
+    // 너무 긴 텍스트는 줄임
+    if (formatted.length > 500) {
+        formatted = formatted.substring(0, 500) + '...';
+    }
+    
+    return formatted;
+}
+
 const logUserAction = async (action, userId = '', meta = {}) => {
   try {
     await axios.post(`${process.env.API_BASE_URL}/api/log/action`, {
@@ -326,7 +341,7 @@ router.post('/message', async (req, res) => {
                 const textCalendar = await generateTextCalendar(currentYear, currentMonth, schedules.data, monthHolidays);
                 // 세부 일정 목록 생성
                 const detailList = await generateDetailList(currentYear, currentMonth, schedules.data, monthHolidays);
-                // ③ 오늘 뉴스 요약
+                // ③ 오늘 뉴스 요약 (AI 분석보고서 포함)
                 const newsSummary = await generateNewsSummary();
                 // 최종 조합 (3000자 제한 없음)
                 responseMessage = '📢 금일일정 및 뉴스\n\n';
@@ -337,19 +352,29 @@ router.post('/message', async (req, res) => {
             }
             case 'risk': {
                 await logUserAction('리스크', userId);
-                const [riskNews, riskKeywords] = await Promise.all([
+                const [riskNewsResponse, riskKeywords] = await Promise.all([
                     axios.get(`${process.env.API_BASE_URL}/api/risk-news`),
                     axios.get(`${process.env.API_BASE_URL}/api/risk-keywords`)
                 ]);
                 
-                const todayRiskNews = await filterTodayNews(riskNews.data);
+                const todayRiskNews = await filterTodayNews(riskNewsResponse.data.data);
+                const analysisReport = riskNewsResponse.data.analysisReport;
                 
                 responseMessage = "📰 리스크 이슈 뉴스\n\n";
+                
                 responseMessage += "🔍 검색 키워드:\n";
                 riskKeywords.data.forEach(keyword => {
                     responseMessage += `- ${keyword.value}\n`;
                 });
                 responseMessage += `\n📊 오늘 등록된 뉴스: ${todayRiskNews.length}건\n\n`;
+                
+                // AI 분석보고서 표시
+                if (analysisReport && analysisReport.analysis) {
+                    responseMessage += "🤖 AI 분석보고서\n";
+                    responseMessage += "━━━━━━━━━━━━━━━━━━━━\n";
+                    responseMessage += formatAnalysisText(analysisReport.analysis);
+                    responseMessage += "\n━━━━━━━━━━━━━━━━━━━━\n\n";
+                }
                 
                 if (todayRiskNews.length > 0) {
                     todayRiskNews.forEach((item, index) => {
@@ -366,19 +391,29 @@ router.post('/message', async (req, res) => {
             }
             case 'partner': {
                 await logUserAction('제휴', userId);
-                const [partnerNews, partnerConditions] = await Promise.all([
+                const [partnerNewsResponse, partnerConditions] = await Promise.all([
                     axios.get(`${process.env.API_BASE_URL}/api/partner-news`),
                     axios.get(`${process.env.API_BASE_URL}/api/partner-conditions`)
                 ]);
                 
-                const todayPartnerNews = await filterTodayNews(partnerNews.data);
+                const todayPartnerNews = await filterTodayNews(partnerNewsResponse.data.data);
+                const analysisReport = partnerNewsResponse.data.analysisReport;
                 
                 responseMessage = "🤝 제휴처 탐색 결과\n\n";
+                
                 responseMessage += "🔍 검색 조건:\n";
                 partnerConditions.data.forEach(condition => {
                     responseMessage += `- ${condition.value}\n`;
                 });
                 responseMessage += `\n📊 오늘 등록된 정보: ${todayPartnerNews.length}건\n\n`;
+                
+                // AI 분석보고서 표시
+                if (analysisReport && analysisReport.analysis) {
+                    responseMessage += "🤖 AI 분석보고서\n";
+                    responseMessage += "━━━━━━━━━━━━━━━━━━━━\n";
+                    responseMessage += formatAnalysisText(analysisReport.analysis);
+                    responseMessage += "\n━━━━━━━━━━━━━━━━━━━━\n\n";
+                }
                 
                 if (todayPartnerNews.length > 0) {
                     todayPartnerNews.forEach((item, index) => {
@@ -395,22 +430,32 @@ router.post('/message', async (req, res) => {
             }
             case 'tech': {
                 await logUserAction('기술', userId);
-                const [techNews, techTopics] = await Promise.all([
+                const [techNewsResponse, techTopics] = await Promise.all([
                     axios.get(`${process.env.API_BASE_URL}/api/tech-news`),
                     axios.get(`${process.env.API_BASE_URL}/api/tech-topics`)
                 ]);
                 
-                const todayTechNews = techNews.data.filter(item => extractDate(item.pubDate) === today);
+                const todayTechNews = techNewsResponse.data.data.filter(item => extractDate(item.pubDate) === today);
                 console.log('todayTechNews:', todayTechNews);
                 
                 const todayTechNewsFiltered = await filterTodayNews(todayTechNews);
+                const analysisReport = techNewsResponse.data.analysisReport;
                 
                 responseMessage = "🔬 신기술 동향\n\n";
+                
                 responseMessage += "🔍 검색 주제:\n";
                 techTopics.data.forEach(topic => {
                     responseMessage += `- ${topic.value}\n`;
                 });
                 responseMessage += `\n📊 오늘 등록된 뉴스: ${todayTechNewsFiltered.length}건\n\n`;
+                
+                // AI 분석보고서 표시
+                if (analysisReport && analysisReport.analysis) {
+                    responseMessage += "🤖 AI 분석보고서\n";
+                    responseMessage += "━━━━━━━━━━━━━━━━━━━━\n";
+                    responseMessage += formatAnalysisText(analysisReport.analysis);
+                    responseMessage += "\n━━━━━━━━━━━━━━━━━━━━\n\n";
+                }
                 
                 if (todayTechNewsFiltered.length > 0) {
                     todayTechNewsFiltered.forEach((item, index) => {
@@ -443,15 +488,15 @@ router.post('/message', async (req, res) => {
             }
             case 'all': {
                 await logUserAction('뉴스', userId);
-                const [allRiskNews, allPartnerNews, allTechNews] = await Promise.all([
+                const [allRiskNewsResponse, allPartnerNewsResponse, allTechNewsResponse] = await Promise.all([
                     axios.get(`${process.env.API_BASE_URL}/api/risk-news`),
                     axios.get(`${process.env.API_BASE_URL}/api/partner-news`),
                     axios.get(`${process.env.API_BASE_URL}/api/tech-news`)
                 ]);
                 
-                const todayAllRiskNews = await filterTodayNews(allRiskNews.data);
-                const todayAllPartnerNews = await filterTodayNews(allPartnerNews.data);
-                const todayAllTechNews = await filterTodayNews(allTechNews.data);
+                const todayAllRiskNews = await filterTodayNews(allRiskNewsResponse.data.data);
+                const todayAllPartnerNews = await filterTodayNews(allPartnerNewsResponse.data.data);
+                const todayAllTechNews = await filterTodayNews(allTechNewsResponse.data.data);
                 
                 responseMessage = "📰 오늘의 뉴스 모니터링\n\n";
                 responseMessage += "📊 뉴스 현황\n";
@@ -460,7 +505,7 @@ router.post('/message', async (req, res) => {
                 responseMessage += `- 신기술 동향: ${todayAllTechNews.length}건\n\n`;
                 
                 if (todayAllRiskNews.length > 0) {
-                    responseMessage += "📰 리스크 이슈\n";
+                    responseMessage += "📰 리스크 이슈 뉴스\n";
                     todayAllRiskNews.slice(0, 3).forEach((item, index) => {
                         const cleanTitle = cleanHtml(item.title);
                         responseMessage += `[${index + 1}] ${cleanTitle}\n`;
@@ -469,8 +514,17 @@ router.post('/message', async (req, res) => {
                     });
                 }
                 
+                // 리스크 이슈 AI 분석보고서
+                if (allRiskNewsResponse.data.analysisReport && allRiskNewsResponse.data.analysisReport.analysis) {
+                    responseMessage += "\n📰 리스크 이슈\n";
+                    responseMessage += "🤖 AI 분석보고서\n";
+                    responseMessage += "━━━━━━━━━━━━━━━━━━━━\n";
+                    responseMessage += formatAnalysisText(allRiskNewsResponse.data.analysisReport.analysis);
+                    responseMessage += "\n━━━━━━━━━━━━━━━━━━━━\n\n";
+                }
+                
                 if (todayAllPartnerNews.length > 0) {
-                    responseMessage += "\n🤝 제휴처 탐색\n";
+                    responseMessage += "🤝 제휴처 탐색 뉴스\n";
                     todayAllPartnerNews.slice(0, 3).forEach((item, index) => {
                         const cleanTitle = cleanHtml(item.title);
                         responseMessage += `[${index + 1}] ${cleanTitle}\n`;
@@ -479,14 +533,32 @@ router.post('/message', async (req, res) => {
                     });
                 }
                 
+                // 제휴처 탐색 AI 분석보고서
+                if (allPartnerNewsResponse.data.analysisReport && allPartnerNewsResponse.data.analysisReport.analysis) {
+                    responseMessage += "\n🤝 제휴처 탐색\n";
+                    responseMessage += "🤖 AI 분석보고서\n";
+                    responseMessage += "━━━━━━━━━━━━━━━━━━━━\n";
+                    responseMessage += formatAnalysisText(allPartnerNewsResponse.data.analysisReport.analysis);
+                    responseMessage += "\n━━━━━━━━━━━━━━━━━━━━\n\n";
+                }
+                
                 if (todayAllTechNews.length > 0) {
-                    responseMessage += "\n🔬 신기술 동향\n";
+                    responseMessage += "🔬 신기술 동향 뉴스\n";
                     todayAllTechNews.slice(0, 3).forEach((item, index) => {
                         const cleanTitle = cleanHtml(item.title);
                         responseMessage += `[${index + 1}] ${cleanTitle}\n`;
                         if (item.link) responseMessage += `🔗 ${item.link}\n`;
                         responseMessage += `📅 ${formatKST(item.pubDate)}\n\n`;
                     });
+                }
+                
+                // 신기술 동향 AI 분석보고서
+                if (allTechNewsResponse.data.analysisReport && allTechNewsResponse.data.analysisReport.analysis) {
+                    responseMessage += "\n🔬 신기술 동향\n";
+                    responseMessage += "🤖 AI 분석보고서\n";
+                    responseMessage += "━━━━━━━━━━━━━━━━━━━━\n";
+                    responseMessage += formatAnalysisText(allTechNewsResponse.data.analysisReport.analysis);
+                    responseMessage += "\n━━━━━━━━━━━━━━━━━━━━\n\n";
                 }
                 break;
             }
@@ -519,17 +591,21 @@ async function generateNewsSummary() {
     let summary = '📰 오늘의 뉴스 요약\n';
     try {
         // 리스크 이슈 뉴스
-        const riskNews = await axios.get(`${process.env.API_BASE_URL}/api/risk-news`);
-        const todayRiskNews = riskNews.data.filter(item => extractDate(item.pubDate) === today);
+        const riskNewsResponse = await axios.get(`${process.env.API_BASE_URL}/api/risk-news`);
+        const todayRiskNews = riskNewsResponse.data.data.filter(item => extractDate(item.pubDate) === today);
+        
         // 제휴처 탐색 뉴스
-        const partnerNews = await axios.get(`${process.env.API_BASE_URL}/api/partner-news`);
-        const todayPartnerNews = partnerNews.data.filter(item => extractDate(item.pubDate) === today);
+        const partnerNewsResponse = await axios.get(`${process.env.API_BASE_URL}/api/partner-news`);
+        const todayPartnerNews = partnerNewsResponse.data.data.filter(item => extractDate(item.pubDate) === today);
+        
         // 신기술 동향 뉴스
-        const techNews = await axios.get(`${process.env.API_BASE_URL}/api/tech-news`);
-        const todayTechNews = techNews.data.filter(item => extractDate(item.pubDate) === today);
+        const techNewsResponse = await axios.get(`${process.env.API_BASE_URL}/api/tech-news`);
+        const todayTechNews = techNewsResponse.data.data.filter(item => extractDate(item.pubDate) === today);
+        
         summary += `- 리스크 이슈: ${todayRiskNews.length}건\n`;
         summary += `- 제휴처 탐색: ${todayPartnerNews.length}건\n`;
         summary += `- 신기술 동향: ${todayTechNews.length}건\n\n`;
+        
         // 리스크 이슈 뉴스 상세 (제한 없이 모두 표기)
         if (todayRiskNews.length > 0) {
             summary += '[리스크 이슈 주요 뉴스]\n';
@@ -539,6 +615,16 @@ async function generateNewsSummary() {
             });
             summary += '\n';
         }
+        
+        // 리스크 이슈 AI 분석보고서
+        if (riskNewsResponse.data.analysisReport && riskNewsResponse.data.analysisReport.analysis) {
+            summary += '📰 리스크 이슈\n';
+            summary += '🤖 AI 분석보고서\n';
+            summary += '━━━━━━━━━━━━━━━━━━━━\n';
+            summary += formatAnalysisText(riskNewsResponse.data.analysisReport.analysis);
+            summary += '\n━━━━━━━━━━━━━━━━━━━━\n\n';
+        }
+        
         // 제휴처 탐색 뉴스 상세 (제한 없이 모두 표기)
         if (todayPartnerNews.length > 0) {
             summary += '[제휴처 탐색 주요 뉴스]\n';
@@ -548,6 +634,16 @@ async function generateNewsSummary() {
             });
             summary += '\n';
         }
+        
+        // 제휴처 탐색 AI 분석보고서
+        if (partnerNewsResponse.data.analysisReport && partnerNewsResponse.data.analysisReport.analysis) {
+            summary += '🤝 제휴처 탐색\n';
+            summary += '🤖 AI 분석보고서\n';
+            summary += '━━━━━━━━━━━━━━━━━━━━\n';
+            summary += formatAnalysisText(partnerNewsResponse.data.analysisReport.analysis);
+            summary += '\n━━━━━━━━━━━━━━━━━━━━\n\n';
+        }
+        
         // 신기술 동향 뉴스 상세 (1건이라도 있으면 모두 표기)
         if (todayTechNews.length > 0) {
             summary += '[신기술 동향 주요 뉴스]\n';
@@ -556,6 +652,15 @@ async function generateNewsSummary() {
                 summary += `   ${news.link}\n`;
             });
             summary += '\n';
+        }
+        
+        // 신기술 동향 AI 분석보고서
+        if (techNewsResponse.data.analysisReport && techNewsResponse.data.analysisReport.analysis) {
+            summary += '🔬 신기술 동향\n';
+            summary += '🤖 AI 분석보고서\n';
+            summary += '━━━━━━━━━━━━━━━━━━━━\n';
+            summary += formatAnalysisText(techNewsResponse.data.analysisReport.analysis);
+            summary += '\n━━━━━━━━━━━━━━━━━━━━\n\n';
         }
     } catch (error) {
         console.error('뉴스 요약 생성 중 에러 발생:', error);

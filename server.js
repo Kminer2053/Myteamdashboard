@@ -129,10 +129,12 @@ async function saveNewsToDB(newsItems, model, category, keywords) {
         continue;
       }
       
-      // 3. 중복 체크: 발행일과 링크가 모두 동일한 기존 데이터 확인
+      // 3. 중복 체크: (링크와 발행일이 동일) OR (제목과 발행일이 동일)한 기존 데이터 확인
       const existingNews = await model.findOne({
-        link: item.link,
-        pubDate: item.pubDate
+        $or: [
+          { link: item.link, pubDate: item.pubDate },
+          { title: item.title, pubDate: item.pubDate }
+        ]
       });
       
       if (existingNews) {
@@ -167,6 +169,26 @@ async function saveNewsToDB(newsItems, model, category, keywords) {
   
   console.log(`[DB 저장][${category}] 완료 - 신규: ${inserted}건, 중복: ${duplicate}건, 제외: ${skipped}건`);
   return { inserted, duplicate, skipped };
+}
+
+// === 서버 내부 통계 기록 함수 ===
+async function logServerAction(action, meta = {}) {
+  try {
+    // 퍼플렉시티 관련 액션인지 확인
+    const isPerplexityAction = action.startsWith('퍼플렉시티');
+    const type = isPerplexityAction ? 'perplexity' : 'news';
+    
+    const log = new UserActionLog({ 
+      type, 
+      action, 
+      userId: 'system', 
+      userAgent: 'news-collector', 
+      meta 
+    });
+    await log.save();
+  } catch (e) {
+    console.error('서버 통계 기록 실패:', e.message);
+  }
 }
 
 // === 공통 분석보고서 생성 함수 ===
@@ -273,10 +295,16 @@ async function collectRiskNews() {
       const { inserted: insertedRisk, duplicate: duplicateRisk, skipped: skippedRisk } = await saveNewsToDB(allNews, RiskNews, '리스크이슈', keywords);
       console.log(`[AI 수집][리스크이슈] ${today} DB 저장 완료 (신규: ${insertedRisk}건, 중복: ${duplicateRisk}건, 제외: ${skippedRisk}건)`);
       
+      // 통계 기록 (퍼플렉시티만)
+      await logServerAction('퍼플렉시티리스크뉴스수집', { count: insertedRisk, keywords: keywords.join(', ') });
+      
       // 금일 뉴스가 1건이라도 있을 때만 분석보고서 저장
       if (aiResult && aiResult.analysis && insertedRisk > 0) {
         console.log(`[AI 수집][리스크이슈] 금일 뉴스 ${insertedRisk}건 저장됨 - 분석보고서 생성`);
         await createAnalysisReport(today, '리스크이슈', aiResult.analysis, RiskAnalysisReport, insertedRisk);
+        
+        // AI 분석보고서 생성 통계 기록 (퍼플렉시티만)
+        await logServerAction('퍼플렉시티AI분석보고서생성', { category: '리스크이슈', count: insertedRisk });
       } else {
         console.log(`[AI 수집][리스크이슈] 금일 뉴스 없음 - 분석보고서 생성 건너뜀`);
       }
@@ -326,10 +354,16 @@ async function collectPartnerNews() {
             const { inserted: insertedPartner, duplicate: duplicatePartner, skipped: skippedPartner } = await saveNewsToDB(validNews, PartnerNews, '제휴처탐색', conds);
             console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건, 제외: ${skippedPartner}건)`);
             
+            // 통계 기록 (퍼플렉시티만)
+            await logServerAction('퍼플렉시티제휴처뉴스수집', { count: insertedPartner, conditions: conds.join(', ') });
+            
             // 금일 뉴스가 1건이라도 있을 때만 분석보고서 저장
             if (aiNewsData.analysis && insertedPartner > 0) {
               console.log(`[AI 수집][제휴처탐색] 금일 뉴스 ${insertedPartner}건 저장됨 - 분석보고서 생성`);
               await createAnalysisReport(today, '제휴처탐색', aiNewsData.analysis, PartnerAnalysisReport, insertedPartner);
+              
+              // AI 분석보고서 생성 통계 기록 (퍼플렉시티만)
+              await logServerAction('퍼플렉시티AI분석보고서생성', { category: '제휴처탐색', count: insertedPartner });
             } else {
               console.log(`[AI 수집][제휴처탐색] 금일 뉴스 없음 - 분석보고서 생성 건너뜀`);
             }
@@ -394,10 +428,16 @@ async function collectTechNews() {
             const { inserted: insertedTech, duplicate: duplicateTech, skipped: skippedTech } = await saveNewsToDB(validNews, TechNews, '신기술동향', topics);
             console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건, 제외: ${skippedTech}건)`);
             
+            // 통계 기록 (퍼플렉시티만)
+            await logServerAction('퍼플렉시티기술뉴스수집', { count: insertedTech, topics: topics.join(', ') });
+            
             // 금일 뉴스가 1건이라도 있을 때만 분석보고서 저장
             if (aiNewsData.analysis && insertedTech > 0) {
               console.log(`[AI 수집][신기술동향] 금일 뉴스 ${insertedTech}건 저장됨 - 분석보고서 생성`);
               await createAnalysisReport(today, '신기술동향', aiNewsData.analysis, TechAnalysisReport, insertedTech);
+              
+              // AI 분석보고서 생성 통계 기록 (퍼플렉시티만)
+              await logServerAction('퍼플렉시티AI분석보고서생성', { category: '신기술동향', count: insertedTech });
             } else {
               console.log(`[AI 수집][신기술동향] 금일 뉴스 없음 - 분석보고서 생성 건너뜀`);
             }

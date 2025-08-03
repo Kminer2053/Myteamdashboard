@@ -45,6 +45,10 @@ router.get('/stats/summary', async (req, res) => {
       { type: 'admin', action: '뉴스갱신시간변경' },
       { type: 'admin', action: 'DB설정저장' },
       { type: 'admin', action: '통계메일저장' },
+      { type: 'perplexity', action: '퍼플렉시티리스크뉴스수집' },
+      { type: 'perplexity', action: '퍼플렉시티제휴처뉴스수집' },
+      { type: 'perplexity', action: '퍼플렉시티기술뉴스수집' },
+      { type: 'perplexity', action: '퍼플렉시티AI분석보고서생성' },
       { type: 'db', action: '자동삭제' }
     ];
 
