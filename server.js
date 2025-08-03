@@ -229,10 +229,9 @@ async function collectRiskNews() {
         console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" Perplexity AI 수집 및 분석 시작`);
         aiResult = await collectNewsWithPerplexity(keywords, 'risk');
         
-        // AI분석보고서 생성 (뉴스가 있든 없든 항상 생성)
+        // AI분석보고서는 DB 저장 후 조건부로 생성 (여기서는 임시로 생성하지 않음)
         if (aiResult && aiResult.analysis) {
-          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" AI분석보고서 생성`);
-          await createAnalysisReport(today, '리스크이슈', aiResult.analysis, RiskAnalysisReport, 0);
+          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" AI분석보고서 준비됨`);
         } else {
           console.log(`[DEBUG][risk] analysis가 없음:`, aiResult);
         }
