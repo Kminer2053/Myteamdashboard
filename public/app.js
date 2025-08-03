@@ -948,8 +948,11 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.appendChild(reportDiv);
         
         // === 상단 건수/정보갱신 버튼 ===
-        // 서버에서 이미 금일 뉴스만 저장하므로, 모든 뉴스가 금일 뉴스임
-        const todayCount = partnerNewsData.items.length;
+        // 중복 제거된 실제 뉴스 개수 사용
+        const uniqueItems = partnerNewsData.items.filter((item, index, self) => 
+            index === self.findIndex(t => t.link === item.link)
+        );
+        const todayCount = uniqueItems.length;
         
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
@@ -987,11 +990,6 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         
         // === 뉴스 목록 렌더링 ===
-        // 중복 제거 (link 기준)
-        const uniqueItems = partnerNewsData.items.filter((item, index, self) => 
-            index === self.findIndex(t => t.link === item.link)
-        );
-        
         console.log('📋 제휴처 뉴스 렌더링:', {
             totalItems: partnerNewsData.items.length,
             uniqueItems: uniqueItems.length
