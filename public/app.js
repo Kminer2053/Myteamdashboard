@@ -987,13 +987,6 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         
         // === 뉴스 목록 렌더링 ===
-        await renderPartnerNewsList();
-    }
-
-    async function renderPartnerNewsList() {
-        const resultsDiv = document.getElementById('partnerResults');
-        const today = await getKoreaToday();
-        
         // 중복 제거 (link 기준)
         const uniqueItems = partnerNewsData.items.filter((item, index, self) => 
             index === self.findIndex(t => t.link === item.link)
@@ -1062,6 +1055,8 @@ document.addEventListener('DOMContentLoaded', function() {
             resultsDiv.appendChild(loadingDiv);
         }
     }
+
+
 
     // 신기술 동향 키워드 관리
     async function renderTechDisplay() {
