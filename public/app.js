@@ -530,8 +530,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 riskNewsData.hasMore = data.hasMore;
                 riskNewsData.offset += data.data.length;
                 
-                // 분석 보고서 데이터 저장
-                riskNewsData.analysisReport = data.analysisReport;
+                // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
+                if (riskNewsData.offset === data.data.length || !riskNewsData.analysisReport) {
+                    riskNewsData.analysisReport = data.analysisReport;
+                }
                 
                 await renderRiskNewsContent();
             }
@@ -919,6 +921,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 partnerNewsData.hasMore = data.hasMore;
                 partnerNewsData.offset += data.data.length;
                 
+                // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
+                if (partnerNewsData.offset === data.data.length || !partnerNewsData.analysisReport) {
+                    partnerNewsData.analysisReport = data.analysisReport;
+                }
+                
                 console.log('📊 제휴처 뉴스 데이터 업데이트:', {
                     itemsCount: partnerNewsData.items.length,
                     totalCount: partnerNewsData.totalCount,
@@ -1175,6 +1182,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 techNewsData.totalCount = data.totalCount;
                 techNewsData.hasMore = data.hasMore;
                 techNewsData.offset += data.data.length;
+                
+                // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
+                if (techNewsData.offset === data.data.length || !techNewsData.analysisReport) {
+                    techNewsData.analysisReport = data.analysisReport;
+                }
                 
                 // 항상 전체 렌더링 (리스크 뉴스와 동일한 방식)
                 await renderTechNewsContent();

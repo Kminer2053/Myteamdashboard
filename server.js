@@ -94,6 +94,10 @@ let newsCronJob = null;
 async function saveNewsToDB(newsItems, model, category, keywords) {
   let inserted = 0;
   let duplicate = 0;
+  let skipped = 0;
+  const today = await getKoreaToday();
+  
+  console.log(`[DB 저장][${category}] 금일 기준: ${today}, 총 ${newsItems.length}건 처리 시작`);
   
   for (const item of newsItems) {
     try {
@@ -106,9 +110,34 @@ async function saveNewsToDB(newsItems, model, category, keywords) {
       console.log(`AI요약: ${item.aiSummary}`);
       console.log(`[DEBUG][${category}] ===== 아이템 끝 =====`);
       
-      // AI 요약이 있는 뉴스만 DB에 저장
+      // 1. AI 요약이 있는 뉴스만 DB에 저장
       if (!item.aiSummary) {
         console.log(`[AI 수집][${category}] AI 요약이 없는 뉴스 건너뜀: ${item.title}`);
+        skipped++;
+        continue;
+      }
+      
+      // 2. 발행일이 금일이 아닌 뉴스는 저장하지 않기
+      const itemDate = new Date(item.pubDate);
+      const todayDate = new Date(today);
+      const itemDateStr = itemDate.toISOString().split('T')[0];
+      const todayDateStr = todayDate.toISOString().split('T')[0];
+      
+      if (itemDateStr !== todayDateStr) {
+        console.log(`[AI 수집][${category}] 금일이 아닌 뉴스 건너뜀: ${item.title} (${itemDateStr} vs ${todayDateStr})`);
+        skipped++;
+        continue;
+      }
+      
+      // 3. 중복 체크: 발행일과 링크가 모두 동일한 기존 데이터 확인
+      const existingNews = await model.findOne({
+        link: item.link,
+        pubDate: item.pubDate
+      });
+      
+      if (existingNews) {
+        console.log(`[AI 수집][${category}] 중복 뉴스 건너뜀: ${item.title}`);
+        duplicate++;
         continue;
       }
       
@@ -136,7 +165,8 @@ async function saveNewsToDB(newsItems, model, category, keywords) {
     }
   }
   
-  return { inserted, duplicate };
+  console.log(`[DB 저장][${category}] 완료 - 신규: ${inserted}건, 중복: ${duplicate}건, 제외: ${skipped}건`);
+  return { inserted, duplicate, skipped };
 }
 
 // === 공통 분석보고서 생성 함수 ===
@@ -241,12 +271,15 @@ async function collectRiskNews() {
       }
       
       // === DB 저장 (AI 분석 결과 포함) ===
-      const { inserted: insertedRisk, duplicate: duplicateRisk } = await saveNewsToDB(allNews, RiskNews, '리스크이슈', keywords);
-      console.log(`[AI 수집][리스크이슈] ${today} DB 저장 완료 (신규: ${insertedRisk}건, 중복: ${duplicateRisk}건)`);
+      const { inserted: insertedRisk, duplicate: duplicateRisk, skipped: skippedRisk } = await saveNewsToDB(allNews, RiskNews, '리스크이슈', keywords);
+      console.log(`[AI 수집][리스크이슈] ${today} DB 저장 완료 (신규: ${insertedRisk}건, 중복: ${duplicateRisk}건, 제외: ${skippedRisk}건)`);
       
-      // 뉴스가 있을 때 분석보고서 업데이트 (totalNewsCount만 업데이트)
+      // 금일 뉴스가 1건이라도 있을 때만 분석보고서 저장
       if (aiResult && aiResult.analysis && insertedRisk > 0) {
+        console.log(`[AI 수집][리스크이슈] 금일 뉴스 ${insertedRisk}건 저장됨 - 분석보고서 생성`);
         await createAnalysisReport(today, '리스크이슈', aiResult.analysis, RiskAnalysisReport, insertedRisk);
+      } else {
+        console.log(`[AI 수집][리스크이슈] 금일 뉴스 없음 - 분석보고서 생성 건너뜀`);
       }
     }
   } catch (error) {
@@ -274,10 +307,9 @@ async function collectPartnerNews() {
         // Perplexity AI로 뉴스 수집 및 분석
         const aiNewsData = await collectNewsWithPerplexity(conds, 'partner');
         
-        // AI분석보고서 생성 (뉴스가 있든 없든 항상 생성)
+        // AI분석보고서는 금일 뉴스가 있을 때만 생성 (여기서는 임시로 생성하지 않음)
         if (aiNewsData && aiNewsData.analysis) {
-          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" AI분석보고서 생성`);
-          await createAnalysisReport(today, '제휴처탐색', aiNewsData.analysis, PartnerAnalysisReport, 0);
+          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" AI분석보고서 준비됨`);
         } else {
           console.log(`[DEBUG][partner] analysis가 없음:`, aiNewsData);
         }
@@ -292,12 +324,15 @@ async function collectPartnerNews() {
             console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 ${validNews.length}건 수집 및 분석 완료`);
           
             // === DB 저장 ===
-            const { inserted: insertedPartner, duplicate: duplicatePartner } = await saveNewsToDB(validNews, PartnerNews, '제휴처탐색', conds);
-            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
+            const { inserted: insertedPartner, duplicate: duplicatePartner, skipped: skippedPartner } = await saveNewsToDB(validNews, PartnerNews, '제휴처탐색', conds);
+            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건, 제외: ${skippedPartner}건)`);
             
-            // 뉴스가 있을 때 분석보고서 업데이트 (totalNewsCount만 업데이트)
+            // 금일 뉴스가 1건이라도 있을 때만 분석보고서 저장
             if (aiNewsData.analysis && insertedPartner > 0) {
+              console.log(`[AI 수집][제휴처탐색] 금일 뉴스 ${insertedPartner}건 저장됨 - 분석보고서 생성`);
               await createAnalysisReport(today, '제휴처탐색', aiNewsData.analysis, PartnerAnalysisReport, insertedPartner);
+            } else {
+              console.log(`[AI 수집][제휴처탐색] 금일 뉴스 없음 - 분석보고서 생성 건너뜀`);
             }
           } else {
             console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 유효한 뉴스 없음`);
@@ -340,10 +375,9 @@ async function collectTechNews() {
         // Perplexity AI로 뉴스 수집 및 분석
         const aiNewsData = await collectNewsWithPerplexity(topics, 'tech');
         
-        // AI분석보고서 생성 (뉴스가 있든 없든 항상 생성)
+        // AI분석보고서는 금일 뉴스가 있을 때만 생성 (여기서는 임시로 생성하지 않음)
         if (aiNewsData && aiNewsData.analysis) {
-          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" AI분석보고서 생성`);
-          await createAnalysisReport(today, '신기술동향', aiNewsData.analysis, TechAnalysisReport, 0);
+          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" AI분석보고서 준비됨`);
         } else {
           console.log(`[DEBUG][tech] analysis가 없음:`, aiNewsData);
         }
@@ -358,12 +392,15 @@ async function collectTechNews() {
             console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 ${validNews.length}건 수집 및 분석 완료`);
           
             // === DB 저장 ===
-            const { inserted: insertedTech, duplicate: duplicateTech } = await saveNewsToDB(validNews, TechNews, '신기술동향', topics);
-            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
+            const { inserted: insertedTech, duplicate: duplicateTech, skipped: skippedTech } = await saveNewsToDB(validNews, TechNews, '신기술동향', topics);
+            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건, 제외: ${skippedTech}건)`);
             
-            // 뉴스가 있을 때 분석보고서 업데이트 (totalNewsCount만 업데이트)
+            // 금일 뉴스가 1건이라도 있을 때만 분석보고서 저장
             if (aiNewsData.analysis && insertedTech > 0) {
+              console.log(`[AI 수집][신기술동향] 금일 뉴스 ${insertedTech}건 저장됨 - 분석보고서 생성`);
               await createAnalysisReport(today, '신기술동향', aiNewsData.analysis, TechAnalysisReport, insertedTech);
+            } else {
+              console.log(`[AI 수집][신기술동향] 금일 뉴스 없음 - 분석보고서 생성 건너뜀`);
             }
           } else {
             console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 유효한 뉴스 없음`);
