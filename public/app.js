@@ -570,13 +570,8 @@ document.addEventListener('DOMContentLoaded', function() {
         newsFeed.appendChild(reportDiv);
         
         // === 뉴스 현황 표시 ===
-        const todayCount = riskNewsData.items.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr === todayDateStr;
-        }).length;
+        // 서버에서 이미 금일 뉴스만 저장하므로, 모든 뉴스가 금일 뉴스임
+        const todayCount = riskNewsData.items.length;
         
         const statusDiv = document.createElement('div');
         statusDiv.className = 'd-flex justify-content-end align-items-center mb-3';
@@ -619,26 +614,9 @@ document.addEventListener('DOMContentLoaded', function() {
             index === self.findIndex(t => t.link === item.link)
         );
         
-        const todayNews = uniqueItems.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr === todayDateStr;
-        });
-        
-        const otherNews = uniqueItems.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr !== todayDateStr;
-        });
-        
         console.log('📋 리스크 뉴스 렌더링:', {
             totalItems: riskNewsData.items.length,
-            todayNews: todayNews.length,
-            otherNews: otherNews.length
+            uniqueItems: uniqueItems.length
         });
         
         // === 오늘의 뉴스 섹션 (항상 표시) ===
@@ -646,9 +624,9 @@ document.addEventListener('DOMContentLoaded', function() {
         todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
         newsFeed.appendChild(todayDiv);
         
-        if (todayNews.length > 0) {
-            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            todayNews.forEach(item => {
+        if (uniqueItems.length > 0) {
+            uniqueItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            uniqueItems.forEach(item => {
                 const card = createNewsCard(item, 'risk', 'Today');
                 newsFeed.appendChild(card);
             });
@@ -670,9 +648,10 @@ document.addEventListener('DOMContentLoaded', function() {
         recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
         newsFeed.appendChild(recentDiv);
         
-        if (otherNews.length > 0) {
-            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            otherNews.forEach(item => {
+        // 누적 뉴스는 현재 표시된 뉴스와 동일 (서버에서 이미 금일 뉴스만 저장하므로)
+        if (uniqueItems.length > 0) {
+            uniqueItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            uniqueItems.forEach(item => {
                 const card = createNewsCard(item, 'risk');
                 newsFeed.appendChild(card);
             });
@@ -969,13 +948,8 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.appendChild(reportDiv);
         
         // === 상단 건수/정보갱신 버튼 ===
-        const todayCount = partnerNewsData.items.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr === todayDateStr;
-        }).length;
+        // 서버에서 이미 금일 뉴스만 저장하므로, 모든 뉴스가 금일 뉴스임
+        const todayCount = partnerNewsData.items.length;
         
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
@@ -1025,26 +999,9 @@ document.addEventListener('DOMContentLoaded', function() {
             index === self.findIndex(t => t.link === item.link)
         );
         
-        const todayNews = uniqueItems.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr === todayDateStr;
-        });
-        
-        const otherNews = uniqueItems.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr !== todayDateStr;
-        });
-        
         console.log('📋 제휴처 뉴스 렌더링:', {
             totalItems: partnerNewsData.items.length,
-            todayNews: todayNews.length,
-            otherNews: otherNews.length
+            uniqueItems: uniqueItems.length
         });
         
         // === 오늘의 뉴스 섹션 (항상 표시) ===
@@ -1052,9 +1009,9 @@ document.addEventListener('DOMContentLoaded', function() {
         todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
         resultsDiv.appendChild(todayDiv);
         
-        if (todayNews.length > 0) {
-            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            todayNews.forEach(item => {
+        if (uniqueItems.length > 0) {
+            uniqueItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            uniqueItems.forEach(item => {
                 const card = createNewsCard(item, 'partner', 'Today');
                 resultsDiv.appendChild(card);
             });
@@ -1076,9 +1033,10 @@ document.addEventListener('DOMContentLoaded', function() {
         recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
         resultsDiv.appendChild(recentDiv);
         
-        if (otherNews.length > 0) {
-            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            otherNews.forEach(item => {
+        // 누적 뉴스는 현재 표시된 뉴스와 동일 (서버에서 이미 금일 뉴스만 저장하므로)
+        if (uniqueItems.length > 0) {
+            uniqueItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            uniqueItems.forEach(item => {
                 const card = createNewsCard(item, 'partner');
                 resultsDiv.appendChild(card);
             });
@@ -1224,13 +1182,8 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.appendChild(reportDiv);
         
         // === 상단 건수/정보갱신 버튼 ===
-        const todayCount = techNewsData.items.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr === todayDateStr;
-        }).length;
+        // 서버에서 이미 금일 뉴스만 저장하므로, 모든 뉴스가 금일 뉴스임
+        const todayCount = techNewsData.items.length;
         
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
@@ -1273,26 +1226,9 @@ document.addEventListener('DOMContentLoaded', function() {
             index === self.findIndex(t => t.link === item.link)
         );
         
-        const todayNews = uniqueItems.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr === todayDateStr;
-        });
-        
-        const otherNews = uniqueItems.filter(item => {
-            const itemDate = new Date(item.pubDate);
-            const todayDate = new Date(today);
-            const itemDateStr = itemDate.toISOString().split('T')[0];
-            const todayDateStr = todayDate.toISOString().split('T')[0];
-            return itemDateStr !== todayDateStr;
-        });
-        
         console.log('📋 신기술 뉴스 렌더링:', {
             totalItems: techNewsData.items.length,
-            todayNews: todayNews.length,
-            otherNews: otherNews.length
+            uniqueItems: uniqueItems.length
         });
         
         // === 오늘의 뉴스 섹션 (항상 표시) ===
@@ -1300,9 +1236,9 @@ document.addEventListener('DOMContentLoaded', function() {
         todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
         resultsDiv.appendChild(todayDiv);
         
-        if (todayNews.length > 0) {
-            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            todayNews.forEach(item => {
+        if (uniqueItems.length > 0) {
+            uniqueItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            uniqueItems.forEach(item => {
                 const card = createNewsCard(item, 'tech', 'Today');
                 resultsDiv.appendChild(card);
             });
@@ -1324,9 +1260,10 @@ document.addEventListener('DOMContentLoaded', function() {
         recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
         resultsDiv.appendChild(recentDiv);
         
-        if (otherNews.length > 0) {
-            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            otherNews.forEach(item => {
+        // 누적 뉴스는 현재 표시된 뉴스와 동일 (서버에서 이미 금일 뉴스만 저장하므로)
+        if (uniqueItems.length > 0) {
+            uniqueItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            uniqueItems.forEach(item => {
                 const card = createNewsCard(item, 'tech');
                 resultsDiv.appendChild(card);
             });
