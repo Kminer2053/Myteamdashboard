@@ -275,7 +275,10 @@ async function collectPartnerNews() {
         // 뉴스가 있든 없든 AI분석보고서는 항상 생성
         if (aiNewsData && aiNewsData.analysis) {
           console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" AI분석보고서 생성`);
+          console.log(`[DEBUG][partner] analysis 내용:`, aiNewsData.analysis);
           await createAnalysisReport(today, '제휴처탐색', aiNewsData.analysis, PartnerAnalysisReport, 0);
+        } else {
+          console.log(`[DEBUG][partner] analysis가 없음:`, aiNewsData);
         }
         
         if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {

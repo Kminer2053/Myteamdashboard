@@ -894,7 +894,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     offset: partnerNewsData.offset
                 });
                 
-                await renderPartnerNewsContent();
+                // 첫 번째 로드인 경우에만 전체 렌더링
+                if (partnerNewsData.offset === data.data.length) {
+                    await renderPartnerNewsContent();
+                } else {
+                    // 추가 로드인 경우 뉴스 목록만 추가
+                    await renderPartnerNewsList();
+                }
             }
         } catch (error) {
             console.error('❌ 제휴처 뉴스 로드 실패:', error);
@@ -1002,6 +1008,13 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         
         // === 뉴스 목록 렌더링 ===
+        await renderPartnerNewsList();
+    }
+
+    async function renderPartnerNewsList() {
+        const resultsDiv = document.getElementById('partnerResults');
+        const today = await getKoreaToday();
+        
         const todayNews = partnerNewsData.items.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
@@ -1152,7 +1165,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 techNewsData.hasMore = data.hasMore;
                 techNewsData.offset += data.data.length;
                 
-                await renderTechNewsContent();
+                // 첫 번째 로드인 경우에만 전체 렌더링
+                if (techNewsData.offset === data.data.length) {
+                    await renderTechNewsContent();
+                } else {
+                    // 추가 로드인 경우 뉴스 목록만 추가
+                    await renderTechNewsList();
+                }
             }
         } catch (error) {
             console.error('신기술 뉴스 로드 실패:', error);
@@ -1260,6 +1279,13 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         
         // === 뉴스 목록 렌더링 ===
+        await renderTechNewsList();
+    }
+
+    async function renderTechNewsList() {
+        const resultsDiv = document.getElementById('techTrendResults');
+        const today = await getKoreaToday();
+        
         const todayNews = techNewsData.items.filter(item => {
             const itemDate = new Date(item.pubDate);
             const todayDate = new Date(today);
