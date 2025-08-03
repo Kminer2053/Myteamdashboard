@@ -808,85 +808,24 @@ function extractNewsFromText(text, keyword) {
   return { news: newsItems, analysis: newsAnalysis };
 }
 
-// 최신 뉴스 파일 반환
+// 네이버뉴스 최신 뉴스 API 비활성화 - Perplexity AI만 사용
 app.get('/api/naver-news-latest', (req, res) => {
-  if (fs.existsSync(NEWS_FILE)) {
-    const data = fs.readFileSync(NEWS_FILE, 'utf-8');
-    res.json(JSON.parse(data));
-  } else {
-    res.json({ date: null, news: [] });
-  }
+  console.log('[API] 네이버뉴스 최신 뉴스 API 비활성화됨 - Perplexity AI만 사용');
+  return res.status(403).json({ 
+    error: '네이버뉴스 최신 뉴스 API가 비활성화되었습니다.',
+    message: 'Perplexity AI만 사용하여 뉴스를 수집합니다.',
+    note: '이전에 저장된 네이버뉴스 데이터는 여전히 DB에 남아있을 수 있습니다.'
+  });
 });
 
-// 기존 프록시 엔드포인트(직접 조회)
+// 네이버뉴스 API 비활성화 - Perplexity AI만 사용
 app.get('/api/naver-news', async (req, res) => {
-  const { query, display = 100, sort = 'date', max = 100 } = req.query;
-  
-  // 필수 파라미터 검증
-  if (!query) {
-    return res.status(400).json({ 
-      error: 'query 파라미터가 필요합니다.',
-      message: '검색어를 입력해주세요.',
-      example: 'http://localhost:4000/api/naver-news?query=테스트&max=5'
-    });
-  }
-
-  // 파라미터 유효성 검증
-  const displayNum = Math.min(Math.max(Number(display), 1), 100);
-  const maxNum = Math.min(Number(max), 1000); // 네이버 API 최대 1000개 제한
-  
-  try {
-    let allItems = [];
-    let start = 1;
-    let callCount = 0;
-    
-    if (maxNum <= 100) {
-      // 100개 이하 요청 시 한 번만 호출
-      const params = { query, display: maxNum, start, sort };
-      const result = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-        params,
-        headers: {
-          'X-Naver-Client-Id': NAVER_CLIENT_ID,
-          'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-        }
-      });
-      allItems = result.data.items || [];
-    } else {
-      // 100개 초과 요청 시 기존 방식대로 루프
-      while (allItems.length < maxNum && start <= 1000) {
-        callCount++;
-        const params = { query, display: displayNum, start, sort };
-        const result = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-          params,
-          headers: {
-            'X-Naver-Client-Id': NAVER_CLIENT_ID,
-            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-          }
-        });
-        const items = result.data.items || [];
-        if (items.length > 0) {
-          items.forEach(item => {
-            if (!allItems.some(n => n.link === item.link)) {
-              allItems.push(item);
-            }
-          });
-          if (items.length < displayNum) break;
-          start += displayNum;
-        } else {
-          break;
-        }
-      }
-    }
-    
-    res.json({ items: allItems.slice(0, maxNum) });
-    
-  } catch (err) {
-    console.error('[프록시] 에러:', err.message);
-    res.status(500).json({ 
-      error: '서버 에러',
-      message: err.message
-    });
-  }
+  console.log('[API] 네이버뉴스 API 비활성화됨 - Perplexity AI만 사용');
+  return res.status(403).json({ 
+    error: '네이버뉴스 API가 비활성화되었습니다.',
+    message: 'Perplexity AI만 사용하여 뉴스를 수집합니다.',
+    note: '이전에 저장된 네이버뉴스 데이터는 여전히 DB에 남아있을 수 있습니다.'
+  });
 });
 
 // 키워드 전체 조회
