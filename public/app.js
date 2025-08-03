@@ -554,38 +554,18 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // === 분석 보고서 표출 ===
         const analysisReport = riskNewsData.analysisReport;
-        if (analysisReport) {
-            const reportDiv = document.createElement('div');
-            reportDiv.className = 'card mb-4';
-            reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #6c757d;';
-            reportDiv.innerHTML = `
-                <div class="card-header" style="background: linear-gradient(135deg, #6c757d, #495057); color: white; padding: 15px 20px;">
-                    <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport.analysisModel || 'perplexity-ai'}</small></h6>
+        const reportDiv = document.createElement('div');
+        reportDiv.className = 'card mb-4';
+        reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #6c757d;';
+        reportDiv.innerHTML = `
+            <div class="card-header" style="background: linear-gradient(135deg, #6c757d, #495057); color: white; padding: 15px 20px;">
+                <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport?.analysisModel || 'perplexity-ai'}</small></h6>
+            </div>
+                            <div class="card-body" style="padding: 20px;">
+                    <div style="color: #666; line-height: 1.6;">${formatAnalysisText(analysisReport?.analysis || '분석 내용이 없습니다.')}</div>
                 </div>
-                <div class="card-body" style="padding: 20px;">
-                    <div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${analysisReport.newsSummary || analysisReport.analysis || '분석 내용이 없습니다.'}</div>
-                    <div class="row">
-                        <div class="col-md-3">
-                            <small class="text-muted">감성점수</small><br>
-                            <span class="badge" style="background: ${analysisReport.sentimentScore > 50 ? '#28a745' : analysisReport.sentimentScore > 30 ? '#ffc107' : '#dc3545'}; color: white;">${analysisReport.sentimentScore || 0}점</span>
-                        </div>
-                        <div class="col-md-3">
-                            <small class="text-muted">주가정보</small><br>
-                            <span class="text-muted">${analysisReport.stockInfo || '정보 없음'}</span>
-                        </div>
-                        <div class="col-md-3">
-                            <small class="text-muted">총 뉴스</small><br>
-                            <span class="badge badge-secondary">${analysisReport.newsCount || analysisReport.totalNewsCount || 0}건</span>
-                        </div>
-                        <div class="col-md-3">
-                            <small class="text-muted">분석일</small><br>
-                            <span class="text-muted">${analysisReport.analysisDate || new Date().toLocaleDateString()}</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-            newsFeed.appendChild(reportDiv);
-        }
+        `;
+        newsFeed.appendChild(reportDiv);
         
         // === 뉴스 현황 표시 ===
         const todayCount = riskNewsData.items.filter(item => {
@@ -714,6 +694,44 @@ document.addEventListener('DOMContentLoaded', function() {
             loadingDiv.className = 'd-flex justify-content-center my-3';
             loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
             newsFeed.appendChild(loadingDiv);
+        }
+    }
+
+    // 분석 텍스트 포맷팅 함수
+    function formatAnalysisText(text) {
+        if (!text) return '분석 내용이 없습니다.';
+        
+        // 구조화된 섹션들 (콜론으로 구분)
+        const sections = text.split(/(?=^[가-힣]+:)/m);
+        
+        if (sections.length > 1) {
+            // 구조화된 텍스트인 경우
+            return sections.map(section => {
+                const trimmed = section.trim();
+                if (!trimmed) return '';
+                
+                if (trimmed.includes(':')) {
+                    const [title, ...content] = trimmed.split(':');
+                    const contentText = content.join(':').trim();
+                    
+                    if (title && contentText) {
+                        return `
+                            <div style="margin-bottom: 15px;">
+                                <strong style="color: #333; font-size: 1.1em;">${title.trim()}</strong>
+                                <div style="margin-top: 5px; color: #666; line-height: 1.6;">${contentText}</div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                return `<div style="color: #666; line-height: 1.6; margin-bottom: 10px;">${trimmed}</div>`;
+            }).join('');
+        } else {
+            // 일반 텍스트인 경우 단락으로 분리
+            const paragraphs = text.split(/\n+/).filter(p => p.trim());
+            return paragraphs.map(paragraph => 
+                `<div style="color: #666; line-height: 1.6; margin-bottom: 10px;">${paragraph.trim()}</div>`
+            ).join('');
         }
     }
 
@@ -929,45 +947,16 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.innerHTML = '';
         
         // === AI 분석 보고서 표출 ===
-        const analysisReport = partnerNewsData.analysisReport ? {
-            analysis: partnerNewsData.analysisReport.analysis || "분석 내용이 없습니다.",
-            analysisModel: partnerNewsData.analysisReport.analysisModel || "perplexity-ai",
-            totalNewsCount: partnerNewsData.analysisReport.totalNewsCount || 0,
-            analysisDate: partnerNewsData.analysisReport.date ? new Date(partnerNewsData.analysisReport.date).toLocaleDateString() : new Date().toLocaleDateString()
-        } : {
-            analysis: "분석 보고서가 없습니다.",
-            analysisModel: "perplexity-ai",
-            totalNewsCount: 0,
-            analysisDate: new Date().toLocaleDateString()
-        };
-        
+        const analysisReport = partnerNewsData.analysisReport;
         const reportDiv = document.createElement('div');
         reportDiv.className = 'card mb-4';
         reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #1565c0;';
         reportDiv.innerHTML = `
             <div class="card-header" style="background: linear-gradient(135deg, #1565c0, #0d47a1); color: white; padding: 15px 20px;">
-                <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport.analysisModel || 'perplexity-ai'}</small></h6>
+                <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport?.analysisModel || 'perplexity-ai'}</small></h6>
             </div>
             <div class="card-body" style="padding: 20px;">
-                <div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${analysisReport.analysis || '분석 내용이 없습니다.'}</div>
-                <div class="row">
-                    <div class="col-md-3">
-                        <small class="text-muted">트렌드점수</small><br>
-                        <span class="badge" style="background: #1565c0; color: white;">75점</span>
-                    </div>
-                    <div class="col-md-3">
-                        <small class="text-muted">시장동향</small><br>
-                        <span class="text-muted">로컬브랜드 성장세</span>
-                    </div>
-                    <div class="col-md-3">
-                        <small class="text-muted">총 뉴스</small><br>
-                        <span class="badge badge-secondary">${analysisReport.totalNewsCount || 0}건</span>
-                    </div>
-                    <div class="col-md-3">
-                        <small class="text-muted">분석일</small><br>
-                        <span class="text-muted">${analysisReport.analysisDate || new Date().toLocaleDateString()}</span>
-                    </div>
-                </div>
+                <div style="color: #666; line-height: 1.6;">${formatAnalysisText(analysisReport?.analysis || '분석 내용이 없습니다.')}</div>
             </div>
         `;
         resultsDiv.appendChild(reportDiv);
@@ -1208,45 +1197,16 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.innerHTML = '';
         
         // === AI 분석 보고서 표출 ===
-        const analysisReport = techNewsData.analysisReport ? {
-            analysis: techNewsData.analysisReport.analysis || "분석 내용이 없습니다.",
-            analysisModel: techNewsData.analysisReport.analysisModel || "perplexity-ai",
-            totalNewsCount: techNewsData.analysisReport.totalNewsCount || 0,
-            analysisDate: techNewsData.analysisReport.date ? new Date(techNewsData.analysisReport.date).toLocaleDateString() : new Date().toLocaleDateString()
-        } : {
-            analysis: "분석 보고서가 없습니다.",
-            analysisModel: "perplexity-ai",
-            totalNewsCount: 0,
-            analysisDate: new Date().toLocaleDateString()
-        };
-        
+        const analysisReport = techNewsData.analysisReport;
         const reportDiv = document.createElement('div');
         reportDiv.className = 'card mb-4';
         reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #512da8;';
         reportDiv.innerHTML = `
             <div class="card-header" style="background: linear-gradient(135deg, #512da8, #311b92); color: white; padding: 15px 20px;">
-                <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport.analysisModel || 'perplexity-ai'}</small></h6>
+                <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport?.analysisModel || 'perplexity-ai'}</small></h6>
             </div>
             <div class="card-body" style="padding: 20px;">
-                <div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${analysisReport.analysis || '분석 내용이 없습니다.'}</div>
-                <div class="row">
-                    <div class="col-md-3">
-                        <small class="text-muted">혁신점수</small><br>
-                        <span class="badge" style="background: #512da8; color: white;">88점</span>
-                    </div>
-                    <div class="col-md-3">
-                        <small class="text-muted">적용분야</small><br>
-                        <span class="text-muted">다양한 산업</span>
-                    </div>
-                    <div class="col-md-3">
-                        <small class="text-muted">총 뉴스</small><br>
-                        <span class="badge badge-secondary">${analysisReport.totalNewsCount || 0}건</span>
-                    </div>
-                    <div class="col-md-3">
-                        <small class="text-muted">분석일</small><br>
-                        <span class="text-muted">${analysisReport.analysisDate || new Date().toLocaleDateString()}</span>
-                    </div>
-                </div>
+                <div style="color: #666; line-height: 1.6;">${formatAnalysisText(analysisReport?.analysis || '분석 내용이 없습니다.')}</div>
             </div>
         `;
         resultsDiv.appendChild(reportDiv);
@@ -1296,7 +1256,89 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         
         // === 뉴스 목록 렌더링 ===
-        await renderTechNewsList();
+        // 중복 제거 (link 기준)
+        const uniqueItems = techNewsData.items.filter((item, index, self) => 
+            index === self.findIndex(t => t.link === item.link)
+        );
+        
+        const todayNews = uniqueItems.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr === todayDateStr;
+        });
+        
+        const otherNews = uniqueItems.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr !== todayDateStr;
+        });
+        
+        console.log('📋 신기술 뉴스 렌더링:', {
+            totalItems: techNewsData.items.length,
+            todayNews: todayNews.length,
+            otherNews: otherNews.length
+        });
+        
+        // === 오늘의 뉴스 섹션 (항상 표시) ===
+        const todayDiv = document.createElement('div');
+        todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+        resultsDiv.appendChild(todayDiv);
+        
+        if (todayNews.length > 0) {
+            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            todayNews.forEach(item => {
+                const card = createNewsCard(item, 'tech', 'Today');
+                resultsDiv.appendChild(card);
+            });
+        } else {
+            const emptyTodayDiv = document.createElement('div');
+            emptyTodayDiv.className = 'alert alert-info';
+            emptyTodayDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>금일은 뉴스가 없습니다</h5>
+                    <p class="text-muted">오늘 수집된 뉴스가 없습니다.</p>
+                </div>
+            `;
+            resultsDiv.appendChild(emptyTodayDiv);
+        }
+        
+        // === 최근 누적 뉴스 섹션 (항상 표시) ===
+        const recentDiv = document.createElement('div');
+        recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+        resultsDiv.appendChild(recentDiv);
+        
+        if (otherNews.length > 0) {
+            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            otherNews.forEach(item => {
+                const card = createNewsCard(item, 'tech');
+                resultsDiv.appendChild(card);
+            });
+        } else {
+            const emptyRecentDiv = document.createElement('div');
+            emptyRecentDiv.className = 'alert alert-info';
+            emptyRecentDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>누적 뉴스가 없습니다</h5>
+                    <p class="text-muted">기존 누적 데이터가 없습니다.</p>
+                </div>
+            `;
+            resultsDiv.appendChild(emptyRecentDiv);
+        }
+        
+        // 무한 스크롤 로딩 표시
+        if (techNewsData.hasMore) {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'techLoadingIndicator';
+            loadingDiv.className = 'd-flex justify-content-center my-3';
+            loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+            resultsDiv.appendChild(loadingDiv);
+        }
     }
 
     async function renderTechNewsList() {
