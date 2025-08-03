@@ -199,6 +199,12 @@ async function collectRiskNews() {
         console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" Perplexity AI 수집 및 분석 시작`);
         aiResult = await collectNewsWithPerplexity(keywords, 'risk');
         
+        // 뉴스가 있든 없든 AI분석보고서는 항상 생성
+        if (aiResult && aiResult.analysis) {
+          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" AI분석보고서 생성`);
+          await createAnalysisReport(today, '리스크이슈', aiResult.analysis, RiskAnalysisReport, 0);
+        }
+        
         if (aiResult && aiResult.news && aiResult.news.length > 0) {
           // 실제 뉴스가 있는지 확인 (undefined 필드가 아닌 유효한 뉴스)
           const validNews = aiResult.news.filter(item => 
@@ -212,7 +218,7 @@ async function collectRiskNews() {
             console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" 유효한 뉴스 없음`);
           }
         } else {
-          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" 결과 없음`);
+          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" 뉴스 없음`);
         }
       } catch (e) {
         console.error(`[AI 수집][리스크이슈] Perplexity AI 실패:`, e.message);
@@ -266,29 +272,35 @@ async function collectPartnerNews() {
         // Perplexity AI로 뉴스 수집 및 분석
         const aiNewsData = await collectNewsWithPerplexity(conds, 'partner');
         
-                  if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
-            // 실제 뉴스가 있는지 확인 (undefined 필드가 아닌 유효한 뉴스)
-            const validNews = aiNewsData.news.filter(item => 
-              item && item.title && item.link && item.aiSummary
-            );
+        // 뉴스가 있든 없든 AI분석보고서는 항상 생성
+        if (aiNewsData && aiNewsData.analysis) {
+          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" AI분석보고서 생성`);
+          await createAnalysisReport(today, '제휴처탐색', aiNewsData.analysis, PartnerAnalysisReport, 0);
+        }
+        
+        if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
+          // 실제 뉴스가 있는지 확인 (undefined 필드가 아닌 유효한 뉴스)
+          const validNews = aiNewsData.news.filter(item => 
+            item && item.title && item.link && item.aiSummary
+          );
+          
+          if (validNews.length > 0) {
+            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 ${validNews.length}건 수집 및 분석 완료`);
+          
+            // === DB 저장 ===
+            const { inserted: insertedPartner, duplicate: duplicatePartner } = await saveNewsToDB(validNews, PartnerNews, '제휴처탐색', conds);
+            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
             
-            if (validNews.length > 0) {
-              console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 ${validNews.length}건 수집 및 분석 완료`);
-            
-              // === DB 저장 ===
-              const { inserted: insertedPartner, duplicate: duplicatePartner } = await saveNewsToDB(validNews, PartnerNews, '제휴처탐색', conds);
-              console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" DB 저장 완료 (신규: ${insertedPartner}건, 중복: ${duplicatePartner}건)`);
-              
-              // AI 분석 보고서 생성 (Perplexity AI 분석 결과 사용)
-              if (aiNewsData.analysis) {
-                await createAnalysisReport(today, '제휴처탐색', aiNewsData.analysis, PartnerAnalysisReport, insertedPartner);
-              }
-            } else {
-              console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 유효한 뉴스 없음`);
+            // 뉴스가 있을 때는 분석보고서 업데이트
+            if (aiNewsData.analysis) {
+              await createAnalysisReport(today, '제휴처탐색', aiNewsData.analysis, PartnerAnalysisReport, insertedPartner);
             }
           } else {
-            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 결과 없음`);
+            console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 유효한 뉴스 없음`);
           }
+        } else {
+          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" 뉴스 없음`);
+        }
         
               } catch (e) {
           console.error(`[AI 수집][partner] 조건 "${conds.join(', ')}" 뉴스 수집 실패:`, e.message);
@@ -324,29 +336,35 @@ async function collectTechNews() {
         // Perplexity AI로 뉴스 수집 및 분석
         const aiNewsData = await collectNewsWithPerplexity(topics, 'tech');
         
-                  if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
-            // 실제 뉴스가 있는지 확인 (undefined 필드가 아닌 유효한 뉴스)
-            const validNews = aiNewsData.news.filter(item => 
-              item && item.title && item.link && item.aiSummary
-            );
+        // 뉴스가 있든 없든 AI분석보고서는 항상 생성
+        if (aiNewsData && aiNewsData.analysis) {
+          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" AI분석보고서 생성`);
+          await createAnalysisReport(today, '신기술동향', aiNewsData.analysis, TechAnalysisReport, 0);
+        }
+        
+        if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
+          // 실제 뉴스가 있는지 확인 (undefined 필드가 아닌 유효한 뉴스)
+          const validNews = aiNewsData.news.filter(item => 
+            item && item.title && item.link && item.aiSummary
+          );
+          
+          if (validNews.length > 0) {
+            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 ${validNews.length}건 수집 및 분석 완료`);
+          
+            // === DB 저장 ===
+            const { inserted: insertedTech, duplicate: duplicateTech } = await saveNewsToDB(validNews, TechNews, '신기술동향', topics);
+            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
             
-            if (validNews.length > 0) {
-              console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 ${validNews.length}건 수집 및 분석 완료`);
-            
-              // === DB 저장 ===
-              const { inserted: insertedTech, duplicate: duplicateTech } = await saveNewsToDB(validNews, TechNews, '신기술동향', topics);
-              console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" DB 저장 완료 (신규: ${insertedTech}건, 중복: ${duplicateTech}건)`);
-              
-              // AI 분석 보고서 생성 (Perplexity AI 분석 결과 사용)
-              if (aiNewsData.analysis) {
-                await createAnalysisReport(today, '신기술동향', aiNewsData.analysis, TechAnalysisReport, insertedTech);
-              }
-            } else {
-              console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 유효한 뉴스 없음`);
+            // 뉴스가 있을 때는 분석보고서 업데이트
+            if (aiNewsData.analysis) {
+              await createAnalysisReport(today, '신기술동향', aiNewsData.analysis, TechAnalysisReport, insertedTech);
             }
           } else {
-            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 결과 없음`);
+            console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 유효한 뉴스 없음`);
           }
+        } else {
+          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" 뉴스 없음`);
+        }
         
               } catch (e) {
           console.error(`[AI 수집][tech] 주제 "${topics.join(', ')}" 뉴스 수집 실패:`, e.message);
@@ -1281,6 +1299,12 @@ app.get('/api/partner-news', async (req, res) => {
     .limit(parseInt(limit))
     .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
     
+    // 최신 AI분석보고서 조회
+    const today = await getKoreaToday();
+    const analysisReport = await PartnerAnalysisReport.findOne({
+      date: { $gte: new Date(today + 'T00:00:00.000Z') }
+    }).sort({ date: -1 });
+    
     res.json({
       success: true,
       data: news,
@@ -1288,7 +1312,8 @@ app.get('/api/partner-news', async (req, res) => {
       totalCount: totalCount,
       hasMore: parseInt(offset) + parseInt(limit) < totalCount,
       offset: parseInt(offset),
-      limit: parseInt(limit)
+      limit: parseInt(limit),
+      analysisReport: analysisReport || null
     });
   } catch (error) {
     console.error('제휴처 뉴스 조회 실패:', error);
@@ -1335,6 +1360,12 @@ app.get('/api/tech-news', async (req, res) => {
     .limit(parseInt(limit))
     .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
     
+    // 최신 AI분석보고서 조회
+    const today = await getKoreaToday();
+    const analysisReport = await TechAnalysisReport.findOne({
+      date: { $gte: new Date(today + 'T00:00:00.000Z') }
+    }).sort({ date: -1 });
+    
     res.json({
       success: true,
       data: news,
@@ -1342,7 +1373,8 @@ app.get('/api/tech-news', async (req, res) => {
       totalCount: totalCount,
       hasMore: parseInt(offset) + parseInt(limit) < totalCount,
       offset: parseInt(offset),
-      limit: parseInt(limit)
+      limit: parseInt(limit),
+      analysisReport: analysisReport || null
     });
   } catch (error) {
     console.error('신기술 뉴스 조회 실패:', error);

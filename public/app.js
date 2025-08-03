@@ -914,8 +914,13 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.innerHTML = '';
         
         // === AI 분석 보고서 표출 ===
-        const analysisReport = {
-            analysis: "로컬브랜드와 로코노미 관련 뉴스를 분석한 결과, 최근 24시간 내에는 심층적인 뉴스가 확인되지 않았습니다. 일부 소셜미디어에서는 패션 업계의 글로벌 및 로컬브랜드 트렌드 요약이 다뤄지고 있어 지속적인 업계 관심을 보여주고 있습니다. 다만 오늘 기준으로 특정 로컬브랜드의 정책 발표, 지원 사업, 성공 사례 등에 대한 구체적인 뉴스 발표는 없는 상황입니다.",
+        const analysisReport = partnerNewsData.analysisReport ? {
+            analysis: partnerNewsData.analysisReport.analysis || "분석 내용이 없습니다.",
+            analysisModel: partnerNewsData.analysisReport.analysisModel || "perplexity-ai",
+            totalNewsCount: partnerNewsData.analysisReport.totalNewsCount || 0,
+            analysisDate: partnerNewsData.analysisReport.date ? new Date(partnerNewsData.analysisReport.date).toLocaleDateString() : new Date().toLocaleDateString()
+        } : {
+            analysis: "분석 보고서가 없습니다.",
             analysisModel: "perplexity-ai",
             totalNewsCount: 0,
             analysisDate: new Date().toLocaleDateString()
@@ -1167,8 +1172,13 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.innerHTML = '';
         
         // === AI 분석 보고서 표출 ===
-        const analysisReport = {
-            analysis: "AI 업무 활용사례 관련 뉴스를 분석한 결과, 최근 24시간 내에는 구체적인 뉴스가 확인되지 않았습니다. 2025년 7월 기준으로 Google(AI 기반 보안), 현대건설/금융권(AI 적용, 인력 구조조정) 등의 사례가 보고되고 있습니다. IT, 금융, 건설, 보안 등 다양한 분야에서 반복적·데이터 기반 업무의 AI 적용이 빠르게 확산되고 있으며, 효율성 증대, 비용 절감, 인력 구조조정으로 이어지고 있습니다. 생성형 AI와 AI 에이전트가 현재 트렌드로 실질적인 성과를 보여주고 있습니다.",
+        const analysisReport = techNewsData.analysisReport ? {
+            analysis: techNewsData.analysisReport.analysis || "분석 내용이 없습니다.",
+            analysisModel: techNewsData.analysisReport.analysisModel || "perplexity-ai",
+            totalNewsCount: techNewsData.analysisReport.totalNewsCount || 0,
+            analysisDate: techNewsData.analysisReport.date ? new Date(techNewsData.analysisReport.date).toLocaleDateString() : new Date().toLocaleDateString()
+        } : {
+            analysis: "분석 보고서가 없습니다.",
             analysisModel: "perplexity-ai",
             totalNewsCount: 0,
             analysisDate: new Date().toLocaleDateString()
