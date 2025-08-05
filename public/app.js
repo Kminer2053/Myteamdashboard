@@ -651,10 +651,11 @@ document.addEventListener('DOMContentLoaded', function() {
         recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
         newsFeed.appendChild(recentDiv);
         
-        // 누적 뉴스 (otherNews 사용)
-        if (otherNews.length > 0) {
-            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            otherNews.forEach(item => {
+        // 누적 뉴스 (todayNews + otherNews 합쳐서 사용)
+        const allNews = [...todayNews, ...otherNews];
+        if (allNews.length > 0) {
+            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            allNews.forEach(item => {
                 const card = createNewsCard(item, 'risk');
                 newsFeed.appendChild(card);
             });
@@ -1032,10 +1033,11 @@ document.addEventListener('DOMContentLoaded', function() {
         recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
         resultsDiv.appendChild(recentDiv);
         
-        // 누적 뉴스 (otherNews 사용)
-        if (otherNews.length > 0) {
-            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            otherNews.forEach(item => {
+        // 누적 뉴스 (todayNews + otherNews 합쳐서 사용)
+        const allNews = [...todayNews, ...otherNews];
+        if (allNews.length > 0) {
+            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            allNews.forEach(item => {
                 const card = createNewsCard(item, 'partner');
                 resultsDiv.appendChild(card);
             });
@@ -1264,10 +1266,11 @@ document.addEventListener('DOMContentLoaded', function() {
         recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
         resultsDiv.appendChild(recentDiv);
         
-        // 누적 뉴스 (otherNews 사용)
-        if (otherNews.length > 0) {
-            otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-            otherNews.forEach(item => {
+        // 누적 뉴스 (todayNews + otherNews 합쳐서 사용)
+        const allNews = [...todayNews, ...otherNews];
+        if (allNews.length > 0) {
+            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            allNews.forEach(item => {
                 const card = createNewsCard(item, 'tech');
                 resultsDiv.appendChild(card);
             });

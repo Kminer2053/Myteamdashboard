@@ -101,14 +101,7 @@ async function saveNewsToDB(newsItems, model, category, keywords) {
   
   for (const item of newsItems) {
     try {
-      // 디버깅: 각 뉴스 아이템 정보 로그
-      console.log(`[DEBUG][${category}] ===== 뉴스 아이템 정보 =====`);
-      console.log(`제목: ${item.title}`);
-      console.log(`링크: ${item.link}`);
-      console.log(`언론사: ${item.source}`);
-      console.log(`발행일: ${item.pubDate}`);
-      console.log(`AI요약: ${item.aiSummary}`);
-      console.log(`[DEBUG][${category}] ===== 아이템 끝 =====`);
+
       
       // 1. AI 요약이 있는 뉴스만 DB에 저장
       if (!item.aiSummary) {
@@ -255,7 +248,7 @@ async function collectRiskNews() {
         if (aiResult && aiResult.analysis) {
           console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" AI분석보고서 준비됨`);
         } else {
-          console.log(`[DEBUG][risk] analysis가 없음:`, aiResult);
+          console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" AI분석보고서 없음`);
         }
         
         if (aiResult && aiResult.news && aiResult.news.length > 0) {
@@ -338,7 +331,7 @@ async function collectPartnerNews() {
         if (aiNewsData && aiNewsData.analysis) {
           console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" AI분석보고서 준비됨`);
         } else {
-          console.log(`[DEBUG][partner] analysis가 없음:`, aiNewsData);
+          console.log(`[AI 수집][partner] 조건 "${conds.join(', ')}" AI분석보고서 없음`);
         }
         
         if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
@@ -412,7 +405,7 @@ async function collectTechNews() {
         if (aiNewsData && aiNewsData.analysis) {
           console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" AI분석보고서 준비됨`);
         } else {
-          console.log(`[DEBUG][tech] analysis가 없음:`, aiNewsData);
+          console.log(`[AI 수집][tech] 주제 "${topics.join(', ')}" AI분석보고서 없음`);
         }
         
         if (aiNewsData && aiNewsData.news && aiNewsData.news.length > 0) {
@@ -608,10 +601,7 @@ ${categoryContext}
 }
 `;
 
-    // 디버깅: 실제 전송되는 프롬프트 로그
-    console.log(`[DEBUG][${category}] ===== 실제 전송되는 프롬프트 =====`);
-    console.log(prompt);
-    console.log(`[DEBUG][${category}] ===== 프롬프트 끝 =====`);
+
 
     // Rate Limit 방지를 위한 지연
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -654,10 +644,7 @@ ${categoryContext}
     console.log(`[AI 수집][${category}] Finish reason: ${finishReason}`);
     console.log(`[AI 수집][${category}] Token usage: ${usage?.total_tokens || 'N/A'}/${usage?.completion_tokens || 'N/A'}`);
     
-    // 디버깅: Perplexity AI 응답 로그
-    console.log(`[DEBUG][${category}] ===== Perplexity AI 응답 =====`);
-    console.log(aiResponse);
-    console.log(`[DEBUG][${category}] ===== 응답 끝 =====`);
+
     
     // 토큰 잘림 감지 및 재시도 로직
     if (finishReason === 'length') {
