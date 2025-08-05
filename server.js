@@ -1322,9 +1322,28 @@ app.get('/api/risk-news', async (req, res) => {
     .skip(parseInt(offset))
     .limit(parseInt(limit))
     .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
+    
+    // 오늘 날짜 기준으로 필터링
+    const today = await getKoreaToday();
+    const todayNews = news.filter(item => {
+      if (!item.pubDate) return false;
+      const itemDate = new Date(item.pubDate);
+      const todayDate = new Date(today);
+      const itemDateStr = itemDate.toISOString().split('T')[0];
+      const todayDateStr = todayDate.toISOString().split('T')[0];
+      return itemDateStr === todayDateStr;
+    });
+    
+    const otherNews = news.filter(item => {
+      if (!item.pubDate) return true;
+      const itemDate = new Date(item.pubDate);
+      const todayDate = new Date(today);
+      const itemDateStr = itemDate.toISOString().split('T')[0];
+      const todayDateStr = todayDate.toISOString().split('T')[0];
+      return itemDateStr !== todayDateStr;
+    });
 
     // 오늘 날짜의 분석보고서 조회
-    const today = await getKoreaToday();
     const analysisReport = await RiskAnalysisReport.findOne({
       date: { $gte: new Date(today + 'T00:00:00.000Z') }
     }).sort({ date: -1 });
@@ -1332,6 +1351,8 @@ app.get('/api/risk-news', async (req, res) => {
     res.json({
       success: true,
       data: news,
+      todayNews: todayNews,
+      otherNews: otherNews,
       count: news.length,
       totalCount: totalCount,
       hasMore: parseInt(offset) + parseInt(limit) < totalCount,
@@ -1384,8 +1405,27 @@ app.get('/api/partner-news', async (req, res) => {
     .limit(parseInt(limit))
     .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
     
-    // 최신 AI분석보고서 조회
+    // 오늘 날짜 기준으로 필터링
     const today = await getKoreaToday();
+    const todayNews = news.filter(item => {
+      if (!item.pubDate) return false;
+      const itemDate = new Date(item.pubDate);
+      const todayDate = new Date(today);
+      const itemDateStr = itemDate.toISOString().split('T')[0];
+      const todayDateStr = todayDate.toISOString().split('T')[0];
+      return itemDateStr === todayDateStr;
+    });
+    
+    const otherNews = news.filter(item => {
+      if (!item.pubDate) return true;
+      const itemDate = new Date(item.pubDate);
+      const todayDate = new Date(today);
+      const itemDateStr = itemDate.toISOString().split('T')[0];
+      const todayDateStr = todayDate.toISOString().split('T')[0];
+      return itemDateStr !== todayDateStr;
+    });
+    
+    // 최신 AI분석보고서 조회
     const analysisReport = await PartnerAnalysisReport.findOne({
       date: { $gte: new Date(today + 'T00:00:00.000Z') }
     }).sort({ date: -1 });
@@ -1393,6 +1433,8 @@ app.get('/api/partner-news', async (req, res) => {
     res.json({
       success: true,
       data: news,
+      todayNews: todayNews,
+      otherNews: otherNews,
       count: news.length,
       totalCount: totalCount,
       hasMore: parseInt(offset) + parseInt(limit) < totalCount,
@@ -1445,8 +1487,27 @@ app.get('/api/tech-news', async (req, res) => {
     .limit(parseInt(limit))
     .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
     
-    // 최신 AI분석보고서 조회
+    // 오늘 날짜 기준으로 필터링
     const today = await getKoreaToday();
+    const todayNews = news.filter(item => {
+      if (!item.pubDate) return false;
+      const itemDate = new Date(item.pubDate);
+      const todayDate = new Date(today);
+      const itemDateStr = itemDate.toISOString().split('T')[0];
+      const todayDateStr = todayDate.toISOString().split('T')[0];
+      return itemDateStr === todayDateStr;
+    });
+    
+    const otherNews = news.filter(item => {
+      if (!item.pubDate) return true;
+      const itemDate = new Date(item.pubDate);
+      const todayDate = new Date(today);
+      const itemDateStr = itemDate.toISOString().split('T')[0];
+      const todayDateStr = todayDate.toISOString().split('T')[0];
+      return itemDateStr !== todayDateStr;
+    });
+    
+    // 최신 AI분석보고서 조회
     const analysisReport = await TechAnalysisReport.findOne({
       date: { $gte: new Date(today + 'T00:00:00.000Z') }
     }).sort({ date: -1 });
@@ -1454,6 +1515,8 @@ app.get('/api/tech-news', async (req, res) => {
     res.json({
       success: true,
       data: news,
+      todayNews: todayNews,
+      otherNews: otherNews,
       count: news.length,
       totalCount: totalCount,
       hasMore: parseInt(offset) + parseInt(limit) < totalCount,
