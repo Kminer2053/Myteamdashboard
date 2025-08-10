@@ -110,14 +110,18 @@ async function saveNewsToDB(newsItems, model, category, keywords) {
         continue;
       }
       
-      // 2. 발행일이 금일이 아닌 뉴스는 저장하지 않기
+      // 2. 발행일이 오늘 또는 어제인 뉴스만 저장 (최근 24시간)
       const itemDate = new Date(item.pubDate);
       const todayDate = new Date(today);
+      const yesterdayDate = new Date(today);
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      
       const itemDateStr = itemDate.toISOString().split('T')[0];
       const todayDateStr = todayDate.toISOString().split('T')[0];
+      const yesterdayDateStr = yesterdayDate.toISOString().split('T')[0];
       
-      if (itemDateStr !== todayDateStr) {
-        console.log(`[AI 수집][${category}] 금일이 아닌 뉴스 건너뜀: ${item.title} (${itemDateStr} vs ${todayDateStr})`);
+      if (itemDateStr !== todayDateStr && itemDateStr !== yesterdayDateStr) {
+        console.log(`[AI 수집][${category}] 최근 24시간이 아닌 뉴스 건너뜀: ${item.title} (${itemDateStr} vs ${todayDateStr}/${yesterdayDateStr})`);
         skipped++;
         continue;
       }
@@ -138,6 +142,7 @@ async function saveNewsToDB(newsItems, model, category, keywords) {
       
       const newsData = {
         ...item,
+        collectedDate: today, // 수집일자 추가
         keyword: keywords.join(', '),
         source: item.source || 'AI 분석',
         relatedKeywords: item.relatedKeywords || keywords,
@@ -209,6 +214,7 @@ async function createAnalysisReport(today, category, analysisContent, reportMode
     
     const reportData = {
       date: new Date(today),
+      collectedDate: today, // 수집일자 추가
       analysis: analysisText,
       totalNewsCount: savedNewsCount  // 실제 저장된 뉴스 건수 사용
     };
@@ -1308,26 +1314,18 @@ app.get('/api/risk-news', async (req, res) => {
     .sort({ createdAt: -1 })
     .skip(parseInt(offset))
     .limit(parseInt(limit))
-    .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
+    .select('title link aiSummary pubDate collectedDate keyword source relatedKeywords analysisModel createdAt');
     
-    // 오늘 날짜 기준으로 필터링
+    // 수집일자 기준으로 필터링 (오늘 수집된 뉴스)
     const today = await getKoreaToday();
     const todayNews = news.filter(item => {
-      if (!item.pubDate) return false;
-      const itemDate = new Date(item.pubDate);
-      const todayDate = new Date(today);
-      const itemDateStr = itemDate.toISOString().split('T')[0];
-      const todayDateStr = todayDate.toISOString().split('T')[0];
-      return itemDateStr === todayDateStr;
+      if (!item.collectedDate) return false;
+      return item.collectedDate === today;
     });
     
     const otherNews = news.filter(item => {
-      if (!item.pubDate) return true;
-      const itemDate = new Date(item.pubDate);
-      const todayDate = new Date(today);
-      const itemDateStr = itemDate.toISOString().split('T')[0];
-      const todayDateStr = todayDate.toISOString().split('T')[0];
-      return itemDateStr !== todayDateStr;
+      if (!item.collectedDate) return true;
+      return item.collectedDate !== today;
     });
 
     // 오늘 날짜의 분석보고서 조회
@@ -1390,26 +1388,18 @@ app.get('/api/partner-news', async (req, res) => {
     .sort({ createdAt: -1 })
     .skip(parseInt(offset))
     .limit(parseInt(limit))
-    .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
+    .select('title link aiSummary pubDate collectedDate keyword source relatedKeywords analysisModel createdAt');
     
-    // 오늘 날짜 기준으로 필터링
+    // 수집일자 기준으로 필터링 (오늘 수집된 뉴스)
     const today = await getKoreaToday();
     const todayNews = news.filter(item => {
-      if (!item.pubDate) return false;
-      const itemDate = new Date(item.pubDate);
-      const todayDate = new Date(today);
-      const itemDateStr = itemDate.toISOString().split('T')[0];
-      const todayDateStr = todayDate.toISOString().split('T')[0];
-      return itemDateStr === todayDateStr;
+      if (!item.collectedDate) return false;
+      return item.collectedDate === today;
     });
     
     const otherNews = news.filter(item => {
-      if (!item.pubDate) return true;
-      const itemDate = new Date(item.pubDate);
-      const todayDate = new Date(today);
-      const itemDateStr = itemDate.toISOString().split('T')[0];
-      const todayDateStr = todayDate.toISOString().split('T')[0];
-      return itemDateStr !== todayDateStr;
+      if (!item.collectedDate) return true;
+      return item.collectedDate !== today;
     });
     
     // 최신 AI분석보고서 조회
@@ -1472,26 +1462,18 @@ app.get('/api/tech-news', async (req, res) => {
     .sort({ createdAt: -1 })
     .skip(parseInt(offset))
     .limit(parseInt(limit))
-    .select('title link aiSummary pubDate keyword source relatedKeywords analysisModel createdAt');
+    .select('title link aiSummary pubDate collectedDate keyword source relatedKeywords analysisModel createdAt');
     
-    // 오늘 날짜 기준으로 필터링
+    // 수집일자 기준으로 필터링 (오늘 수집된 뉴스)
     const today = await getKoreaToday();
     const todayNews = news.filter(item => {
-      if (!item.pubDate) return false;
-      const itemDate = new Date(item.pubDate);
-      const todayDate = new Date(today);
-      const itemDateStr = itemDate.toISOString().split('T')[0];
-      const todayDateStr = todayDate.toISOString().split('T')[0];
-      return itemDateStr === todayDateStr;
+      if (!item.collectedDate) return false;
+      return item.collectedDate === today;
     });
     
     const otherNews = news.filter(item => {
-      if (!item.pubDate) return true;
-      const itemDate = new Date(item.pubDate);
-      const todayDate = new Date(today);
-      const itemDateStr = itemDate.toISOString().split('T')[0];
-      const todayDateStr = todayDate.toISOString().split('T')[0];
-      return itemDateStr !== todayDateStr;
+      if (!item.collectedDate) return true;
+      return item.collectedDate !== today;
     });
     
     // 최신 AI분석보고서 조회
@@ -1528,6 +1510,7 @@ app.post('/api/add-test-data', async (req, res) => {
       link: 'https://example.com/partner-test-news',
       aiSummary: 'AI 기술 기업들이 전략적 파트너십을 통해 기술 혁신을 가속화하고 있다. 이는 시장 경쟁력 강화와 새로운 비즈니스 모델 창출로 이어질 것으로 예상된다.',
       pubDate: new Date().toISOString(),
+      collectedDate: new Date().toISOString().split('T')[0], // 수집일자 추가
       keyword: 'AI',
       source: '테스트뉴스',
       relatedKeywords: ['AI 협력', '기술혁신', '파트너십'],
@@ -1540,6 +1523,7 @@ app.post('/api/add-test-data', async (req, res) => {
       link: 'https://example.com/tech-test-news',
       aiSummary: '기업들이 AI 기술을 업무 프로세스에 도입하여 업무 효율성을 크게 향상시키고 있다. 특히 문서 처리, 고객 서비스, 데이터 분석 분야에서 AI 활용이 두드러진다.',
       pubDate: new Date().toISOString(),
+      collectedDate: new Date().toISOString().split('T')[0], // 수집일자 추가
       keyword: '인공지능',
       source: '테스트뉴스',
       relatedKeywords: ['AI 업무', '생산성 향상', '자동화'],

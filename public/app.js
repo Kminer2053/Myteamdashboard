@@ -745,7 +745,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div style="font-size: 0.8em; color: #999;">
                     출처: ${item.source || '알 수 없음'} | 
-                    ${item.pubDate ? new Date(item.pubDate).toLocaleString() : ''} | 
+                    발행일: ${item.pubDate ? new Date(item.pubDate).toLocaleDateString() : 'N/A'} | 
+                    수집일: ${item.collectedDate || 'N/A'} | 
                     <span class="badge badge-section-${category}">${item.keyword}</span>
                 </div>
             </div>

@@ -5,6 +5,10 @@ const PartnerAnalysisReportSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+  collectedDate: {
+    type: String,    // 수집일자 (YYYY-MM-DD 형식)
+    required: true
+  },
   analysisDate: {
     type: Date,
     default: Date.now
