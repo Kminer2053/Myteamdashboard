@@ -192,20 +192,11 @@ async function logServerAction(action, meta = {}) {
 // === 공통 분석보고서 생성 함수 ===
 async function createAnalysisReport(today, category, analysisContent, reportModel, savedNewsCount = 0) {
   try {
-    // analysisContent가 객체인 경우 문자열로 변환
+    // analysisContent가 객체인 경우 JSON으로 저장 (프론트엔드에서 구조화된 렌더링을 위해)
     let analysisText = analysisContent;
     if (typeof analysisContent === 'object' && analysisContent !== null) {
-      if (category === '리스크이슈') {
-        // 리스크이슈의 경우 특별한 형식 처리 (서버 로그에서 확인된 실제 필드명 사용)
-        const 뉴스요약 = analysisContent.뉴스요약 || analysisContent['뉴스요약'] || 'N/A';
-        const 감성점수 = analysisContent.감성점수 || analysisContent['감성점수'] || 'N/A';
-        const 주가정보 = analysisContent.더본코리아주가 || analysisContent['더본코리아 주가'] || analysisContent['더본코리아주가'] || 'N/A';
-        
-        analysisText = `뉴스요약: ${뉴스요약}\n감성점수: ${감성점수}\n주가정보: ${주가정보}`;
-      } else {
-        // 일반적인 객체를 JSON 문자열로 변환
-        analysisText = JSON.stringify(analysisContent, null, 2);
-      }
+      // 객체를 JSON 문자열로 저장 (프론트엔드에서 파싱하여 구조화된 렌더링)
+      analysisText = JSON.stringify(analysisContent, null, 2);
     } else if (typeof analysisContent === 'string') {
       analysisText = analysisContent;
     } else {

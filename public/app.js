@@ -567,9 +567,9 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="card-header" style="background: linear-gradient(135deg, #6c757d, #495057); color: white; padding: 15px 20px;">
                 <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport?.analysisModel || 'perplexity-ai'}</small></h6>
             </div>
-                            <div class="card-body" style="padding: 20px;">
-                    <div style="color: #666; line-height: 1.6;">${formatAnalysisText(analysisReport?.analysis || '분석 내용이 없습니다.')}</div>
-                </div>
+            <div class="card-body" style="padding: 20px;">
+                ${formatStructuredAnalysis(analysisReport?.analysis || '분석 내용이 없습니다.')}
+            </div>
         `;
         newsFeed.appendChild(reportDiv);
         
@@ -683,6 +683,73 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 분석 텍스트 포맷팅 함수
+    function formatStructuredAnalysis(analysis) {
+        if (!analysis) return '분석 내용이 없습니다.';
+        
+        // 문자열인 경우 JSON 파싱 시도
+        if (typeof analysis === 'string') {
+            try {
+                const parsed = JSON.parse(analysis);
+                if (typeof parsed === 'object' && parsed !== null) {
+                    analysis = parsed;
+                }
+            } catch (e) {
+                // JSON 파싱 실패 시 기존 텍스트 처리
+                return formatAnalysisText(analysis);
+            }
+        }
+        
+        // JSON 객체인지 확인
+        if (typeof analysis === 'object' && analysis !== null) {
+            let html = '';
+            
+            // 뉴스요약
+            if (analysis.newsSummary) {
+                html += `
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #333; font-size: 1.1em;">뉴스요약</strong>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.newsSummary}</div>
+                    </div>
+                `;
+            }
+            
+            // 감성점수
+            if (analysis.sentimentScore !== undefined) {
+                html += `
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #333; font-size: 1.1em;">감성점수</strong>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.sentimentScore}</div>
+                    </div>
+                `;
+            }
+            
+            // 주가정보
+            if (analysis.stockSummary) {
+                html += `
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #333; font-size: 1.1em;">주가정보</strong>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.stockSummary}</div>
+                    </div>
+                `;
+            }
+            
+            // 감성점수 해석
+            if (analysis.sentimentCommentary) {
+                html += `
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #333; font-size: 1.1em;">감성분석 해석</strong>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.sentimentCommentary}</div>
+                    </div>
+                `;
+            }
+            
+            return html || formatAnalysisText(JSON.stringify(analysis));
+        }
+        
+        // 문자열인 경우 기존 함수 사용
+        return formatAnalysisText(analysis);
+    }
+
     function formatAnalysisText(text) {
         if (!text) return '분석 내용이 없습니다.';
         
