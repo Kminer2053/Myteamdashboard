@@ -258,10 +258,10 @@ async function collectRiskNews() {
         }
         
         if (aiResult && aiResult.news && aiResult.news.length > 0) {
-          // 실제 뉴스가 있는지 확인 (undefined 필드가 아닌 유효한 뉴스)
-          const validNews = aiResult.news.filter(item => 
-            item && item.title && item.link && item.aiSummary
-          );
+                // 실제 뉴스가 있는지 확인 (undefined 필드가 아닌 유효한 뉴스)
+      const validNews = aiResult.news.filter(item => 
+        item && item.title && item.title.length > 5 && item.aiSummary && item.aiSummary.length > 10
+      );
           
           if (validNews.length > 0) {
             console.log(`[AI 수집][리스크이슈] 키워드 "${keywords.join(', ')}" 결과 ${validNews.length}건 수집`);
@@ -756,6 +756,7 @@ async function processAiResponse(aiResponse, keywords, category, maxTokens) {
       }
     } catch (parseError) {
       console.error(`[AI 수집][${category}] JSON 파싱 실패:`, parseError);
+      console.log(`[AI 수집][${category}] JSON 응답 일부:`, aiResponse.substring(0, 200) + '...');
       console.log(`[AI 수집][${category}] 텍스트 파싱으로 전환`);
       return parseTextResponse(aiResponse, keywords, category);
     }
@@ -882,6 +883,23 @@ function extractNewsFromText(text, keyword) {
   // 뉴스 항목이 없으면 전체 텍스트를 하나의 뉴스로 생성
   if (newsItems.length === 0 && text.length > 50) {
     console.log(`[텍스트 파싱] 뉴스 항목 없음, 전체 텍스트를 뉴스로 생성`);
+    
+    // JSON 형식의 부분을 찾아서 파싱 시도
+    const jsonMatch = text.match(/\{[\s\S]*"news"[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const jsonText = jsonMatch[0];
+        const parsed = JSON.parse(jsonText);
+        if (parsed.news && Array.isArray(parsed.news) && parsed.news.length > 0) {
+          console.log(`[텍스트 파싱] JSON 부분 파싱 성공: ${parsed.news.length}건`);
+          return { news: parsed.news, analysis: parsed.analysis || null };
+        }
+      } catch (e) {
+        console.log(`[텍스트 파싱] JSON 부분 파싱 실패:`, e.message);
+      }
+    }
+    
+    // JSON 파싱 실패 시 기본 뉴스 생성
     const lines = text.split('\n');
     const firstLine = lines[0]?.trim() || '';
     const remainingText = lines.slice(1).join(' ').trim();
