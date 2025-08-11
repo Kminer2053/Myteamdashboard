@@ -770,6 +770,30 @@ function parseTextResponse(text, keywords, category) {
   
   // 추출 실패 시 기본 뉴스 객체 생성
   console.log(`[AI 수집][${category}] 기본 뉴스 객체 생성`);
+  
+  // 텍스트에서 분석 보고서 부분을 제외하고 뉴스 요약만 추출
+  let summaryText = text;
+  
+  // 분석 보고서 섹션 제거
+  const analysisPatterns = [
+    /분석 보고서[\s\S]*$/i,
+    /리스크 분석[\s\S]*$/i,
+    /전체 뉴스 분석[\s\S]*$/i,
+    /뉴스 분석[\s\S]*$/i,
+    /종합 분석[\s\S]*$/i,
+    /요약 분석[\s\S]*$/i,
+    /감성점수[\s\S]*$/i,
+    /근거[\s\S]*$/i
+  ];
+  
+  for (const pattern of analysisPatterns) {
+    summaryText = summaryText.replace(pattern, '');
+  }
+  
+  // 첫 번째 문장이나 단락만 추출 (뉴스 요약으로 사용)
+  const firstSentence = summaryText.split(/[.!?]/)[0].trim();
+  const cleanSummary = firstSentence.length > 50 ? firstSentence : summaryText.substring(0, 200).trim();
+  
   const fallbackNews = [{
     title: `AI 분석 결과: ${keywords.join(', ')}`,
     link: '#',
@@ -777,11 +801,11 @@ function parseTextResponse(text, keywords, category) {
     pubDate: new Date().toISOString(),
     keyword: keywords.join(', '), // 키워드 필드 추가
     relatedKeywords: keywords, // 관련 키워드
-    aiSummary: text.substring(0, 200) + '...',
+    aiSummary: cleanSummary.length > 0 ? cleanSummary : 'AI 분석 결과가 없습니다.',
     analysisModel: 'perplexity-ai' // AI 모델명
   }];
   
-  return { news: fallbackNews, analysis: null };
+  return { news: fallbackNews, analysis: text }; // 분석 보고서는 별도로 반환
 }
 
 // 텍스트에서 뉴스 정보 추출 (JSON 파싱 실패 시 대안)
@@ -893,14 +917,34 @@ function extractNewsFromText(text, keyword) {
     // JSON 파싱 실패 시 기본 뉴스 생성
     const lines = text.split('\n');
     const firstLine = lines[0]?.trim() || '';
-    const remainingText = lines.slice(1).join(' ').trim();
+    
+    // 분석 보고서 섹션을 제외한 텍스트만 추출
+    let summaryText = text;
+    const analysisPatterns = [
+      /분석 보고서[\s\S]*$/i,
+      /리스크 분석[\s\S]*$/i,
+      /전체 뉴스 분석[\s\S]*$/i,
+      /뉴스 분석[\s\S]*$/i,
+      /종합 분석[\s\S]*$/i,
+      /요약 분석[\s\S]*$/i,
+      /감성점수[\s\S]*$/i,
+      /근거[\s\S]*$/i
+    ];
+    
+    for (const pattern of analysisPatterns) {
+      summaryText = summaryText.replace(pattern, '');
+    }
+    
+    // 첫 번째 문장이나 단락만 추출
+    const firstSentence = summaryText.split(/[.!?]/)[0].trim();
+    const cleanSummary = firstSentence.length > 50 ? firstSentence : summaryText.substring(0, 300).trim();
     
     newsItems.push({
       title: firstLine.length > 10 ? firstLine.substring(0, 100) : `AI 분석: ${keyword}`,
       link: '#',
       source: 'AI 분석',
       pubDate: new Date().toISOString(),
-      aiSummary: remainingText.length > 0 ? remainingText.substring(0, 300) : text.substring(0, 300),
+      aiSummary: cleanSummary.length > 0 ? cleanSummary : 'AI 분석 결과가 없습니다.',
       relatedKeywords: [keyword],
       analysisModel: 'perplexity-ai'
     });
