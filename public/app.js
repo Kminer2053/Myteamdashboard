@@ -1655,6 +1655,9 @@ function initMediaEffectiveness() {
     mediaSearchBtn.addEventListener('click', searchMediaEffectiveness);
     mediaChartBtn.addEventListener('click', showMediaChart);
     mediaExportBtn.addEventListener('click', exportMediaData);
+    
+    // 초기 뉴스 건수 설정
+    updateMediaNewsCount(0);
 }
 
 // 언론보도 효과성 검색
@@ -1692,6 +1695,7 @@ async function searchMediaEffectiveness() {
             mediaEffectivenessData.aggregated = data.data.aggregated;
             
             renderMediaNewsList();
+            updateMediaNewsCount(data.data.totalCount);
             showMediaNewsArea(true);
             showMediaChartArea(false);
             
@@ -1796,6 +1800,7 @@ function renderMediaNewsList() {
     
     if (!news.length) {
         container.innerHTML = '<div class="text-center text-muted">검색된 뉴스가 없습니다.</div>';
+        updateMediaNewsCount(0);
         return;
     }
     
@@ -1935,6 +1940,14 @@ function showMediaError(message) {
 
 function hideMediaError() {
     document.getElementById('mediaError').style.display = 'none';
+}
+
+// 뉴스 건수 업데이트 함수
+function updateMediaNewsCount(count) {
+    const countElement = document.getElementById('mediaNewsCount');
+    if (countElement) {
+        countElement.textContent = count;
+    }
 }
 
 // Chart.js 라이브러리 로드

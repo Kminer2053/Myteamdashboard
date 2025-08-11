@@ -1019,22 +1019,181 @@ function extractSourceFromLink(link) {
     const url = new URL(link);
     const hostname = url.hostname;
     
-    // 주요 언론사 매핑
+    // 주요 언론사 매핑 (확장)
     const sourceMap = {
+      // 종합일간지
       'www.chosun.com': '조선일보',
       'www.donga.com': '동아일보',
       'www.joongang.co.kr': '중앙일보',
       'www.hani.co.kr': '한겨레',
       'www.khan.co.kr': '경향신문',
+      'www.seoul.co.kr': '서울신문',
+      'www.kookje.co.kr': '국제신문',
+      'www.busan.com': '부산일보',
+      'www.kwnews.co.kr': '강원일보',
+      'www.jejuilbo.com': '제주일보',
+      
+      // 경제지
       'www.hankyung.com': '한국경제',
       'www.mk.co.kr': '매일경제',
+      'www.edaily.co.kr': '이데일리',
+      'www.fnnews.com': '파이낸셜뉴스',
+      'www.news1.kr': '뉴스1',
+      'www.yonhapnews.co.kr': '연합뉴스',
+      'www.newsis.com': '뉴시스',
+      
+      // IT/기술 전문지
       'www.etnews.com': '전자신문',
       'www.zdnet.co.kr': 'ZDNet Korea',
       'www.itworld.co.kr': 'ITWorld',
-      'www.ciokorea.com': 'CIO Korea'
+      'www.ciokorea.com': 'CIO Korea',
+      'www.boannews.com': '보안뉴스',
+      'www.techm.kr': '테크M',
+      'www.techholic.co.kr': '테크홀릭',
+      
+      // 방송사
+      'www.kbs.co.kr': 'KBS',
+      'www.mbc.co.kr': 'MBC',
+      'www.sbs.co.kr': 'SBC',
+      'www.ytn.co.kr': 'YTN',
+      'www.jtbc.co.kr': 'JTBC',
+      'www.channela.co.kr': '채널A',
+      'www.tvn.co.kr': 'tvN',
+      
+      // 온라인 언론
+      'www.huffingtonpost.kr': '허핑턴포스트',
+      'www.ohmynews.com': '오마이뉴스',
+      'www.pressian.com': '프레시안',
+      'www.mediatoday.co.kr': '미디어오늘',
+      'www.newstapa.org': '뉴스타파',
+      'www.vop.co.kr': '민중의소리',
+      
+      // 전문 언론
+      'www.lecturernews.com': '강사신문',
+      'www.worktoday.co.kr': '워크투데이',
+      'www.jobkorea.co.kr': '잡코리아',
+      'www.saramin.co.kr': '사람인',
+      'www.incruit.com': '인크루트',
+      
+      // 지역 언론
+      'www.gnnews.co.kr': '경남신문',
+      'www.gyeongnam.co.kr': '경남도민일보',
+      'www.gnmaeil.com': '경남매일',
+      'www.gyeongbuk.co.kr': '경북일보',
+      'www.kbmaeil.com': '경북매일',
+      'www.gwangju.co.kr': '광주일보',
+      'www.jeonmae.co.kr': '전매일보',
+      'www.daejonilbo.com': '대전일보',
+      'www.ulsanpress.net': '울산매일',
+      'www.incheonilbo.com': '인천일보',
+      
+      // 기타 주요 언론
+      'www.heraldcorp.com': '헤럴드경제',
+      'www.asiae.co.kr': '아시아경제',
+      'www.sedaily.com': '서울경제',
+      'www.bizwatch.co.kr': '비즈워치',
+      'www.biztribune.co.kr': '비즈트리뷴',
+      'www.techcrunch.co.kr': '테크크런치',
+      'www.venturebeat.com': '벤처비트',
+      'www.wired.co.kr': '와이어드',
+      'www.theverge.com': '더버지',
+      'www.engadget.com': '엔가젯',
+      
+      // 네이버 관련
+      'm.entertain.naver.com': '네이버 엔터테인먼트',
+      'm.news.naver.com': '네이버 뉴스',
+      'news.naver.com': '네이버 뉴스',
+      'entertain.naver.com': '네이버 엔터테인먼트',
+      
+      // 카카오 관련
+      'news.kakao.com': '카카오 뉴스',
+      'm.news.kakao.com': '카카오 뉴스',
+      
+      // 구글 관련
+      'news.google.com': '구글 뉴스',
+      'm.news.google.com': '구글 뉴스'
     };
     
-    return sourceMap[hostname] || hostname.replace('www.', '');
+    // 정확한 매칭 시도
+    if (sourceMap[hostname]) {
+      return sourceMap[hostname];
+    }
+    
+    // 부분 매칭 시도 (도메인 일부로 매칭)
+    for (const [domain, name] of Object.entries(sourceMap)) {
+      if (hostname.includes(domain.replace('www.', ''))) {
+        return name;
+      }
+    }
+    
+    // 도메인에서 언론사명 추출 시도
+    const domainParts = hostname.replace('www.', '').split('.');
+    if (domainParts.length >= 2) {
+      const mainDomain = domainParts[0];
+      
+      // 일반적인 언론사 도메인 패턴 매칭
+      const commonPatterns = {
+        'chosun': '조선일보',
+        'donga': '동아일보',
+        'joongang': '중앙일보',
+        'hani': '한겨레',
+        'khan': '경향신문',
+        'hankyung': '한국경제',
+        'mk': '매일경제',
+        'etnews': '전자신문',
+        'zdnet': 'ZDNet Korea',
+        'itworld': 'ITWorld',
+        'ciokorea': 'CIO Korea',
+        'boannews': '보안뉴스',
+        'techm': '테크M',
+        'techholic': '테크홀릭',
+        'kbs': 'KBS',
+        'mbc': 'MBC',
+        'sbs': 'SBC',
+        'ytn': 'YTN',
+        'jtbc': 'JTBC',
+        'channela': '채널A',
+        'tvn': 'tvN',
+        'huffingtonpost': '허핑턴포스트',
+        'ohmynews': '오마이뉴스',
+        'pressian': '프레시안',
+        'mediatoday': '미디어오늘',
+        'newstapa': '뉴스타파',
+        'vop': '민중의소리',
+        'lecturernews': '강사신문',
+        'worktoday': '워크투데이',
+        'jobkorea': '잡코리아',
+        'saramin': '사람인',
+        'incruit': '인크루트',
+        'gnnews': '경남신문',
+        'gyeongnam': '경남도민일보',
+        'gnmaeil': '경남매일',
+        'gyeongbuk': '경북일보',
+        'kbmaeil': '경북매일',
+        'gwangju': '광주일보',
+        'jeonmae': '전매일보',
+        'daejonilbo': '대전일보',
+        'ulsanpress': '울산매일',
+        'incheonilbo': '인천일보',
+        'heraldcorp': '헤럴드경제',
+        'asiae': '아시아경제',
+        'sedaily': '서울경제',
+        'bizwatch': '비즈워치',
+        'biztribune': '비즈트리뷴',
+        'techcrunch': '테크크런치',
+        'venturebeat': '벤처비트',
+        'wired': '와이어드',
+        'theverge': '더버지',
+        'engadget': '엔가젯'
+      };
+      
+      if (commonPatterns[mainDomain]) {
+        return commonPatterns[mainDomain];
+      }
+    }
+    
+    // 매칭되지 않는 경우 도메인에서 www 제거하여 반환
+    return hostname.replace('www.', '');
   } catch (e) {
     return '알 수 없음';
   }
