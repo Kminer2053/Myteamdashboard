@@ -1607,9 +1607,291 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 무한 스크롤 초기화
     setupAllInfiniteScrolls();
+    
+    // 언론보도 효과성 측정 초기화
+    loadChartJS();
+    initMediaEffectiveness();
 });
 
 // 디바운스 유틸리티 함수
+// === 언론보도 효과성 측정 기능 ===
+let mediaEffectivenessData = {
+    news: [],
+    aggregated: {},
+    loading: false,
+    chart: null
+};
+
+// 언론보도 효과성 측정 초기화
+function initMediaEffectiveness() {
+    // 기본 날짜 설정 (최근 30일)
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    
+    document.getElementById('mediaStartDate').value = startDate.toISOString().split('T')[0];
+    document.getElementById('mediaEndDate').value = endDate.toISOString().split('T')[0];
+    
+    // 이벤트 리스너 등록
+    document.getElementById('mediaSearchBtn').addEventListener('click', searchMediaEffectiveness);
+    document.getElementById('mediaChartBtn').addEventListener('click', showMediaChart);
+    document.getElementById('mediaExportBtn').addEventListener('click', exportMediaData);
+}
+
+// 언론보도 효과성 검색
+async function searchMediaEffectiveness() {
+    const keyword = document.getElementById('mediaKeyword').value.trim();
+    const startDate = document.getElementById('mediaStartDate').value;
+    const endDate = document.getElementById('mediaEndDate').value;
+    const aggregation = document.getElementById('mediaAggregation').value;
+    
+    if (!keyword) {
+        showToast('키워드를 입력해주세요.');
+        return;
+    }
+    
+    if (!startDate || !endDate) {
+        showToast('시작일과 종료일을 입력해주세요.');
+        return;
+    }
+    
+    if (new Date(startDate) > new Date(endDate)) {
+        showToast('시작일은 종료일보다 이전이어야 합니다.');
+        return;
+    }
+    
+    mediaEffectivenessData.loading = true;
+    showMediaLoading(true);
+    hideMediaError();
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/media-effectiveness?keyword=${encodeURIComponent(keyword)}&startDate=${startDate}&endDate=${endDate}&aggregation=${aggregation}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            mediaEffectivenessData.news = data.data.news;
+            mediaEffectivenessData.aggregated = data.data.aggregated;
+            
+            renderMediaNewsList();
+            showMediaNewsArea(true);
+            showMediaChartArea(false);
+            
+            showToast(`검색 완료: ${data.data.totalCount}건의 뉴스를 찾았습니다.`);
+        } else {
+            throw new Error(data.error || '검색 중 오류가 발생했습니다.');
+        }
+    } catch (error) {
+        console.error('언론보도 효과성 검색 실패:', error);
+        showMediaError(error.message);
+    } finally {
+        mediaEffectivenessData.loading = false;
+        showMediaLoading(false);
+    }
+}
+
+// 언론보도 효과성 차트 표시
+function showMediaChart() {
+    if (!mediaEffectivenessData.news.length) {
+        showToast('먼저 뉴스를 검색해주세요.');
+        return;
+    }
+    
+    showMediaChartArea(true);
+    renderMediaChart();
+}
+
+// 언론보도 효과성 차트 렌더링
+function renderMediaChart() {
+    const ctx = document.getElementById('mediaChart');
+    
+    // 기존 차트 제거
+    if (mediaEffectivenessData.chart) {
+        mediaEffectivenessData.chart.destroy();
+    }
+    
+    const aggregated = mediaEffectivenessData.aggregated;
+    const labels = Object.keys(aggregated).sort();
+    const data = labels.map(label => aggregated[label]);
+    
+    mediaEffectivenessData.chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '뉴스 건수',
+                data: data,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+
+// 언론보도 효과성 뉴스 리스트 렌더링
+function renderMediaNewsList() {
+    const container = document.getElementById('mediaNewsList');
+    const news = mediaEffectivenessData.news;
+    
+    if (!news.length) {
+        container.innerHTML = '<div class="text-center text-muted">검색된 뉴스가 없습니다.</div>';
+        return;
+    }
+    
+    container.innerHTML = news.map((item, index) => `
+        <div class="media-news-item" onclick="openMediaNewsDetail(${index})">
+            <div class="media-news-title">${item.title}</div>
+            <div class="media-news-meta">
+                <span class="media-news-source">${item.source}</span>
+                <span>📅 ${item.pubDate}</span>
+            </div>
+            <div class="media-news-description">${item.description}</div>
+        </div>
+    `).join('');
+}
+
+// 언론보도 효과성 뉴스 상세 모달
+function openMediaNewsDetail(index) {
+    const news = mediaEffectivenessData.news[index];
+    
+    const modalHtml = `
+        <div class="modal fade" id="mediaNewsDetailModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">뉴스 상세</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <strong>제목:</strong> ${news.title}
+                        </div>
+                        <div class="mb-3">
+                            <strong>링크주소URL:</strong> 
+                            <a href="${news.link}" target="_blank">${news.link}</a>
+                        </div>
+                        <div class="mb-3">
+                            <strong>발행일:</strong> ${news.pubDate}
+                        </div>
+                        <div class="mb-3">
+                            <strong>언론사명:</strong> ${news.source}
+                        </div>
+                        <div class="mb-3">
+                            <strong>주요내용:</strong><br>
+                            ${news.description}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 기존 모달 제거
+    const existingModal = document.getElementById('mediaNewsDetailModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // 새 모달 추가 및 표시
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById('mediaNewsDetailModal'));
+    modal.show();
+    
+    // 모달 닫힐 때 제거
+    document.getElementById('mediaNewsDetailModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
+
+// 언론보도 효과성 데이터 엑셀 다운로드
+function exportMediaData() {
+    if (!mediaEffectivenessData.news.length) {
+        showToast('먼저 뉴스를 검색해주세요.');
+        return;
+    }
+    
+    const news = mediaEffectivenessData.news;
+    const csvContent = [
+        ['제목', '링크주소URL', '발행일', '언론사명', '주요내용'],
+        ...news.map(item => [
+            item.title,
+            item.link,
+            item.pubDate,
+            item.source,
+            item.description
+        ])
+    ].map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
+    
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `언론보도효과성_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast('엑셀 파일이 다운로드되었습니다.');
+}
+
+// 언론보도 효과성 UI 제어 함수들
+function showMediaLoading(show) {
+    document.getElementById('mediaLoading').style.display = show ? 'block' : 'none';
+}
+
+function showMediaChartArea(show) {
+    document.getElementById('mediaChartArea').style.display = show ? 'block' : 'none';
+}
+
+function showMediaNewsArea(show) {
+    document.getElementById('mediaNewsArea').style.display = show ? 'block' : 'none';
+}
+
+function showMediaError(message) {
+    const errorDiv = document.getElementById('mediaError');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+}
+
+function hideMediaError() {
+    document.getElementById('mediaError').style.display = 'none';
+}
+
+// Chart.js 라이브러리 로드
+function loadChartJS() {
+    if (typeof Chart === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        script.onload = () => {
+            console.log('Chart.js 로드 완료');
+        };
+        document.head.appendChild(script);
+    }
+}
+
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {

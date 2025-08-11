@@ -920,15 +920,158 @@ app.get('/api/naver-news-latest', (req, res) => {
   });
 });
 
-// 네이버뉴스 API 비활성화 - Perplexity AI만 사용
-app.get('/api/naver-news', async (req, res) => {
-  console.log('[API] 네이버뉴스 API 비활성화됨 - Perplexity AI만 사용');
-  return res.status(403).json({ 
-    error: '네이버뉴스 API가 비활성화되었습니다.',
-    message: 'Perplexity AI만 사용하여 뉴스를 수집합니다.',
-    note: '이전에 저장된 네이버뉴스 데이터는 여전히 DB에 남아있을 수 있습니다.'
-  });
+// 언론보도 효과성 측정용 네이버 뉴스 API
+app.get('/api/media-effectiveness', async (req, res) => {
+  try {
+    const { keyword, startDate, endDate, aggregation = '일', limit = 100 } = req.query;
+    
+    if (!keyword || !startDate || !endDate) {
+      return res.status(400).json({ 
+        error: '필수 파라미터가 누락되었습니다.',
+        message: '키워드, 시작일, 종료일을 모두 입력해주세요.'
+      });
+    }
+
+    console.log(`[언론보도 효과성] 검색: ${keyword}, 기간: ${startDate}~${endDate}, 집계: ${aggregation}`);
+
+    // 네이버 뉴스 검색 API 호출
+    const searchUrl = 'https://openapi.naver.com/v1/search/news.json';
+    const params = new URLSearchParams({
+      query: keyword,
+      display: Math.min(limit, 100), // 최대 100개
+      sort: 'date', // 최신순
+      start: 1
+    });
+
+    const response = await axios.get(`${searchUrl}?${params}`, {
+      headers: {
+        'X-Naver-Client-Id': NAVER_CLIENT_ID,
+        'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+      }
+    });
+
+    const newsItems = response.data.items || [];
+    
+    // 날짜 필터링 및 데이터 정제
+    const filteredNews = newsItems
+      .filter(item => {
+        const pubDate = new Date(item.pubDate);
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        return pubDate >= start && pubDate <= end;
+      })
+      .map(item => ({
+        title: item.title.replace(/<[^>]+>/g, ''), // HTML 태그 제거
+        link: item.link,
+        description: item.description.replace(/<[^>]+>/g, ''), // HTML 태그 제거
+        pubDate: new Date(item.pubDate).toISOString().split('T')[0], // YYYY-MM-DD 형식
+        source: extractSourceFromLink(item.link),
+        originallink: item.originallink
+      }));
+
+    // 집계 데이터 생성
+    const aggregatedData = aggregateNewsByDate(filteredNews, aggregation, startDate, endDate);
+
+    res.json({
+      success: true,
+      data: {
+        news: filteredNews,
+        aggregated: aggregatedData,
+        totalCount: filteredNews.length,
+        keyword,
+        period: { startDate, endDate },
+        aggregation
+      }
+    });
+
+  } catch (error) {
+    console.error('[언론보도 효과성] API 호출 실패:', error);
+    res.status(500).json({ 
+      error: '뉴스 검색 중 오류가 발생했습니다.',
+      message: error.message 
+    });
+  }
 });
+
+// 언론사 추출 함수
+function extractSourceFromLink(link) {
+  try {
+    const url = new URL(link);
+    const hostname = url.hostname;
+    
+    // 주요 언론사 매핑
+    const sourceMap = {
+      'www.chosun.com': '조선일보',
+      'www.donga.com': '동아일보',
+      'www.joongang.co.kr': '중앙일보',
+      'www.hani.co.kr': '한겨레',
+      'www.khan.co.kr': '경향신문',
+      'www.hankyung.com': '한국경제',
+      'www.mk.co.kr': '매일경제',
+      'www.etnews.com': '전자신문',
+      'www.zdnet.co.kr': 'ZDNet Korea',
+      'www.itworld.co.kr': 'ITWorld',
+      'www.ciokorea.com': 'CIO Korea'
+    };
+    
+    return sourceMap[hostname] || hostname.replace('www.', '');
+  } catch (e) {
+    return '알 수 없음';
+  }
+}
+
+// 날짜별 집계 함수
+function aggregateNewsByDate(news, aggregation, startDate, endDate) {
+  const aggregated = {};
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  // 날짜 범위 생성
+  const dates = [];
+  let current = new Date(start);
+  
+  while (current <= end) {
+    if (aggregation === '일') {
+      dates.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    } else if (aggregation === '월') {
+      const yearMonth = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+      if (!dates.includes(yearMonth)) {
+        dates.push(yearMonth);
+      }
+      current.setMonth(current.getMonth() + 1);
+    } else if (aggregation === '연') {
+      const year = current.getFullYear().toString();
+      if (!dates.includes(year)) {
+        dates.push(year);
+      }
+      current.setFullYear(current.getFullYear() + 1);
+    }
+  }
+  
+  // 초기화
+  dates.forEach(date => {
+    aggregated[date] = 0;
+  });
+  
+  // 뉴스 카운트
+  news.forEach(item => {
+    let key;
+    if (aggregation === '일') {
+      key = item.pubDate;
+    } else if (aggregation === '월') {
+      key = item.pubDate.substring(0, 7);
+    } else if (aggregation === '연') {
+      key = item.pubDate.substring(0, 4);
+    }
+    
+    if (aggregated.hasOwnProperty(key)) {
+      aggregated[key]++;
+    }
+  });
+  
+  return aggregated;
+}
 
 // 키워드 전체 조회
 app.get('/api/keywords', async (req, res) => {

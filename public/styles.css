@@ -145,4 +145,103 @@
 .form-check-input.section-partner:checked  { background-color: #1565c0; border-color: #1565c0; }
 .form-check-input.section-tech:checked     { background-color: #512da8; border-color: #512da8; }
 
-.form-check-label { color: #222 !important; } 
+.form-check-label { color: #222 !important; }
+
+/* 언론보도 효과성 측정 섹션 스타일 */
+.card-header.section-media { 
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; 
+    color: white !important; 
+}
+
+.btn-outline-section-media {
+    color: #667eea;
+    border-color: #667eea;
+}
+.btn-outline-section-media:hover, .btn-outline-section-media:active {
+    background-color: #667eea;
+    color: #fff;
+}
+
+.section-media .form-check-label { color: #667eea; }
+.section-media .main-color { color: #667eea; }
+.badge-section-media { background: #e8eaf6; color: #667eea; }
+.form-check-input.section-media:checked { background-color: #667eea; border-color: #667eea; }
+
+/* 반응형 디자인 */
+@media (max-width: 767px) {
+    .search-panel .row {
+        margin: 0;
+    }
+    
+    .search-panel .col-md-3,
+    .search-panel .col-sm-6 {
+        padding: 5px;
+        margin-bottom: 10px;
+    }
+    
+    .search-panel .btn {
+        margin-bottom: 5px;
+        width: 100%;
+    }
+    
+    .chart-container {
+        height: 250px !important;
+    }
+    
+    .news-list-container {
+        max-height: 300px !important;
+    }
+    
+    .card-title {
+        font-size: 1rem;
+    }
+    
+    .form-label {
+        font-size: 0.9rem;
+    }
+}
+
+/* 언론보도 효과성 측정 뉴스 아이템 스타일 */
+.media-news-item {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+
+.media-news-item:hover {
+    background-color: #f8f9fa;
+}
+
+.media-news-item:last-child {
+    border-bottom: none;
+}
+
+.media-news-title {
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.media-news-meta {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.media-news-description {
+    color: #555;
+    line-height: 1.5;
+    font-size: 0.9rem;
+}
+
+.media-news-source {
+    display: inline-block;
+    background: #e9ecef;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    color: #495057;
+    margin-right: 8px;
+} 
