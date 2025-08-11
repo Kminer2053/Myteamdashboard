@@ -1,3 +1,6 @@
+// API 기본 URL 설정 (전역)
+const API_BASE_URL = window.VITE_API_URL || 'https://myteamdashboard.onrender.com';
+
 // pubDate에서 YYYY-MM-DD 추출 함수 (전역) - 한국시간 기준
 function extractDate(pubDate) {
     if (!pubDate) return '';
@@ -44,9 +47,6 @@ async function getKoreaToday() {
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
     let holidayDates = [];
-
-    // API 기본 URL 설정
-    const API_BASE_URL = window.VITE_API_URL || 'https://myteamdashboard.onrender.com';
 
     // 대시보드 방문자수 기록
     fetch(`${API_BASE_URL}/api/visit`, { method: 'POST' });
