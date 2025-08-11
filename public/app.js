@@ -43,6 +43,30 @@ async function getKoreaToday() {
     }
 }
 
+// === 토스트 메시지 함수 (전역) ===
+function showToast(msg) {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.style.display = 'none';
+        toast.style.position = 'fixed';
+        toast.style.top = '50%';
+        toast.style.left = '50%';
+        toast.style.transform = 'translate(-50%,-50%)';
+        toast.style.background = '#333';
+        toast.style.color = '#fff';
+        toast.style.padding = '10px 20px';
+        toast.style.borderRadius = '5px';
+        toast.style.zIndex = '9999';
+        toast.style.fontSize = '1rem';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 2000);
+}
+
 // 캘린더 초기화
 document.addEventListener('DOMContentLoaded', function() {
     var calendarEl = document.getElementById('calendar');
@@ -257,29 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 임시로 일정 등록 정보 저장
     let pendingEvent = null;
 
-    // === 토스트 메시지 함수 추가 ===
-    function showToast(msg) {
-        let toast = document.getElementById('toast');
-        if (!toast) {
-            toast = document.createElement('div');
-            toast.id = 'toast';
-            toast.style.display = 'none';
-            toast.style.position = 'fixed';
-            toast.style.top = '50%';
-            toast.style.left = '50%';
-            toast.style.transform = 'translate(-50%,-50%)';
-            toast.style.background = '#333';
-            toast.style.color = '#fff';
-            toast.style.padding = '10px 20px';
-            toast.style.borderRadius = '5px';
-            toast.style.zIndex = '9999';
-            toast.style.fontSize = '1rem';
-            document.body.appendChild(toast);
-        }
-        toast.textContent = msg;
-        toast.style.display = 'block';
-        setTimeout(() => { toast.style.display = 'none'; }, 2000);
-    }
+
 
     // 일정등록 모달 제출
     modalScheduleForm.addEventListener('submit', async function(e) {
@@ -1624,18 +1626,35 @@ let mediaEffectivenessData = {
 
 // 언론보도 효과성 측정 초기화
 function initMediaEffectiveness() {
+    // HTML 요소 존재 여부 확인
+    const mediaStartDate = document.getElementById('mediaStartDate');
+    const mediaEndDate = document.getElementById('mediaEndDate');
+    const mediaSearchBtn = document.getElementById('mediaSearchBtn');
+    const mediaChartBtn = document.getElementById('mediaChartBtn');
+    const mediaExportBtn = document.getElementById('mediaExportBtn');
+    
+    if (!mediaStartDate || !mediaEndDate || !mediaSearchBtn || !mediaChartBtn || !mediaExportBtn) {
+        console.warn('언론보도 효과성 측정 요소를 찾을 수 없습니다.');
+        return;
+    }
+    
     // 기본 날짜 설정 (최근 30일)
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - 30);
     
-    document.getElementById('mediaStartDate').value = startDate.toISOString().split('T')[0];
-    document.getElementById('mediaEndDate').value = endDate.toISOString().split('T')[0];
+    mediaStartDate.value = startDate.toISOString().split('T')[0];
+    mediaEndDate.value = endDate.toISOString().split('T')[0];
+    
+    // 이벤트 리스너 중복 등록 방지
+    mediaSearchBtn.removeEventListener('click', searchMediaEffectiveness);
+    mediaChartBtn.removeEventListener('click', showMediaChart);
+    mediaExportBtn.removeEventListener('click', exportMediaData);
     
     // 이벤트 리스너 등록
-    document.getElementById('mediaSearchBtn').addEventListener('click', searchMediaEffectiveness);
-    document.getElementById('mediaChartBtn').addEventListener('click', showMediaChart);
-    document.getElementById('mediaExportBtn').addEventListener('click', exportMediaData);
+    mediaSearchBtn.addEventListener('click', searchMediaEffectiveness);
+    mediaChartBtn.addEventListener('click', showMediaChart);
+    mediaExportBtn.addEventListener('click', exportMediaData);
 }
 
 // 언론보도 효과성 검색
@@ -1665,7 +1684,7 @@ async function searchMediaEffectiveness() {
     hideMediaError();
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/media-effectiveness?keyword=${encodeURIComponent(keyword)}&startDate=${startDate}&endDate=${endDate}&aggregation=${aggregation}`);
+        const response = await fetch(`${API_BASE_URL}/api/media-effectiveness?keyword=${encodeURIComponent(keyword)}&startDate=${startDate}&endDate=${endDate}&aggregation=${aggregation}&limit=1000`);
         const data = await response.json();
         
         if (data.success) {
@@ -1676,7 +1695,7 @@ async function searchMediaEffectiveness() {
             showMediaNewsArea(true);
             showMediaChartArea(false);
             
-            showToast(`검색 완료: ${data.data.totalCount}건의 뉴스를 찾았습니다.`);
+            showToast(`검색 완료: ${data.data.totalCount}건의 뉴스를 찾았습니다. (네이버 뉴스 API는 최신 뉴스만 제공합니다)`);
         } else {
             throw new Error(data.error || '검색 중 오류가 발생했습니다.');
         }
@@ -1704,6 +1723,18 @@ function showMediaChart() {
 function renderMediaChart() {
     const ctx = document.getElementById('mediaChart');
     
+    if (!ctx) {
+        console.error('차트 캔버스를 찾을 수 없습니다.');
+        return;
+    }
+    
+    // Chart.js 로드 확인
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js가 로드되지 않았습니다.');
+        showToast('차트 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+        return;
+    }
+    
     // 기존 차트 제거
     if (mediaEffectivenessData.chart) {
         mediaEffectivenessData.chart.destroy();
@@ -1713,43 +1744,54 @@ function renderMediaChart() {
     const labels = Object.keys(aggregated).sort();
     const data = labels.map(label => aggregated[label]);
     
-    mediaEffectivenessData.chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: '뉴스 건수',
-                data: data,
-                borderColor: '#667eea',
-                backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
+        try {
+        mediaEffectivenessData.chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '뉴스 건수',
+                    data: data,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
             },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
                     }
                 }
             }
-        }
-    });
+        });
+    } catch (error) {
+        console.error('차트 생성 실패:', error);
+        showToast('차트를 생성하는 중 오류가 발생했습니다.');
+    }
 }
 
 // 언론보도 효과성 뉴스 리스트 렌더링
 function renderMediaNewsList() {
     const container = document.getElementById('mediaNewsList');
+    
+    if (!container) {
+        console.error('뉴스 리스트 컨테이너를 찾을 수 없습니다.');
+        return;
+    }
+    
     const news = mediaEffectivenessData.news;
     
     if (!news.length) {
@@ -1757,21 +1799,31 @@ function renderMediaNewsList() {
         return;
     }
     
-    container.innerHTML = news.map((item, index) => `
-        <div class="media-news-item" onclick="openMediaNewsDetail(${index})">
-            <div class="media-news-title">${item.title}</div>
-            <div class="media-news-meta">
-                <span class="media-news-source">${item.source}</span>
-                <span>📅 ${item.pubDate}</span>
+    try {
+        container.innerHTML = news.map((item, index) => `
+            <div class="media-news-item" onclick="openMediaNewsDetail(${index})">
+                <div class="media-news-title">${item.title || '제목 없음'}</div>
+                <div class="media-news-meta">
+                    <span class="media-news-source">${item.source || '알 수 없음'}</span>
+                    <span>📅 ${item.pubDate || '날짜 없음'}</span>
+                </div>
+                <div class="media-news-description">${item.description || '내용 없음'}</div>
             </div>
-            <div class="media-news-description">${item.description}</div>
-        </div>
-    `).join('');
+        `).join('');
+    } catch (error) {
+        console.error('뉴스 리스트 렌더링 실패:', error);
+        container.innerHTML = '<div class="text-center text-danger">뉴스 목록을 표시하는 중 오류가 발생했습니다.</div>';
+    }
 }
 
 // 언론보도 효과성 뉴스 상세 모달
 function openMediaNewsDetail(index) {
     const news = mediaEffectivenessData.news[index];
+    
+    if (!news) {
+        showToast('뉴스 정보를 찾을 수 없습니다.');
+        return;
+    }
     
     const modalHtml = `
         <div class="modal fade" id="mediaNewsDetailModal" tabindex="-1">
@@ -1783,21 +1835,21 @@ function openMediaNewsDetail(index) {
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
-                            <strong>제목:</strong> ${news.title}
+                            <strong>제목:</strong> ${news.title || '제목 없음'}
                         </div>
                         <div class="mb-3">
                             <strong>링크주소URL:</strong> 
-                            <a href="${news.link}" target="_blank">${news.link}</a>
+                            <a href="${news.link || '#'}" target="_blank">${news.link || '링크 없음'}</a>
                         </div>
                         <div class="mb-3">
-                            <strong>발행일:</strong> ${news.pubDate}
+                            <strong>발행일:</strong> ${news.pubDate || '날짜 없음'}
                         </div>
                         <div class="mb-3">
-                            <strong>언론사명:</strong> ${news.source}
+                            <strong>언론사명:</strong> ${news.source || '알 수 없음'}
                         </div>
                         <div class="mb-3">
                             <strong>주요내용:</strong><br>
-                            ${news.description}
+                            ${news.description || '내용 없음'}
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -1808,21 +1860,26 @@ function openMediaNewsDetail(index) {
         </div>
     `;
     
-    // 기존 모달 제거
-    const existingModal = document.getElementById('mediaNewsDetailModal');
-    if (existingModal) {
-        existingModal.remove();
+    try {
+        // 기존 모달 제거
+        const existingModal = document.getElementById('mediaNewsDetailModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // 새 모달 추가 및 표시
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('mediaNewsDetailModal'));
+        modal.show();
+        
+        // 모달 닫힐 때 제거
+        document.getElementById('mediaNewsDetailModal').addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+    } catch (error) {
+        console.error('모달 생성 실패:', error);
+        showToast('뉴스 상세 정보를 표시하는 중 오류가 발생했습니다.');
     }
-    
-    // 새 모달 추가 및 표시
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    const modal = new bootstrap.Modal(document.getElementById('mediaNewsDetailModal'));
-    modal.show();
-    
-    // 모달 닫힐 때 제거
-    document.getElementById('mediaNewsDetailModal').addEventListener('hidden.bs.modal', function() {
-        this.remove();
-    });
 }
 
 // 언론보도 효과성 데이터 엑셀 다운로드
@@ -1854,7 +1911,7 @@ function exportMediaData() {
     link.click();
     document.body.removeChild(link);
     
-    showToast('엑셀 파일이 다운로드되었습니다.');
+    showToast('CSV 파일이 다운로드되었습니다.');
 }
 
 // 언론보도 효과성 UI 제어 함수들

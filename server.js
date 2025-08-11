@@ -934,26 +934,46 @@ app.get('/api/media-effectiveness', async (req, res) => {
 
     console.log(`[언론보도 효과성] 검색: ${keyword}, 기간: ${startDate}~${endDate}, 집계: ${aggregation}`);
 
-    // 네이버 뉴스 검색 API 호출
+    // 네이버 뉴스 검색 API 호출 (여러 페이지에서 데이터 수집)
     const searchUrl = 'https://openapi.naver.com/v1/search/news.json';
-    const params = new URLSearchParams({
-      query: keyword,
-      display: Math.min(limit, 100), // 최대 100개
-      sort: 'date', // 최신순
-      start: 1
-    });
+    let allNewsItems = [];
+    const maxPages = Math.ceil(limit / 100); // 최대 페이지 수
+    
+    for (let page = 1; page <= maxPages; page++) {
+      const params = new URLSearchParams({
+        query: keyword,
+        display: 100, // 한 번에 100개씩
+        sort: 'date', // 최신순
+        start: (page - 1) * 100 + 1
+      });
 
-    const response = await axios.get(`${searchUrl}?${params}`, {
-      headers: {
-        'X-Naver-Client-Id': NAVER_CLIENT_ID,
-        'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+      try {
+        const response = await axios.get(`${searchUrl}?${params}`, {
+          headers: {
+            'X-Naver-Client-Id': NAVER_CLIENT_ID,
+            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+          }
+        });
+
+        const pageItems = response.data.items || [];
+        if (pageItems.length === 0) break; // 더 이상 데이터가 없으면 중단
+        
+        allNewsItems = allNewsItems.concat(pageItems);
+        
+        // API 호출 간격 조절 (Rate Limit 방지)
+        if (page < maxPages) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (error) {
+        console.error(`[언론보도 효과성] 페이지 ${page} 호출 실패:`, error.message);
+        break;
       }
-    });
-
-    const newsItems = response.data.items || [];
+    }
+    
+    console.log(`[언론보도 효과성] 총 ${allNewsItems.length}건의 뉴스 수집 완료`);
     
     // 날짜 필터링 및 데이터 정제
-    const filteredNews = newsItems
+    const filteredNews = allNewsItems
       .filter(item => {
         const pubDate = new Date(item.pubDate);
         const start = new Date(startDate);
