@@ -99,8 +99,22 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(event)
         });
-        await logUserAction('일정등록', { event });
-        return await res.json();
+        
+        // 응답 상태 확인
+        if (!res.ok) {
+            throw new Error(`서버 오류: ${res.status} ${res.statusText}`);
+        }
+        
+        const result = await res.json();
+        
+        // 로깅은 별도로 처리 (실패해도 일정 저장은 성공)
+        try {
+            await logUserAction('일정등록', { event });
+        } catch (logError) {
+            console.warn('사용자 액션 로깅 실패:', logError.message);
+        }
+        
+        return result;
     }
     // 일정 수정
     async function updateUserEvent(id, event) {
@@ -109,14 +123,42 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(event)
         });
-        await logUserAction('일정수정', { id, event });
-        return await res.json();
+        
+        // 응답 상태 확인
+        if (!res.ok) {
+            throw new Error(`서버 오류: ${res.status} ${res.statusText}`);
+        }
+        
+        const result = await res.json();
+        
+        // 로깅은 별도로 처리 (실패해도 일정 수정은 성공)
+        try {
+            await logUserAction('일정수정', { id, event });
+        } catch (logError) {
+            console.warn('사용자 액션 로깅 실패:', logError.message);
+        }
+        
+        return result;
     }
     // 일정 삭제
     async function deleteUserEvent(id) {
         const res = await fetch(`${API_BASE_URL}/api/schedules/${id}`, { method: 'DELETE' });
-        await logUserAction('일정삭제', { id });
-        return await res.json();
+        
+        // 응답 상태 확인
+        if (!res.ok) {
+            throw new Error(`서버 오류: ${res.status} ${res.statusText}`);
+        }
+        
+        const result = await res.json();
+        
+        // 로깅은 별도로 처리 (실패해도 일정 삭제는 성공)
+        try {
+            await logUserAction('일정삭제', { id });
+        } catch (logError) {
+            console.warn('사용자 액션 로깅 실패:', logError.message);
+        }
+        
+        return result;
     }
 
     // 공휴일 데이터 가져오기 (연도 전체)
@@ -329,7 +371,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 showToast('일정이 수정되었습니다.');
             }
         } catch (err) {
-            showToast('오류가 발생했습니다.');
+            console.error('일정 저장 오류:', err);
+            showToast(`일정 저장 중 오류가 발생했습니다: ${err.message}`);
         } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = '등록';
@@ -359,7 +402,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 showToast('일정을 삭제했습니다.');
                 pendingEvent = null;
             } catch (err) {
-                showToast('오류가 발생했습니다.');
+                console.error('일정 삭제 오류:', err);
+                showToast(`일정 삭제 중 오류가 발생했습니다: ${err.message}`);
             } finally {
                 deleteBtn.disabled = false;
                 deleteBtn.innerHTML = '삭제';
