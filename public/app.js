@@ -1976,3 +1976,18 @@ function debounce(func, wait) {
 
 // force redeploy
 
+// 사용자 액션 로깅 함수
+async function logUserAction(action, meta = {}) {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/log`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, meta })
+        });
+        if (!res.ok) {
+            console.warn('사용자 액션 로깅 실패:', res.status);
+        }
+    } catch (e) {
+        console.warn('사용자 액션 로깅 중 오류:', e.message);
+    }
+}
