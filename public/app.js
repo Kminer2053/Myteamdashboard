@@ -2023,10 +2023,15 @@ function debounce(func, wait) {
 // 사용자 액션 로깅 함수
 async function logUserAction(action, meta = {}) {
     try {
-        const res = await fetch(`${API_BASE_URL}/api/log`, {
+        const res = await fetch(`${API_BASE_URL}/api/log/action`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, meta })
+            body: JSON.stringify({ 
+                type: 'dashboard',
+                action, 
+                userAgent: navigator.userAgent,
+                meta 
+            })
         });
         if (!res.ok) {
             console.warn('사용자 액션 로깅 실패:', res.status);
