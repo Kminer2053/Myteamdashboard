@@ -2181,33 +2181,18 @@ app.get('/api/db-status', async (req, res) => {
 });
 
 // === 리스크이슈 분석 보고서 API ===
-// 날짜 없이 전체 조회
-app.get('/api/risk-analysis', async (req, res) => {
-  try {
-    const reports = await RiskAnalysisReport.find({})
-      .sort({ date: -1 })
-      .limit(10);
-    
-    res.json({
-      success: true,
-      data: reports
-    });
-  } catch (error) {
-    console.error('리스크이슈 분석 보고서 조회 실패:', error);
-    res.status(500).json({ error: '리스크이슈 분석 보고서 조회 중 오류가 발생했습니다.' });
-  }
-});
-
-// 특정 날짜로 조회
-app.get('/api/risk-analysis/:date', async (req, res) => {
+app.get('/api/risk-analysis/:date?', async (req, res) => {
   try {
     const { date } = req.params;
-    const targetDate = new Date(date);
-    targetDate.setHours(0, 0, 0, 0);
-    const nextDate = new Date(targetDate);
-    nextDate.setDate(nextDate.getDate() + 1);
+    let query = {};
     
-    const query = { date: { $gte: targetDate, $lt: nextDate } };
+    if (date) {
+      const targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDate = new Date(targetDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      query.date = { $gte: targetDate, $lt: nextDate };
+    }
     
     const reports = await RiskAnalysisReport.find(query)
       .sort({ date: -1 })
@@ -2244,33 +2229,18 @@ app.delete('/api/risk-analysis/:id', async (req, res) => {
 });
 
 // === 제휴처탐색 분석 보고서 API ===
-// 날짜 없이 전체 조회
-app.get('/api/partner-analysis', async (req, res) => {
-  try {
-    const reports = await PartnerAnalysisReport.find({})
-      .sort({ date: -1 })
-      .limit(10);
-    
-    res.json({
-      success: true,
-      data: reports
-    });
-  } catch (error) {
-    console.error('제휴처탐색 분석 보고서 조회 실패:', error);
-    res.status(500).json({ error: '제휴처탐색 분석 보고서 조회 중 오류가 발생했습니다.' });
-  }
-});
-
-// 특정 날짜로 조회
-app.get('/api/partner-analysis/:date', async (req, res) => {
+app.get('/api/partner-analysis/:date?', async (req, res) => {
   try {
     const { date } = req.params;
-    const targetDate = new Date(date);
-    targetDate.setHours(0, 0, 0, 0);
-    const nextDate = new Date(targetDate);
-    nextDate.setDate(nextDate.getDate() + 1);
+    let query = {};
     
-    const query = { date: { $gte: targetDate, $lt: nextDate } };
+    if (date) {
+      const targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDate = new Date(targetDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      query.date = { $gte: targetDate, $lt: nextDate };
+    }
     
     const reports = await PartnerAnalysisReport.find(query)
       .sort({ date: -1 })
@@ -2307,33 +2277,18 @@ app.delete('/api/partner-analysis/:id', async (req, res) => {
 });
 
 // === 신기술동향 분석 보고서 API ===
-// 날짜 없이 전체 조회
-app.get('/api/tech-analysis', async (req, res) => {
-  try {
-    const reports = await TechAnalysisReport.find({})
-      .sort({ date: -1 })
-      .limit(10);
-    
-    res.json({
-      success: true,
-      data: reports
-    });
-  } catch (error) {
-    console.error('신기술동향 분석 보고서 조회 실패:', error);
-    res.status(500).json({ error: '신기술동향 분석 보고서 조회 중 오류가 발생했습니다.' });
-  }
-});
-
-// 특정 날짜로 조회
-app.get('/api/tech-analysis/:date', async (req, res) => {
+app.get('/api/tech-analysis/:date?', async (req, res) => {
   try {
     const { date } = req.params;
-    const targetDate = new Date(date);
-    targetDate.setHours(0, 0, 0, 0);
-    const nextDate = new Date(targetDate);
-    nextDate.setDate(nextDate.getDate() + 1);
+    let query = {};
     
-    const query = { date: { $gte: targetDate, $lt: nextDate } };
+    if (date) {
+      const targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDate = new Date(targetDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      query.date = { $gte: targetDate, $lt: nextDate };
+    }
     
     const reports = await TechAnalysisReport.find(query)
       .sort({ date: -1 })
