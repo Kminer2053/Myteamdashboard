@@ -75,110 +75,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // 대시보드 방문자수 기록
     fetch(`${API_BASE_URL}/api/visit`, { method: 'POST' });
 
-    // 탭 구조 초기화
-    initTabStructure();
-
-    // 탭 구조 초기화 함수
-    function initTabStructure() {
-        // 탭 이벤트 리스너 등록
-        const tabButtons = document.querySelectorAll('#mainTabs button[data-bs-toggle="tab"]');
-        
-        tabButtons.forEach(button => {
-            button.addEventListener('shown.bs.tab', function(event) {
-                const targetTab = event.target.getAttribute('data-bs-target');
-                
-                // 탭별 지연 로딩 실행
-                switch(targetTab) {
-                    case '#schedule':
-                        // 업무일정표는 이미 로딩됨
-                        break;
-                    case '#news':
-                        loadNewsTab();
-                        break;
-                    case '#media':
-                        loadMediaTab();
-                        break;
-                }
-            });
-        });
-    }
-
-    // 뉴스모니터링 탭 로딩
-    async function loadNewsTab() {
-        const newsTab = document.getElementById('news');
-        if (newsTab.classList.contains('loaded')) return;
-        
-        // 로딩 상태 표시
-        const loadingDiv = document.createElement('div');
-        loadingDiv.className = 'tab-loading';
-        loadingDiv.innerHTML = `
-            <i class="fas fa-spinner fa-spin"></i>
-            <p>뉴스모니터링 로딩 중...</p>
-        `;
-        newsTab.appendChild(loadingDiv);
-        
-        try {
-            // 리스크이슈 모니터링 로딩
-            await renderKeywordDisplay();
-            
-            // 제휴처 탐색 로딩
-            await renderPartnerDisplay();
-            
-            // 신기술 동향 로딩
-            await renderTechDisplay();
-            
-            // 무한 스크롤 설정
-            setupAllInfiniteScrolls();
-            
-            // 로딩 완료 표시
-            newsTab.classList.add('loaded');
-            loadingDiv.remove();
-            
-        } catch (error) {
-            console.error('뉴스모니터링 탭 로딩 실패:', error);
-            loadingDiv.innerHTML = `
-                <i class="fas fa-exclamation-triangle text-danger"></i>
-                <p>뉴스모니터링 로딩 실패</p>
-                <button class="btn btn-sm btn-primary" onclick="loadNewsTab()">다시 시도</button>
-            `;
-        }
-    }
-
-    // 언론보도 효과성 탭 로딩
-    async function loadMediaTab() {
-        const mediaTab = document.getElementById('media');
-        if (mediaTab.classList.contains('loaded')) return;
-        
-        // 로딩 상태 표시
-        const loadingDiv = document.createElement('div');
-        loadingDiv.className = 'tab-loading';
-        loadingDiv.innerHTML = `
-            <i class="fas fa-spinner fa-spin"></i>
-            <p>언론보도 효과성 로딩 중...</p>
-        `;
-        mediaTab.appendChild(loadingDiv);
-        
-        try {
-            // Chart.js 로드
-            await loadChartJS();
-            
-            // 언론보도 효과성 초기화
-            initMediaEffectiveness();
-            
-            // 로딩 완료 표시
-            mediaTab.classList.add('loaded');
-            loadingDiv.remove();
-            
-        } catch (error) {
-            console.error('언론보도 효과성 탭 로딩 실패:', error);
-            loadingDiv.innerHTML = `
-                <i class="fas fa-exclamation-triangle text-danger"></i>
-                <p>언론보도 효과성 로딩 실패</p>
-                <button class="btn btn-sm btn-primary" onclick="loadMediaTab()">다시 시도</button>
-            `;
-        }
-    }
-
     // 일정 데이터 서버에서 불러오기
     async function loadUserEvents() {
         const res = await fetch(`${API_BASE_URL}/api/schedules`);
@@ -1031,7 +927,9 @@ document.addEventListener('DOMContentLoaded', function() {
         observeLoadingIndicators();
     }
 
-    // 탭 구조에서는 지연 로딩으로 처리됨
+    // 제휴처 탐색, 신기술 동향도 체크박스 렌더링 후 필터링 함수 실행
+            renderPartnerDisplay();
+            renderTechDisplay();
 
     // 제휴처 탐색 키워드 관리
     async function renderPartnerDisplay() {
@@ -1656,7 +1554,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // 탭 구조에서는 지연 로딩으로 처리됨
+    // 페이지 로드 시 자동 갱신 체크
+    if (document.getElementById('partnerResults')) checkAndUpdatePartnerNews();
+    if (document.getElementById('techTrendResults')) checkAndUpdateTechNews();
 
     // 관리자 페이지에서 partnerConditions, techTopics 관리 함수 (입력/저장/삭제/불러오기)
     // 관리자 페이지에서만 동작, localStorage 연동
@@ -1744,9 +1644,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     setupAllInfiniteScrolls();
 
-    // 탭 구조에서는 지연 로딩으로 처리됨
+    // 대시보드 진입 시 자동 뉴스 갱신 체크 및 체크박스/뉴스 렌더링 순서 보장
+    if (document.getElementById('newsFeed')) {
+        renderKeywordDisplay().then(() => {
+            renderNewsByChecked();
+        });
+    }
 
-    // 탭 구조에서는 지연 로딩으로 처리됨
+    // 무한 스크롤 초기화
+    setupAllInfiniteScrolls();
+    
+    // 언론보도 효과성 측정 초기화
+    loadChartJS();
+    initMediaEffectiveness();
 });
 
 // 디바운스 유틸리티 함수
@@ -1761,30 +1671,58 @@ let mediaEffectivenessData = {
 // 언론보도 효과성 측정 초기화
 function initMediaEffectiveness() {
     // HTML 요소 존재 여부 확인
-    const mediaKeyword = document.getElementById('mediaKeyword');
-    const analyzeMediaBtn = document.getElementById('analyzeMediaBtn');
+    const mediaStartDate = document.getElementById('mediaStartDate');
+    const mediaEndDate = document.getElementById('mediaEndDate');
+    const mediaSearchBtn = document.getElementById('mediaSearchBtn');
+    const mediaChartBtn = document.getElementById('mediaChartBtn');
+    const mediaExportBtn = document.getElementById('mediaExportBtn');
     
-    if (!mediaKeyword || !analyzeMediaBtn) {
+    if (!mediaStartDate || !mediaEndDate || !mediaSearchBtn || !mediaChartBtn || !mediaExportBtn) {
         console.warn('언론보도 효과성 측정 요소를 찾을 수 없습니다.');
         return;
     }
     
+    // 기본 날짜 설정 (최근 30일)
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    
+    mediaStartDate.value = startDate.toISOString().split('T')[0];
+    mediaEndDate.value = endDate.toISOString().split('T')[0];
+    
     // 이벤트 리스너 중복 등록 방지
-    analyzeMediaBtn.removeEventListener('click', searchMediaEffectiveness);
+    mediaSearchBtn.removeEventListener('click', searchMediaEffectiveness);
+    mediaChartBtn.removeEventListener('click', showMediaChart);
+    mediaExportBtn.removeEventListener('click', exportMediaData);
     
     // 이벤트 리스너 등록
-    analyzeMediaBtn.addEventListener('click', searchMediaEffectiveness);
+    mediaSearchBtn.addEventListener('click', searchMediaEffectiveness);
+    mediaChartBtn.addEventListener('click', showMediaChart);
+    mediaExportBtn.addEventListener('click', exportMediaData);
     
-    // 초기 상태 설정
+    // 초기 뉴스 건수 설정
     updateMediaNewsCount(0);
 }
 
 // 언론보도 효과성 검색
 async function searchMediaEffectiveness() {
     const keyword = document.getElementById('mediaKeyword').value.trim();
+    const startDate = document.getElementById('mediaStartDate').value;
+    const endDate = document.getElementById('mediaEndDate').value;
+    const aggregation = document.getElementById('mediaAggregation').value;
     
     if (!keyword) {
         showToast('키워드를 입력해주세요.');
+        return;
+    }
+    
+    if (!startDate || !endDate) {
+        showToast('시작일과 종료일을 입력해주세요.');
+        return;
+    }
+    
+    if (new Date(startDate) > new Date(endDate)) {
+        showToast('시작일은 종료일보다 이전이어야 합니다.');
         return;
     }
     
@@ -1793,15 +1731,7 @@ async function searchMediaEffectiveness() {
     hideMediaError();
     
     try {
-        // 최근 30일 데이터 검색
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 30);
-        
-        const startDateStr = startDate.toISOString().split('T')[0];
-        const endDateStr = endDate.toISOString().split('T')[0];
-        
-        const response = await fetch(`${API_BASE_URL}/api/media-effectiveness?keyword=${encodeURIComponent(keyword)}&startDate=${startDateStr}&endDate=${endDateStr}&aggregation=day&limit=1000`);
+        const response = await fetch(`${API_BASE_URL}/api/media-effectiveness?keyword=${encodeURIComponent(keyword)}&startDate=${startDate}&endDate=${endDate}&aggregation=${aggregation}&limit=1000`);
         const data = await response.json();
         
         if (data.success) {
@@ -1809,10 +1739,11 @@ async function searchMediaEffectiveness() {
             mediaEffectivenessData.aggregated = data.data.aggregated;
             
             renderMediaNewsList();
-            renderMediaChart();
             updateMediaNewsCount(data.data.totalCount);
+            showMediaNewsArea(true);
+            showMediaChartArea(false);
             
-            showToast(`검색 완료: ${data.data.totalCount}건의 뉴스를 찾았습니다.`);
+            showToast(`검색 완료: ${data.data.totalCount}건의 뉴스를 찾았습니다. (네이버 뉴스 API는 최신 뉴스만 제공합니다)`);
         } else {
             throw new Error(data.error || '검색 중 오류가 발생했습니다.');
         }
@@ -1838,10 +1769,10 @@ function showMediaChart() {
 
 // 언론보도 효과성 차트 렌더링
 function renderMediaChart() {
-    const container = document.getElementById('mediaChartContainer');
+    const ctx = document.getElementById('mediaChart');
     
-    if (!container) {
-        console.error('차트 컨테이너를 찾을 수 없습니다.');
+    if (!ctx) {
+        console.error('차트 캔버스를 찾을 수 없습니다.');
         return;
     }
     
@@ -1861,14 +1792,8 @@ function renderMediaChart() {
     const labels = Object.keys(aggregated).sort();
     const data = labels.map(label => aggregated[label]);
     
-    // 캔버스 생성
-    const canvas = document.createElement('canvas');
-    canvas.id = 'mediaChart';
-    container.innerHTML = '';
-    container.appendChild(canvas);
-    
-    try {
-        mediaEffectivenessData.chart = new Chart(canvas, {
+        try {
+        mediaEffectivenessData.chart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
@@ -1908,7 +1833,7 @@ function renderMediaChart() {
 
 // 언론보도 효과성 뉴스 리스트 렌더링
 function renderMediaNewsList() {
-    const container = document.getElementById('mediaResults');
+    const container = document.getElementById('mediaNewsList');
     
     if (!container) {
         console.error('뉴스 리스트 컨테이너를 찾을 수 없습니다.');
@@ -2040,55 +1965,45 @@ function exportMediaData() {
 
 // 언론보도 효과성 UI 제어 함수들
 function showMediaLoading(show) {
-    const analyzeBtn = document.getElementById('analyzeMediaBtn');
-    if (analyzeBtn) {
-        if (show) {
-            analyzeBtn.disabled = true;
-            analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>분석 중...';
-        } else {
-            analyzeBtn.disabled = false;
-            analyzeBtn.innerHTML = '<i class="fas fa-search me-2"></i>분석 시작';
-        }
-    }
+    document.getElementById('mediaLoading').style.display = show ? 'block' : 'none';
+}
+
+function showMediaChartArea(show) {
+    document.getElementById('mediaChartArea').style.display = show ? 'block' : 'none';
+}
+
+function showMediaNewsArea(show) {
+    document.getElementById('mediaNewsArea').style.display = show ? 'block' : 'none';
 }
 
 function showMediaError(message) {
-    const container = document.getElementById('mediaResults');
-    if (container) {
-        container.innerHTML = `<div class="alert alert-danger">${message}</div>`;
-    }
+    const errorDiv = document.getElementById('mediaError');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
 }
 
 function hideMediaError() {
-    // 에러 숨기기는 별도 처리 불필요
+    document.getElementById('mediaError').style.display = 'none';
 }
 
 // 뉴스 건수 업데이트 함수
 function updateMediaNewsCount(count) {
-    // 탭 구조에서는 별도 건수 표시 없음
-    console.log(`언론보도 효과성 뉴스 건수: ${count}`);
+    const countElement = document.getElementById('mediaNewsCount');
+    if (countElement) {
+        countElement.textContent = count;
+    }
 }
 
 // Chart.js 라이브러리 로드
 function loadChartJS() {
-    return new Promise((resolve, reject) => {
-        if (typeof Chart !== 'undefined') {
-            resolve();
-            return;
-        }
-        
+    if (typeof Chart === 'undefined') {
         const script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
         script.onload = () => {
             console.log('Chart.js 로드 완료');
-            resolve();
-        };
-        script.onerror = () => {
-            console.error('Chart.js 로드 실패');
-            reject(new Error('Chart.js 로드 실패'));
         };
         document.head.appendChild(script);
-    });
+    }
 }
 
 function debounce(func, wait) {
