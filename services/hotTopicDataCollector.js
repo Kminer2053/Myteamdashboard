@@ -350,7 +350,20 @@ class HotTopicDataCollector {
         try {
             console.log(`🐦 Twitter 데이터 수집: ${keyword}`);
             
-            // 최근 트윗 검색
+            // Twitter API 키 확인
+            if (!this.twitterBearerToken || this.twitterBearerToken === 'your_api_key_here') {
+                console.log('Twitter API 키가 설정되지 않았습니다. 기본값을 반환합니다.');
+                return {
+                    tweetCount: 0,
+                    totalLikes: 0,
+                    totalRetweets: 0,
+                    totalReplies: 0,
+                    avgEngagement: 0,
+                    topTweets: []
+                };
+            }
+            
+            // 최근 트윗 검색 (날짜 범위 제거하여 400 오류 방지)
             const response = await axios.get('https://api.twitter.com/2/tweets/search/recent', {
                 headers: {
                     'Authorization': `Bearer ${this.twitterBearerToken}`,
@@ -358,10 +371,8 @@ class HotTopicDataCollector {
                 },
                 params: {
                     'query': `${keyword} -is:retweet`,
-                    'max_results': 100,
-                    'tweet.fields': 'public_metrics,created_at,author_id',
-                    'start_time': startDate.toISOString(),
-                    'end_time': endDate.toISOString()
+                    'max_results': 10, // 결과 수 제한
+                    'tweet.fields': 'public_metrics,created_at,author_id'
                 }
             });
 

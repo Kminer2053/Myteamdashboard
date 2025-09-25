@@ -59,6 +59,16 @@ class ReportGenerator {
             demand: 0
         };
         
+        // sources가 없는 경우 기본값 설정
+        const safeSources = sources || {
+            news: { articleCount: 0, totalViews: 0, topArticles: [] },
+            trend: { relativeRatio: 0, searchVolume: 0 },
+            youtube: { totalVideos: 0, totalViews: 0, totalLikes: 0, totalComments: 0 },
+            twitter: { tweetCount: 0, totalLikes: 0, totalRetweets: 0, totalReplies: 0 },
+            instagram: { postCount: 0, totalLikes: 0, totalComments: 0, totalShares: 0 },
+            tiktok: { totalVideos: 0, totalViews: 0, totalLikes: 0, totalComments: 0 }
+        };
+        
         return `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -245,17 +255,17 @@ class ReportGenerator {
             </tr>
             <tr>
                 <td>기사 수</td>
-                <td>${sources.news.articleCount}개</td>
+                <td>${safeSources.news.articleCount}개</td>
                 <td>분석 기간 내 관련 기사 수</td>
             </tr>
             <tr>
                 <td>총 조회수</td>
-                <td>${sources.news.totalViews.toLocaleString()}회</td>
+                <td>${safeSources.news.totalViews.toLocaleString()}회</td>
                 <td>모든 기사의 총 조회수</td>
             </tr>
             <tr>
                 <td>평균 조회수</td>
-                <td>${sources.news.avgViews.toLocaleString()}회</td>
+                <td>${safeSources.news.avgViews.toLocaleString()}회</td>
                 <td>기사당 평균 조회수</td>
             </tr>
         </table>
@@ -269,17 +279,17 @@ class ReportGenerator {
             </tr>
             <tr>
                 <td>검색량</td>
-                <td>${sources.trend.searchVolume}</td>
+                <td>${safeSources.trend.searchVolume}</td>
                 <td>네이버 검색 트렌드 지수</td>
             </tr>
             <tr>
                 <td>트렌드 점수</td>
-                <td>${sources.trend.trendScore}</td>
+                <td>${safeSources.trend.trendScore}</td>
                 <td>평균 트렌드 점수</td>
             </tr>
             <tr>
                 <td>쇼핑인사이트</td>
-                <td>${sources.trend.shoppingInsight}</td>
+                <td>${safeSources.trend.shoppingInsight}</td>
                 <td>쇼핑 관련 관심도</td>
             </tr>
         </table>
@@ -293,22 +303,22 @@ class ReportGenerator {
             </tr>
             <tr>
                 <td>동영상 수</td>
-                <td>${sources.youtube.videoCount}개</td>
+                <td>${safeSources.youtube.videoCount}개</td>
                 <td>관련 동영상 수</td>
             </tr>
             <tr>
                 <td>총 조회수</td>
-                <td>${sources.youtube.totalViews.toLocaleString()}회</td>
+                <td>${safeSources.youtube.totalViews.toLocaleString()}회</td>
                 <td>모든 동영상의 총 조회수</td>
             </tr>
             <tr>
                 <td>총 좋아요</td>
-                <td>${sources.youtube.totalLikes.toLocaleString()}개</td>
+                <td>${safeSources.youtube.totalLikes.toLocaleString()}개</td>
                 <td>모든 동영상의 총 좋아요</td>
             </tr>
             <tr>
                 <td>총 댓글</td>
-                <td>${sources.youtube.totalComments.toLocaleString()}개</td>
+                <td>${safeSources.youtube.totalComments.toLocaleString()}개</td>
                 <td>모든 동영상의 총 댓글</td>
             </tr>
         </table>
@@ -322,22 +332,22 @@ class ReportGenerator {
             </tr>
             <tr>
                 <td>트윗 수</td>
-                <td>${sources.twitter.tweetCount}개</td>
+                <td>${safeSources.twitter.tweetCount}개</td>
                 <td>관련 트윗 수</td>
             </tr>
             <tr>
                 <td>총 좋아요</td>
-                <td>${sources.twitter.totalLikes.toLocaleString()}개</td>
+                <td>${safeSources.twitter.totalLikes.toLocaleString()}개</td>
                 <td>모든 트윗의 총 좋아요</td>
             </tr>
             <tr>
                 <td>총 리트윗</td>
-                <td>${sources.twitter.totalRetweets.toLocaleString()}개</td>
+                <td>${safeSources.twitter.totalRetweets.toLocaleString()}개</td>
                 <td>모든 트윗의 총 리트윗</td>
             </tr>
             <tr>
                 <td>총 댓글</td>
-                <td>${sources.twitter.totalReplies.toLocaleString()}개</td>
+                <td>${safeSources.twitter.totalReplies.toLocaleString()}개</td>
                 <td>모든 트윗의 총 댓글</td>
             </tr>
         </table>
