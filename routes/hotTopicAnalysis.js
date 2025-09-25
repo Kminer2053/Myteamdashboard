@@ -10,7 +10,7 @@ const ReportGenerator = require('../services/reportGenerator');
 // 화제성 분석 시작
 router.post('/start', async (req, res) => {
     try {
-        const { keywords, startDate, endDate } = req.body;
+        const { keywords, startDate, endDate, sources } = req.body;
         
         if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
             return res.status(400).json({
@@ -46,7 +46,7 @@ router.post('/start', async (req, res) => {
 
         // 데이터 수집 시작
         const collector = new HotTopicDataCollector();
-        const results = await collector.collectHotTopicData(keywords, start, end);
+        const results = await collector.collectHotTopicData(keywords, start, end, sources);
 
         res.json({
             success: true,

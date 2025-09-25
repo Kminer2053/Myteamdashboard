@@ -22,7 +22,7 @@ class HotTopicDataCollector {
     }
 
     // 메인 데이터 수집 함수
-    async collectHotTopicData(keywords, startDate, endDate) {
+    async collectHotTopicData(keywords, startDate, endDate, selectedSources = null) {
         try {
             console.log(`🔥 화제성 분석 시작: ${keywords.join(', ')}`);
             const startTime = Date.now();
@@ -68,42 +68,64 @@ class HotTopicDataCollector {
                     processingTime: 0
                 };
 
-                // 병렬로 모든 소스에서 데이터 수집
-                const [
-                    newsData,
-                    trendData,
-                    youtubeData,
-                    twitterData,
-                    instagramData,
-                    tiktokData
-                ] = await Promise.allSettled([
-                    this.collectNewsData(keyword, startDate, endDate),
-                    this.collectTrendData(keyword, startDate, endDate),
-                    this.collectYouTubeData(keyword, startDate, endDate),
-                    this.collectTwitterData(keyword, startDate, endDate),
-                    this.collectInstagramData(keyword, startDate, endDate),
-                    this.collectTikTokData(keyword, startDate, endDate)
-                ]);
+                // 선택된 소스에 따라 데이터 수집 (기본값: 모든 소스)
+                const defaultSources = ['naver-news', 'naver-trend', 'youtube', 'naver-shopping', 'twitter', 'instagram', 'tiktok'];
+                const sourcesToCollect = selectedSources || defaultSources;
+                
+                // 병렬로 선택된 소스에서만 데이터 수집
+                const dataCollectionPromises = [];
+                const sourceMapping = {
+                    'naver-news': () => this.collectNewsData(keyword, startDate, endDate),
+                    'naver-trend': () => this.collectTrendData(keyword, startDate, endDate),
+                    'youtube': () => this.collectYouTubeData(keyword, startDate, endDate),
+                    'naver-shopping': () => this.collectTrendData(keyword, startDate, endDate), // 쇼핑인사이트는 트렌드와 같은 API
+                    'twitter': () => this.collectTwitterData(keyword, startDate, endDate),
+                    'instagram': () => this.collectInstagramData(keyword, startDate, endDate),
+                    'tiktok': () => this.collectTikTokData(keyword, startDate, endDate)
+                };
+                
+                // 선택된 소스만 수집
+                sourcesToCollect.forEach(source => {
+                    if (sourceMapping[source]) {
+                        dataCollectionPromises.push(sourceMapping[source]());
+                    }
+                });
+                
+                const results = await Promise.allSettled(dataCollectionPromises);
 
-                // 수집된 데이터 할당
-                if (newsData.status === 'fulfilled') {
-                    analysisData.sources.news = newsData.value;
-                }
-                if (trendData.status === 'fulfilled') {
-                    analysisData.sources.trend = trendData.value;
-                }
-                if (youtubeData.status === 'fulfilled') {
-                    analysisData.sources.youtube = youtubeData.value;
-                }
-                if (twitterData.status === 'fulfilled') {
-                    analysisData.sources.twitter = twitterData.value;
-                }
-                if (instagramData.status === 'fulfilled') {
-                    analysisData.sources.instagram = instagramData.value;
-                }
-                if (tiktokData.status === 'fulfilled') {
-                    analysisData.sources.tiktok = tiktokData.value;
-                }
+                // 수집된 데이터 할당 (순서대로)
+                let resultIndex = 0;
+                sourcesToCollect.forEach(source => {
+                    if (results[resultIndex] && results[resultIndex].status === 'fulfilled') {
+                        switch (source) {
+                            case 'naver-news':
+                                analysisData.sources.news = results[resultIndex].value;
+                                break;
+                            case 'naver-trend':
+                                analysisData.sources.trend = results[resultIndex].value;
+                                break;
+                            case 'youtube':
+                                analysisData.sources.youtube = results[resultIndex].value;
+                                break;
+                            case 'naver-shopping':
+                                // 쇼핑인사이트 데이터는 별도 필드에 저장하거나 트렌드와 통합
+                                if (!analysisData.sources.trend) {
+                                    analysisData.sources.trend = results[resultIndex].value;
+                                }
+                                break;
+                            case 'twitter':
+                                analysisData.sources.twitter = results[resultIndex].value;
+                                break;
+                            case 'instagram':
+                                analysisData.sources.instagram = results[resultIndex].value;
+                                break;
+                            case 'tiktok':
+                                analysisData.sources.tiktok = results[resultIndex].value;
+                                break;
+                        }
+                    }
+                    resultIndex++;
+                });
 
                 // 지수 계산
                 const analysis = new HotTopicAnalysis(analysisData);

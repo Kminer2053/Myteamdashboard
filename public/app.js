@@ -304,7 +304,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({
                     keywords,
                     startDate,
-                    endDate
+                    endDate,
+                    sources
                 })
             });
             

@@ -260,12 +260,12 @@ class ReportGenerator {
             </tr>
             <tr>
                 <td>총 조회수</td>
-                <td>${safeSources.news.totalViews.toLocaleString()}회</td>
+                <td>${(safeSources.news.totalViews || 0).toLocaleString()}회</td>
                 <td>모든 기사의 총 조회수</td>
             </tr>
             <tr>
                 <td>평균 조회수</td>
-                <td>${safeSources.news.avgViews.toLocaleString()}회</td>
+                <td>${(safeSources.news.avgViews || 0).toLocaleString()}회</td>
                 <td>기사당 평균 조회수</td>
             </tr>
         </table>
@@ -308,17 +308,17 @@ class ReportGenerator {
             </tr>
             <tr>
                 <td>총 조회수</td>
-                <td>${safeSources.youtube.totalViews.toLocaleString()}회</td>
+                <td>${(safeSources.youtube.totalViews || 0).toLocaleString()}회</td>
                 <td>모든 동영상의 총 조회수</td>
             </tr>
             <tr>
                 <td>총 좋아요</td>
-                <td>${safeSources.youtube.totalLikes.toLocaleString()}개</td>
+                <td>${(safeSources.youtube.totalLikes || 0).toLocaleString()}개</td>
                 <td>모든 동영상의 총 좋아요</td>
             </tr>
             <tr>
                 <td>총 댓글</td>
-                <td>${safeSources.youtube.totalComments.toLocaleString()}개</td>
+                <td>${(safeSources.youtube.totalComments || 0).toLocaleString()}개</td>
                 <td>모든 동영상의 총 댓글</td>
             </tr>
         </table>
@@ -337,17 +337,17 @@ class ReportGenerator {
             </tr>
             <tr>
                 <td>총 좋아요</td>
-                <td>${safeSources.twitter.totalLikes.toLocaleString()}개</td>
+                <td>${(safeSources.twitter.totalLikes || 0).toLocaleString()}개</td>
                 <td>모든 트윗의 총 좋아요</td>
             </tr>
             <tr>
                 <td>총 리트윗</td>
-                <td>${safeSources.twitter.totalRetweets.toLocaleString()}개</td>
+                <td>${(safeSources.twitter.totalRetweets || 0).toLocaleString()}개</td>
                 <td>모든 트윗의 총 리트윗</td>
             </tr>
             <tr>
                 <td>총 댓글</td>
-                <td>${safeSources.twitter.totalReplies.toLocaleString()}개</td>
+                <td>${(safeSources.twitter.totalReplies || 0).toLocaleString()}개</td>
                 <td>모든 트윗의 총 댓글</td>
             </tr>
         </table>
@@ -442,7 +442,7 @@ class ReportGenerator {
 
     <div class="footer">
         <p>이 보고서는 MyTeamDashboard 화제성 분석 시스템에 의해 자동 생성되었습니다.</p>
-        <p>생성 시간: ${generatedAt.toLocaleString('ko-KR')}</p>
+        <p>생성 시간: ${(generatedAt || new Date()).toLocaleString('ko-KR')}</p>
     </div>
 </body>
 </html>`;
