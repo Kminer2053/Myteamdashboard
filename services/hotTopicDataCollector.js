@@ -363,7 +363,7 @@ class HotTopicDataCollector {
                 };
             }
             
-            // 최근 트윗 검색 (날짜 범위 제거하여 400 오류 방지)
+            // 최근 트윗 검색 (원래 기능 복원)
             const response = await axios.get('https://api.twitter.com/2/tweets/search/recent', {
                 headers: {
                     'Authorization': `Bearer ${this.twitterBearerToken}`,
@@ -371,8 +371,10 @@ class HotTopicDataCollector {
                 },
                 params: {
                     'query': `${keyword} -is:retweet`,
-                    'max_results': 10, // 결과 수 제한
-                    'tweet.fields': 'public_metrics,created_at,author_id'
+                    'max_results': 100,
+                    'tweet.fields': 'public_metrics,created_at,author_id',
+                    'start_time': startDate.toISOString(),
+                    'end_time': endDate.toISOString()
                 }
             });
 
@@ -401,7 +403,14 @@ class HotTopicDataCollector {
             };
 
         } catch (error) {
-            console.error(`❌ Twitter 데이터 수집 오류 (${keyword}):`, error.message);
+            if (error.response?.status === 429) {
+                console.log(`⚠️ Twitter API 사용량 제한 (${keyword}): Too Many Requests - 기본값 반환`);
+            } else if (error.response?.status === 400) {
+                console.log(`⚠️ Twitter API 요청 오류 (${keyword}): Bad Request - 기본값 반환`);
+            } else {
+                console.error(`❌ Twitter 데이터 수집 오류 (${keyword}):`, error.message);
+            }
+            
             return {
                 tweetCount: 0,
                 totalLikes: 0,
