@@ -162,8 +162,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Chart.js 로드
             await loadChartJS();
             
-            // 언론보도 효과성 초기화
-            initMediaEffectiveness();
+            // 새로운 언론보도 효과성 초기화
+            initAdvancedMediaAnalysis();
             
             // 로딩 완료 표시
             mediaTab.classList.add('loaded');
@@ -177,6 +177,590 @@ document.addEventListener('DOMContentLoaded', function() {
                 <button class="btn btn-sm btn-primary" onclick="loadMediaTab()">다시 시도</button>
             `;
         }
+    }
+
+    // 고도화된 언론보도 효과성 분석 초기화
+    function initAdvancedMediaAnalysis() {
+        // 기본 날짜 설정 (최근 30일)
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+        
+        document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+        document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+        
+        // 키워드 관리 초기화
+        initKeywordManager();
+        
+        // 이벤트 리스너 등록
+        initEventListeners();
+        
+        console.log('고도화된 언론보도 효과성 분석 초기화 완료');
+    }
+
+    // 키워드 관리 기능
+    function initKeywordManager() {
+        const keywordInput = document.getElementById('keywordInput');
+        const addKeywordBtn = document.getElementById('addKeywordBtn');
+        const keywordTags = document.getElementById('keywordTags');
+        
+        let keywords = [];
+        
+        // 키워드 추가 함수
+        function addKeyword(keyword) {
+            keyword = keyword.trim();
+            if (keyword && !keywords.includes(keyword)) {
+                keywords.push(keyword);
+                renderKeywordTags();
+                keywordInput.value = '';
+            }
+        }
+        
+        // 키워드 제거 함수
+        function removeKeyword(keyword) {
+            keywords = keywords.filter(k => k !== keyword);
+            renderKeywordTags();
+        }
+        
+        // 키워드 태그 렌더링
+        function renderKeywordTags() {
+            keywordTags.innerHTML = keywords.map(keyword => `
+                <span class="keyword-tag">
+                    ${keyword}
+                    <span class="remove" onclick="removeKeyword('${keyword}')">×</span>
+                </span>
+            `).join('');
+        }
+        
+        // Enter 키로 키워드 추가
+        keywordInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addKeyword(this.value);
+            }
+        });
+        
+        // 추가 버튼 클릭
+        addKeywordBtn.addEventListener('click', function() {
+            addKeyword(keywordInput.value);
+        });
+        
+        // 전역 함수로 등록
+        window.removeKeyword = removeKeyword;
+    }
+
+    // 이벤트 리스너 초기화
+    function initEventListeners() {
+        const startAnalysisBtn = document.getElementById('startAdvancedAnalysis');
+        const downloadReportBtn = document.getElementById('downloadReportBtn');
+        const downloadDataBtn = document.getElementById('downloadDataBtn');
+        
+        // 분석 시작 버튼
+        startAnalysisBtn.addEventListener('click', startAdvancedAnalysis);
+        
+        // 다운로드 버튼들
+        downloadReportBtn.addEventListener('click', downloadReport);
+        downloadDataBtn.addEventListener('click', downloadData);
+    }
+
+    // 고급 분석 시작
+    async function startAdvancedAnalysis() {
+        const keywords = Array.from(document.querySelectorAll('.keyword-tag')).map(tag => 
+            tag.textContent.replace('×', '').trim()
+        );
+        
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        
+        const sources = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+        
+        // 유효성 검사
+        if (keywords.length === 0) {
+            showToast('최소 하나의 키워드를 입력해주세요.');
+            return;
+        }
+        
+        if (!startDate || !endDate) {
+            showToast('분석 기간을 설정해주세요.');
+            return;
+        }
+        
+        if (sources.length === 0) {
+            showToast('최소 하나의 데이터 소스를 선택해주세요.');
+            return;
+        }
+        
+        // 진행상황 카드 표시
+        document.getElementById('progressCard').style.display = 'block';
+        document.getElementById('resultsCard').style.display = 'none';
+        
+        // 분석 요청
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/hot-topic-analysis/start`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    keywords,
+                    startDate,
+                    endDate
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateProgress('분석 완료!', 100);
+                    displayResults(result.data);
+                } else {
+                    throw new Error(result.message || '분석 중 오류가 발생했습니다.');
+                }
+                
+            } else {
+                throw new Error('분석 요청 실패');
+            }
+            
+        } catch (error) {
+            console.error('분석 시작 실패:', error);
+            showToast('분석을 시작하는 중 오류가 발생했습니다.');
+        }
+    }
+
+    // 진행상황 업데이트
+    function updateProgress(message, percentage) {
+        const progressBar = document.getElementById('progressBar');
+        const progressLog = document.getElementById('progressLog');
+        
+        // 진행률 업데이트
+        progressBar.style.width = percentage + '%';
+        progressBar.textContent = percentage + '%';
+        
+        // 로그 추가
+        const logItem = document.createElement('div');
+        logItem.className = 'log-item';
+        logItem.innerHTML = `
+            <span class="log-time">${new Date().toLocaleTimeString()}</span>
+            <span class="log-message">${message}</span>
+        `;
+        progressLog.appendChild(logItem);
+        progressLog.scrollTop = progressLog.scrollHeight;
+    }
+
+    // 결과 표시
+    function displayResults(results) {
+        // 진행상황 카드 숨기기
+        document.getElementById('progressCard').style.display = 'none';
+        
+        // 결과 카드 표시
+        document.getElementById('resultsCard').style.display = 'block';
+        
+        // 첫 번째 결과 데이터 사용 (단일 키워드 분석)
+        const result = results[0];
+        if (!result) {
+            showToast('분석 결과를 찾을 수 없습니다.');
+            return;
+        }
+        
+        // 점수 업데이트
+        document.getElementById('overallScore').textContent = result.metrics.overall || '-';
+        document.getElementById('exposureScore').textContent = result.metrics.exposure || '-';
+        document.getElementById('engagementScore').textContent = result.metrics.engagement || '-';
+        document.getElementById('demandScore').textContent = result.metrics.demand || '-';
+        
+        // 차트 렌더링 (시계열 데이터)
+        renderTrendChart(result);
+        
+        // AI 인사이트 표시
+        displayAIInsights(result.aiInsights);
+        
+        // 데이터 테이블 업데이트
+        updateDataTable(result.sources);
+        
+        // 보고서 다운로드 버튼 활성화
+        setupReportDownload(result._id);
+        
+        showToast('분석이 완료되었습니다!');
+    }
+
+    // 화제성 트렌드 차트 렌더링
+    function renderTrendChart(trendsData) {
+        const ctx = document.getElementById('trendChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        
+        // 기존 차트 제거
+        if (window.trendChart) {
+            window.trendChart.destroy();
+        }
+        
+        // 색상 팔레트
+        const colors = {
+            overall: '#667eea',
+            exposure: '#17a2b8',
+            engagement: '#28a745', 
+            demand: '#ffc107'
+        };
+        
+        // 종합 화제성 데이터셋 생성 (복수 키워드 통합)
+        const dataset = {
+            label: '화제성 지수',
+            data: trendsData.overall || [],
+            borderColor: colors.overall,
+            backgroundColor: colors.overall + '20',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointBackgroundColor: colors.overall,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+        };
+        
+        window.trendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: trendsData.dates || [],
+                datasets: [dataset]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                onClick: function(event, elements) {
+                    if (elements.length > 0) {
+                        const elementIndex = elements[0].index;
+                        const selectedDate = trendsData.dates[elementIndex];
+                        showDetailedData(selectedDate, trendsData.details[elementIndex]);
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleColor: 'white',
+                        bodyColor: 'white',
+                        borderColor: colors.overall,
+                        borderWidth: 1,
+                        callbacks: {
+                            title: function(context) {
+                                return `날짜: ${context[0].label}`;
+                            },
+                            label: function(context) {
+                                return `화제성 지수: ${context.parsed.y.toFixed(1)}`;
+                            },
+                            afterLabel: function(context) {
+                                return '클릭하여 상세 데이터 확인';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: '날짜',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        }
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: '화제성 지수',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        },
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // 차트 타입 변경 이벤트 리스너
+        document.querySelectorAll('input[name="chartType"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                updateTrendChart(this.value, trendsData);
+            });
+        });
+    }
+
+    // 트렌드 차트 업데이트 (지표별 필터링)
+    function updateTrendChart(chartType, trendsData) {
+        if (!window.trendChart) return;
+        
+        const colors = {
+            overall: '#667eea',
+            exposure: '#17a2b8',
+            engagement: '#28a745', 
+            demand: '#ffc107'
+        };
+        
+        const labels = {
+            overall: '화제성 지수',
+            exposure: '노출 지표',
+            engagement: '참여 지표',
+            demand: '수요 지표'
+        };
+        
+        const dataset = {
+            label: labels[chartType],
+            data: trendsData[chartType] || [],
+            borderColor: colors[chartType],
+            backgroundColor: colors[chartType] + '20',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointBackgroundColor: colors[chartType],
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+        };
+        
+        window.trendChart.data.datasets = [dataset];
+        window.trendChart.update();
+    }
+
+    // 상세 데이터 표시
+    function showDetailedData(selectedDate, detailData) {
+        const selectedDateInfo = document.getElementById('selectedDateInfo');
+        const tbody = document.querySelector('#dataTable tbody');
+        
+        // 선택된 날짜 정보 업데이트
+        selectedDateInfo.textContent = `선택된 날짜: ${selectedDate}`;
+        
+        // 상세 데이터 테이블 업데이트
+        if (detailData && detailData.length > 0) {
+            tbody.innerHTML = detailData.map(item => `
+                <tr>
+                    <td>${item.date}</td>
+                    <td>${item.keyword}</td>
+                    <td>${item.channel}</td>
+                    <td>${item.exposure || '-'}</td>
+                    <td>${item.engagement || '-'}</td>
+                    <td>${item.demand || '-'}</td>
+                    <td><strong>${item.overall || '-'}</strong></td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-muted">
+                        ${selectedDate}에 대한 상세 데이터가 없습니다.
+                    </td>
+                </tr>
+            `;
+        }
+        
+        // 테이블로 스크롤
+        document.getElementById('dataTable').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+        });
+    }
+
+
+
+    // AI 인사이트 표시
+    function displayAIInsights(insights) {
+        const container = document.getElementById('aiInsights');
+        
+        if (!insights) {
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    AI 인사이트를 생성할 수 없습니다.
+                </div>
+            `;
+            return;
+        }
+        
+        // 구조화된 AI 인사이트 표시
+        container.innerHTML = `
+            <div class="row">
+                <!-- 핵심 요약 -->
+                <div class="col-12 mb-3">
+                    <div class="card border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0"><i class="fas fa-bullseye me-2"></i>핵심 요약</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-0">${insights.summary || '핵심 요약이 없습니다.'}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 주요 발견사항 -->
+                <div class="col-md-6 mb-3">
+                    <div class="card border-success">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0"><i class="fas fa-search me-2"></i>주요 발견사항</h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="mb-0">
+                                ${(insights.keyFindings || []).map(finding => `<li>${finding}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 전략적 제안 -->
+                <div class="col-md-6 mb-3">
+                    <div class="card border-info">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="fas fa-lightbulb me-2"></i>전략적 제안</h6>
+                        </div>
+                        <div class="card-body">
+                            <h6>단기 전략 (1-2주)</h6>
+                            <ul class="mb-2">
+                                ${(insights.strategicRecommendations?.shortTerm || []).map(item => `<li>${item}</li>`).join('')}
+                            </ul>
+                            <h6>중기 전략 (1-3개월)</h6>
+                            <ul class="mb-0">
+                                ${(insights.strategicRecommendations?.mediumTerm || []).map(item => `<li>${item}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 트렌드 전망 -->
+                <div class="col-md-6 mb-3">
+                    <div class="card border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>트렌드 전망</h6>
+                        </div>
+                        <div class="card-body">
+                            <h6>긍정적 요인</h6>
+                            <ul class="mb-2">
+                                ${(insights.trendOutlook?.positiveFactors || []).map(factor => `<li>${factor}</li>`).join('')}
+                            </ul>
+                            <h6>부정적 요인</h6>
+                            <ul class="mb-0">
+                                ${(insights.trendOutlook?.negativeFactors || []).map(factor => `<li>${factor}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 주의사항 및 기회요소 -->
+                <div class="col-md-6 mb-3">
+                    <div class="card border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>주의사항 & 기회요소</h6>
+                        </div>
+                        <div class="card-body">
+                            <h6>주의사항</h6>
+                            <ul class="mb-2">
+                                ${(insights.riskFactors || []).map(risk => `<li>${risk}</li>`).join('')}
+                            </ul>
+                            <h6>기회요소</h6>
+                            <ul class="mb-0">
+                                ${(insights.opportunities || []).map(opportunity => `<li>${opportunity}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 액션 아이템 -->
+                <div class="col-12 mb-3">
+                    <div class="card border-secondary">
+                        <div class="card-header bg-secondary text-white">
+                            <h6 class="mb-0"><i class="fas fa-tasks me-2"></i>액션 아이템</h6>
+                        </div>
+                        <div class="card-body">
+                            <ol class="mb-0">
+                                ${(insights.actionItems || []).map(item => `<li>${item}</li>`).join('')}
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card border-info">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="fas fa-rocket me-2"></i>권장사항</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-0">${insights.recommendation || '권장사항 데이터가 없습니다.'}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 상세 분석 결과 -->
+            <div class="mt-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-microscope me-2"></i>상세 분석 결과</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <h6 class="text-primary">📊 데이터 품질</h6>
+                                <p class="small text-muted">${insights.dataQuality || '데이터 품질 정보가 없습니다.'}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h6 class="text-success">🎯 예측 정확도</h6>
+                                <p class="small text-muted">${insights.accuracy || '예측 정확도 정보가 없습니다.'}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h6 class="text-warning">⏰ 분석 시점</h6>
+                                <p class="small text-muted">${insights.timestamp || new Date().toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 데이터 테이블 업데이트
+    function updateDataTable(details) {
+        const tbody = document.querySelector('#dataTable tbody');
+        
+        if (!details || details.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">데이터가 없습니다.</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = details.map(item => `
+            <tr>
+                <td>${item.date}</td>
+                <td>${item.keyword}</td>
+                <td>${item.channel}</td>
+                <td>${item.exposure || '-'}</td>
+                <td>${item.engagement || '-'}</td>
+                <td>${item.demand || '-'}</td>
+            </tr>
+        `).join('');
+    }
+
+    // PDF 보고서 다운로드
+    function downloadReport() {
+        showToast('PDF 보고서 다운로드 기능은 구현 예정입니다.');
+    }
+
+    // CSV 데이터 다운로드
+    function downloadData() {
+        showToast('CSV 데이터 다운로드 기능은 구현 예정입니다.');
     }
 
     // 일정 데이터 서버에서 불러오기
@@ -2061,6 +2645,40 @@ function showMediaError(message) {
 
 function hideMediaError() {
     // 에러 숨기기는 별도 처리 불필요
+}
+
+// 보고서 다운로드 설정
+function setupReportDownload(analysisId) {
+    const downloadBtn = document.getElementById('downloadReport');
+    if (downloadBtn) {
+        downloadBtn.onclick = () => downloadReport(analysisId);
+        downloadBtn.style.display = 'block';
+    }
+}
+
+// 보고서 다운로드
+async function downloadReport(analysisId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/hot-topic-analysis/report/${analysisId}`);
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `hot-topic-report-${analysisId}.html`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            showToast('보고서가 다운로드되었습니다.');
+        } else {
+            throw new Error('보고서 다운로드 실패');
+        }
+    } catch (error) {
+        console.error('보고서 다운로드 오류:', error);
+        showToast('보고서 다운로드 중 오류가 발생했습니다.');
+    }
 }
 
 // 뉴스 건수 업데이트 함수

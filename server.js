@@ -25,6 +25,8 @@ const path = require('path');
 const logRouter = require('./routes/log');
 const { router: dbRouter, autoDeleteOldData } = require('./routes/db');
 const { router: mailRouter, sendMonthlyStatMail } = require('./routes/mail');
+const weightSettingsRouter = require('./routes/weightSettings');
+const hotTopicAnalysisRouter = require('./routes/hotTopicAnalysis');
 const UserActionLog = require('./models/UserActionLog');
 
 // AI API 설정
@@ -2574,6 +2576,8 @@ app.get('/api/korea-today', async (req, res) => {
 app.use('/api', logRouter);
 app.use('/api', dbRouter);
 app.use('/api', mailRouter);
+app.use('/api/weight-settings', weightSettingsRouter);
+app.use('/api/hot-topic-analysis', hotTopicAnalysisRouter);
 
 // === 월말 통계 메일 발송 크론 ===
 cron.schedule('50 23 28-31 * *', async () => {

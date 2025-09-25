@@ -332,4 +332,240 @@
     .tab-pane {
         padding: 15px;
     }
+}
+
+/* 언론보도 효과성 분석 UI 스타일 */
+.keyword-tag {
+    display: inline-block;
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 5px 12px;
+    margin: 3px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    border: 1px solid #bbdefb;
+}
+
+.keyword-tag .remove {
+    margin-left: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    color: #f44336;
+}
+
+.keyword-tag .remove:hover {
+    color: #d32f2f;
+}
+
+.progress-bar {
+    transition: width 0.3s ease;
+}
+
+.progress-log {
+    max-height: 200px;
+    overflow-y: auto;
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+}
+
+.progress-log .log-item {
+    margin-bottom: 5px;
+    padding: 2px 0;
+}
+
+.progress-log .log-item:last-child {
+    margin-bottom: 0;
+}
+
+.progress-log .log-time {
+    color: #6c757d;
+    font-size: 0.8rem;
+}
+
+.progress-log .log-message {
+    color: #495057;
+}
+
+/* 점수 카드 스타일 */
+.score-card {
+    transition: transform 0.2s ease;
+}
+
+.score-card:hover {
+    transform: translateY(-2px);
+}
+
+/* 차트 컨테이너 */
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+/* AI 인사이트 스타일 */
+.ai-insight-item {
+    background: #f8f9fa;
+    border-left: 4px solid #667eea;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 0 5px 5px 0;
+}
+
+.ai-insight-item:last-child {
+    margin-bottom: 0;
+}
+
+.ai-insight-title {
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.ai-insight-content {
+    color: #666;
+    line-height: 1.6;
+}
+
+/* 데이터 테이블 스타일 */
+#dataTable th {
+    background-color: #f8f9fa;
+    border-top: none;
+    font-weight: 600;
+    color: #495057;
+}
+
+#dataTable td {
+    vertical-align: middle;
+}
+
+/* 다운로드 버튼 스타일 */
+.btn-group .btn {
+    border-radius: 0;
+}
+
+.btn-group .btn:first-child {
+    border-top-left-radius: 0.375rem;
+    border-bottom-left-radius: 0.375rem;
+}
+
+.btn-group .btn:last-child {
+    border-top-right-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+}
+
+/* 시계열 차트 스타일 */
+.time-series-chart {
+    position: relative;
+    height: 400px;
+}
+
+.chart-controls {
+    margin-bottom: 15px;
+}
+
+.btn-check:checked + .btn {
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* 키워드 순위 스타일 */
+.keyword-ranking-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: white;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.keyword-ranking-item:last-child {
+    margin-bottom: 0;
+}
+
+.keyword-rank {
+    font-weight: bold;
+    color: #667eea;
+    font-size: 1.2rem;
+}
+
+.keyword-name {
+    flex: 1;
+    margin-left: 10px;
+    font-weight: 500;
+}
+
+.keyword-score {
+    font-weight: bold;
+    color: #28a745;
+}
+
+/* 차트 컨테이너 개선 */
+.chart-container {
+    position: relative;
+    height: 300px;
+    background: #fafafa;
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.chart-container canvas {
+    border-radius: 5px;
+}
+
+/* 지표별 색상 */
+.metric-exposure { color: #17a2b8; }
+.metric-engagement { color: #28a745; }
+.metric-demand { color: #ffc107; }
+.metric-overall { color: #007bff; }
+
+/* 지표 해석 가이드 스타일 */
+.metric-icon {
+    transition: transform 0.3s ease;
+}
+
+.metric-icon:hover {
+    transform: scale(1.1);
+}
+
+/* AI 인사이트 카드 스타일 */
+.ai-insight-card {
+    border-left: 4px solid;
+    transition: box-shadow 0.3s ease;
+}
+
+.ai-insight-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.border-primary { border-left-color: #007bff !important; }
+.border-success { border-left-color: #28a745 !important; }
+.border-warning { border-left-color: #ffc107 !important; }
+.border-info { border-left-color: #17a2b8 !important; }
+
+/* 반응형 스타일 */
+@media (max-width: 768px) {
+    .score-card {
+        margin-bottom: 15px;
+    }
+    
+    .chart-container {
+        height: 250px;
+    }
+    
+    .keyword-tag {
+        font-size: 0.8rem;
+        padding: 4px 10px;
+    }
+    
+    .time-series-chart {
+        height: 300px;
+    }
+    
+    .btn-group-sm .btn {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
 } 
