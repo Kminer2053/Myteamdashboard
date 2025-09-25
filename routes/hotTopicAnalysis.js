@@ -379,7 +379,7 @@ router.get('/report/:id', async (req, res) => {
             });
         }
 
-        res.download(analysis.reportPath, `hot-topic-report-${analysis.keyword}.html');
+        res.download(analysis.reportPath, `hot-topic-report-${analysis.keyword}.html`);
 
     } catch (error) {
         console.error('보고서 다운로드 오류:', error);
