@@ -51,6 +51,14 @@ class ReportGenerator {
     buildHTMLReport(data) {
         const { keyword, metrics, sources, insights, generatedAt, reportId } = data;
         
+        // metrics가 없는 경우 기본값 설정
+        const safeMetrics = metrics || {
+            overall: 0,
+            exposure: 0,
+            engagement: 0,
+            demand: 0
+        };
+        
         return `<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -204,23 +212,23 @@ class ReportGenerator {
         <div class="metrics-grid">
             <div class="metric-card">
                 <h3>종합 지수</h3>
-                <div class="metric-score">${metrics.overall}</div>
-                <div class="metric-grade">${this.getGradeText(metrics.overall)}</div>
+                <div class="metric-score">${safeMetrics.overall}</div>
+                <div class="metric-grade">${this.getGradeText(safeMetrics.overall)}</div>
             </div>
             <div class="metric-card">
                 <h3>노출 지수</h3>
-                <div class="metric-score">${metrics.exposure}</div>
-                <div class="metric-grade">${this.getGradeText(metrics.exposure)}</div>
+                <div class="metric-score">${safeMetrics.exposure}</div>
+                <div class="metric-grade">${this.getGradeText(safeMetrics.exposure)}</div>
             </div>
             <div class="metric-card">
                 <h3>참여 지수</h3>
-                <div class="metric-score">${metrics.engagement}</div>
-                <div class="metric-grade">${this.getGradeText(metrics.engagement)}</div>
+                <div class="metric-score">${safeMetrics.engagement}</div>
+                <div class="metric-grade">${this.getGradeText(safeMetrics.engagement)}</div>
             </div>
             <div class="metric-card">
                 <h3>수요 지수</h3>
-                <div class="metric-score">${metrics.demand}</div>
-                <div class="metric-grade">${this.getGradeText(metrics.demand)}</div>
+                <div class="metric-score">${safeMetrics.demand}</div>
+                <div class="metric-grade">${this.getGradeText(safeMetrics.demand)}</div>
             </div>
         </div>
     </div>

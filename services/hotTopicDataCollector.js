@@ -28,9 +28,16 @@ class HotTopicDataCollector {
             const startTime = Date.now();
             
             // 가중치 설정 로드
-            const weightSetting = await WeightSetting.findOne({ isActive: true });
+            let weightSetting = await WeightSetting.findOne({ isActive: true });
             if (!weightSetting) {
-                throw new Error('활성화된 가중치 설정을 찾을 수 없습니다.');
+                // 기본 가중치 설정 생성
+                weightSetting = new WeightSetting({
+                    name: '기본 설정',
+                    description: '기본 가중치 설정',
+                    isActive: true
+                });
+                await weightSetting.save();
+                console.log('기본 가중치 설정이 생성되었습니다.');
             }
 
             const results = [];

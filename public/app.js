@@ -373,6 +373,7 @@ document.addEventListener('DOMContentLoaded', function() {
         renderTrendChart(result);
         
         // AI 인사이트 표시
+        console.log('AI Insights:', result.aiInsights);
         displayAIInsights(result.aiInsights);
         
         // 데이터 테이블 업데이트
@@ -385,7 +386,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 화제성 트렌드 차트 렌더링
-    function renderTrendChart(trendsData) {
+    function renderTrendChart(result) {
         const ctx = document.getElementById('trendChart');
         if (!ctx || typeof Chart === 'undefined') return;
         
@@ -402,28 +403,63 @@ document.addEventListener('DOMContentLoaded', function() {
             demand: '#ffc107'
         };
         
-        // 종합 화제성 데이터셋 생성 (복수 키워드 통합)
-        const dataset = {
-            label: '화제성 지수',
-            data: trendsData.overall || [],
-            borderColor: colors.overall,
-            backgroundColor: colors.overall + '20',
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            pointRadius: 5,
-            pointHoverRadius: 8,
-            pointBackgroundColor: colors.overall,
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2
+        // 단일 키워드 분석 결과를 차트 데이터로 변환
+        const chartData = {
+            labels: [result.date ? new Date(result.date).toLocaleDateString() : '분석일'],
+            datasets: [
+                {
+                    label: '종합 지수',
+                    data: [result.metrics?.overall || 0],
+                    borderColor: colors.overall,
+                    backgroundColor: colors.overall + '20',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointHoverRadius: 8,
+                    pointBackgroundColor: colors.overall,
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                },
+                {
+                    label: '노출 지수',
+                    data: [result.metrics?.exposure || 0],
+                    borderColor: colors.exposure,
+                    backgroundColor: colors.exposure + '20',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                },
+                {
+                    label: '참여 지수',
+                    data: [result.metrics?.engagement || 0],
+                    borderColor: colors.engagement,
+                    backgroundColor: colors.engagement + '20',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                },
+                {
+                    label: '수요 지수',
+                    data: [result.metrics?.demand || 0],
+                    borderColor: colors.demand,
+                    backgroundColor: colors.demand + '20',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }
+            ]
         };
         
         window.trendChart = new Chart(ctx, {
             type: 'line',
-            data: {
-                labels: trendsData.dates || [],
-                datasets: [dataset]
-            },
+            data: chartData,
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
