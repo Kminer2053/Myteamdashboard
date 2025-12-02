@@ -1418,7 +1418,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const statusDiv = document.createElement('div');
         statusDiv.className = 'd-flex justify-content-end align-items-center mb-3';
         statusDiv.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${riskNewsData.totalCountAll || riskNewsData.totalCount}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${riskNewsData.totalCountAll > 0 ? riskNewsData.totalCountAll : (riskNewsData.totalCount || 0)}</b>건</span>
             <button class="btn btn-sm btn-outline-section-risk" id="refreshRiskBtn">정보갱신</button>
         `;
         newsFeed.appendChild(statusDiv);
@@ -1525,15 +1525,24 @@ document.addEventListener('DOMContentLoaded', function() {
     function formatStructuredAnalysis(analysis) {
         if (!analysis) return '분석 내용이 없습니다.';
         
-        // 문자열인 경우 JSON 파싱 시도
+        // 문자열인 경우 먼저 마크다운 처리 (JSON 파싱보다 우선)
         if (typeof analysis === 'string') {
+            // 마크다운 형식인지 확인 (##, ###, ** 등이 있으면 마크다운으로 처리)
+            if (analysis.includes('##') || analysis.includes('###') || analysis.includes('**') || analysis.includes('- ') || analysis.includes('* ')) {
+                return formatAnalysisText(analysis);
+            }
+            
+            // JSON 파싱 시도
             try {
                 const parsed = JSON.parse(analysis);
                 if (typeof parsed === 'object' && parsed !== null) {
                     analysis = parsed;
+                } else {
+                    // 파싱은 성공했지만 객체가 아니면 원본 텍스트 사용
+                    return formatAnalysisText(analysis);
                 }
             } catch (e) {
-                // JSON 파싱 실패 시 기존 텍스트 처리
+                // JSON 파싱 실패 시 마크다운으로 처리
                 return formatAnalysisText(analysis);
             }
         }
@@ -1547,7 +1556,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += `
                     <div style="margin-bottom: 20px;">
                         <strong style="color: #333; font-size: 1.1em;">뉴스요약</strong>
-                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.newsSummary}</div>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${formatAnalysisText(analysis.newsSummary)}</div>
                     </div>
                 `;
             }
@@ -1567,7 +1576,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += `
                     <div style="margin-bottom: 20px;">
                         <strong style="color: #333; font-size: 1.1em;">주가정보</strong>
-                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.stockSummary}</div>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${formatAnalysisText(analysis.stockSummary)}</div>
                     </div>
                 `;
             }
@@ -1577,15 +1586,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += `
                     <div style="margin-bottom: 20px;">
                         <strong style="color: #333; font-size: 1.1em;">감성분석 해석</strong>
-                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.sentimentCommentary}</div>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${formatAnalysisText(analysis.sentimentCommentary)}</div>
                     </div>
                 `;
+            }
+            
+            // analysis 필드가 있으면 마크다운으로 처리
+            if (analysis.analysis && typeof analysis.analysis === 'string') {
+                html += formatAnalysisText(analysis.analysis);
             }
             
             return html || formatAnalysisText(JSON.stringify(analysis));
         }
         
-        // 문자열인 경우 기존 함수 사용
+        // 문자열인 경우 마크다운으로 처리
         return formatAnalysisText(analysis);
     }
 
@@ -2038,7 +2052,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${partnerNewsData.totalCountAll || partnerNewsData.totalCount}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${partnerNewsData.totalCountAll > 0 ? partnerNewsData.totalCountAll : (partnerNewsData.totalCount || 0)}</b>건</span>
             <button class="btn btn-sm btn-outline-section-partner" id="refreshPartnerBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
@@ -2334,7 +2348,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${techNewsData.totalCountAll || techNewsData.totalCount}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${techNewsData.totalCountAll > 0 ? techNewsData.totalCountAll : (techNewsData.totalCount || 0)}</b>건</span>
             <button class="btn btn-sm btn-outline-section-tech" id="refreshTechBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
