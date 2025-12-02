@@ -909,7 +909,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // 응답 상태 코드 확인
             if (!response.ok) {
                 // 응답 본문을 텍스트로 먼저 읽어서 에러 메시지 확인
-                const errorText = await response.text();
+                let errorText = '';
+                try {
+                    errorText = await response.text();
+                } catch (e) {
+                    errorText = '응답 본문을 읽을 수 없습니다.';
+                }
                 console.error(`[공휴일 API] 호출 실패: ${response.status} ${response.statusText}`);
                 console.error(`[공휴일 API] 응답 본문:`, errorText);
                 
@@ -922,10 +927,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('  4. IP 차단 또는 지역 제한');
                 }
                 
+                // 에러 발생 시 빈 배열 반환 (캘린더는 공휴일 없이도 작동)
                 return [];
             }
             
-            const data = await response.json();
+            // JSON 파싱 시도
+            let data;
+            try {
+                const responseText = await response.text();
+                if (!responseText || responseText.trim() === '') {
+                    console.warn('[공휴일 API] 응답 본문이 비어있습니다.');
+                    return [];
+                }
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error('[공휴일 API] JSON 파싱 실패:', e.message);
+                console.error('[공휴일 API] 응답이 JSON 형식이 아닙니다. API 키 문제일 수 있습니다.');
+                return [];
+            }
             
             // API 응답 에러 체크 (data.go.kr API는 성공해도 에러 코드를 반환할 수 있음)
             if (data.response && data.response.header) {
@@ -1393,9 +1412,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 // totalCountAll은 항상 업데이트 (API에서 전달된 값 우선 사용)
                 if (data.totalCountAll !== undefined && data.totalCountAll !== null) {
                     riskNewsData.totalCountAll = data.totalCountAll;
-                } else if (!riskNewsData.totalCountAll) {
-                    // totalCountAll이 없으면 totalCount를 사용 (초기값)
-                    riskNewsData.totalCountAll = data.totalCount;
+                    console.log('[리스크 뉴스] totalCountAll 업데이트:', data.totalCountAll, 'totalCount:', data.totalCount);
+                } else {
+                    // totalCountAll이 없으면 경고 로그 출력
+                    console.warn('[리스크 뉴스] totalCountAll이 응답에 없습니다. totalCount 사용:', data.totalCount);
+                    if (!riskNewsData.totalCountAll) {
+                        // 초기값으로만 사용 (나중에 totalCountAll이 오면 업데이트)
+                        riskNewsData.totalCountAll = data.totalCount;
+                    }
                 }
                 
                 // offset 업데이트 (새 데이터가 추가된 경우)
@@ -1408,7 +1432,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
                 const currentDataExhausted = data.data.length === 0 || (riskNewsData.offset >= data.totalCount);
-                const moreDataAvailable = riskNewsData.items.length < riskNewsData.totalCountAll;
+                const moreDataAvailable = riskNewsData.totalCountAll > 0 && riskNewsData.items.length < riskNewsData.totalCountAll;
+                
+                console.log('[리스크 뉴스] 무한 스크롤 체크:', {
+                    currentDataExhausted,
+                    moreDataAvailable,
+                    itemsLength: riskNewsData.items.length,
+                    totalCountAll: riskNewsData.totalCountAll,
+                    totalCount: data.totalCount,
+                    days: riskNewsData.days,
+                    offset: riskNewsData.offset
+                });
                 
                 if (currentDataExhausted && moreDataAvailable) {
                     // days를 점진적으로 증가: 7 → 14 → 30 → 90 → 9999 (전체)
@@ -1421,6 +1455,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         // days가 증가했으면 offset 초기화하고 다시 로드 (기존 데이터는 유지)
                         if (oldDays !== riskNewsData.days) {
+                            console.log('[리스크 뉴스] days 증가:', oldDays, '→', riskNewsData.days);
                             riskNewsData.offset = 0; // offset만 초기화, items는 유지
                             riskNewsData.loading = false; // 로딩 플래그 해제하여 재호출 가능하게
                             loadMoreRiskNews(); // 재귀 호출로 새로운 범위의 데이터 로드
@@ -1607,24 +1642,24 @@ document.addEventListener('DOMContentLoaded', function() {
     function formatStructuredAnalysis(analysis) {
         if (!analysis) return '분석 내용이 없습니다.';
         
-        // 문자열인 경우 먼저 마크다운 처리 (JSON 파싱보다 우선)
+        // 문자열인 경우 처리
         if (typeof analysis === 'string') {
-            // 마크다운 형식인지 확인 (##, ###, ** 등이 있으면 마크다운으로 처리)
-            if (analysis.includes('##') || analysis.includes('###') || analysis.includes('**') || analysis.includes('- ') || analysis.includes('* ')) {
-                return formatAnalysisText(analysis);
-            }
-            
-            // JSON 파싱 시도
+            // 먼저 JSON 파싱 시도 (JSON 문자열인 경우)
             try {
                 const parsed = JSON.parse(analysis);
                 if (typeof parsed === 'object' && parsed !== null) {
+                    // 파싱 성공 - 객체로 처리
                     analysis = parsed;
                 } else {
-                    // 파싱은 성공했지만 객체가 아니면 원본 텍스트 사용
+                    // 파싱은 성공했지만 객체가 아니면 원본 텍스트를 마크다운으로 처리
                     return formatAnalysisText(analysis);
                 }
             } catch (e) {
-                // JSON 파싱 실패 시 마크다운으로 처리
+                // JSON 파싱 실패 - 마크다운 형식인지 확인
+                if (analysis.includes('##') || analysis.includes('###') || analysis.includes('**') || analysis.includes('- ') || analysis.includes('* ')) {
+                    return formatAnalysisText(analysis);
+                }
+                // 마크다운도 아니면 그냥 텍스트로 처리
                 return formatAnalysisText(analysis);
             }
         }
@@ -1634,41 +1669,66 @@ document.addEventListener('DOMContentLoaded', function() {
             let html = '';
             
             // 뉴스요약
-            if (analysis.newsSummary) {
+            if (analysis.뉴스요약 || analysis.newsSummary) {
+                const newsSummary = analysis.뉴스요약 || analysis.newsSummary;
                 html += `
                     <div style="margin-bottom: 20px;">
                         <strong style="color: #333; font-size: 1.1em;">뉴스요약</strong>
-                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${formatAnalysisText(analysis.newsSummary)}</div>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${formatAnalysisText(String(newsSummary))}</div>
                     </div>
                 `;
             }
             
             // 감성점수
-            if (analysis.sentimentScore !== undefined) {
+            if (analysis.감성점수 !== undefined || analysis.sentimentScore !== undefined) {
+                const sentimentScore = analysis.감성점수 !== undefined ? analysis.감성점수 : analysis.sentimentScore;
                 html += `
                     <div style="margin-bottom: 20px;">
                         <strong style="color: #333; font-size: 1.1em;">감성점수</strong>
-                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.sentimentScore}</div>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${sentimentScore}</div>
                     </div>
                 `;
             }
             
-            // 주가정보
-            if (analysis.stockSummary) {
+            // 주가정보 (더본코리아_주가 등)
+            const stockKeys = Object.keys(analysis).filter(key => key.includes('주가') || key.includes('stock'));
+            if (stockKeys.length > 0) {
+                stockKeys.forEach(key => {
+                    const stockData = analysis[key];
+                    if (typeof stockData === 'object' && stockData !== null) {
+                        html += `
+                            <div style="margin-bottom: 20px;">
+                                <strong style="color: #333; font-size: 1.1em;">${key}</strong>
+                                <div style="margin-top: 5px; color: #666; line-height: 1.6;">
+                                    ${Object.keys(stockData).map(k => `<div><strong>${k}:</strong> ${stockData[k]}</div>`).join('')}
+                                </div>
+                            </div>
+                        `;
+                    } else if (stockData) {
+                        html += `
+                            <div style="margin-bottom: 20px;">
+                                <strong style="color: #333; font-size: 1.1em;">${key}</strong>
+                                <div style="margin-top: 5px; color: #666; line-height: 1.6;">${formatAnalysisText(String(stockData))}</div>
+                            </div>
+                        `;
+                    }
+                });
+            } else if (analysis.stockSummary) {
                 html += `
                     <div style="margin-bottom: 20px;">
                         <strong style="color: #333; font-size: 1.1em;">주가정보</strong>
-                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${formatAnalysisText(analysis.stockSummary)}</div>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${formatAnalysisText(String(analysis.stockSummary))}</div>
                     </div>
                 `;
             }
             
             // 감성점수 해석
-            if (analysis.sentimentCommentary) {
+            if (analysis.감성분석해석 || analysis.sentimentCommentary) {
+                const commentary = analysis.감성분석해석 || analysis.sentimentCommentary;
                 html += `
                     <div style="margin-bottom: 20px;">
                         <strong style="color: #333; font-size: 1.1em;">감성분석 해석</strong>
-                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${formatAnalysisText(analysis.sentimentCommentary)}</div>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${formatAnalysisText(String(commentary))}</div>
                     </div>
                 `;
             }
@@ -1678,11 +1738,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += formatAnalysisText(analysis.analysis);
             }
             
-            return html || formatAnalysisText(JSON.stringify(analysis));
+            // 나머지 필드들 처리 (뉴스요약, 감성점수 등이 아닌 경우)
+            const processedKeys = ['newsSummary', 'sentimentScore', 'stockSummary', 'sentimentCommentary', 'analysis', '뉴스요약', '감성점수', '감성분석해석'];
+            const remainingKeys = Object.keys(analysis).filter(key => !processedKeys.includes(key) && !key.includes('주가') && !key.includes('stock'));
+            if (remainingKeys.length > 0 && !html) {
+                // 처리된 필드가 없으면 모든 필드를 표시
+                remainingKeys.forEach(key => {
+                    const value = analysis[key];
+                    if (value !== null && value !== undefined) {
+                        html += `
+                            <div style="margin-bottom: 20px;">
+                                <strong style="color: #333; font-size: 1.1em;">${key}</strong>
+                                <div style="margin-top: 5px; color: #666; line-height: 1.6;">${typeof value === 'object' ? formatAnalysisText(JSON.stringify(value, null, 2)) : formatAnalysisText(String(value))}</div>
+                            </div>
+                        `;
+                    }
+                });
+            }
+            
+            return html || formatAnalysisText(JSON.stringify(analysis, null, 2));
         }
         
         // 문자열인 경우 마크다운으로 처리
-        return formatAnalysisText(analysis);
+        return formatAnalysisText(String(analysis));
     }
 
     function formatAnalysisText(text) {
@@ -2046,9 +2124,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 // totalCountAll은 항상 업데이트 (API에서 전달된 값 우선 사용)
                 if (data.totalCountAll !== undefined && data.totalCountAll !== null) {
                     partnerNewsData.totalCountAll = data.totalCountAll;
-                } else if (!partnerNewsData.totalCountAll) {
-                    // totalCountAll이 없으면 totalCount를 사용 (초기값)
-                    partnerNewsData.totalCountAll = data.totalCount;
+                    console.log('[제휴처 뉴스] totalCountAll 업데이트:', data.totalCountAll, 'totalCount:', data.totalCount);
+                } else {
+                    // totalCountAll이 없으면 경고 로그 출력
+                    console.warn('[제휴처 뉴스] totalCountAll이 응답에 없습니다. totalCount 사용:', data.totalCount);
+                    if (!partnerNewsData.totalCountAll) {
+                        // 초기값으로만 사용 (나중에 totalCountAll이 오면 업데이트)
+                        partnerNewsData.totalCountAll = data.totalCount;
+                    }
                 }
                 
                 // offset 업데이트 (새 데이터가 추가된 경우)
@@ -2061,7 +2144,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
                 const currentDataExhausted = data.data.length === 0 || (partnerNewsData.offset >= data.totalCount);
-                const moreDataAvailable = partnerNewsData.items.length < partnerNewsData.totalCountAll;
+                const moreDataAvailable = partnerNewsData.totalCountAll > 0 && partnerNewsData.items.length < partnerNewsData.totalCountAll;
+                
+                console.log('[제휴처 뉴스] 무한 스크롤 체크:', {
+                    currentDataExhausted,
+                    moreDataAvailable,
+                    itemsLength: partnerNewsData.items.length,
+                    totalCountAll: partnerNewsData.totalCountAll,
+                    totalCount: data.totalCount,
+                    days: partnerNewsData.days,
+                    offset: partnerNewsData.offset
+                });
                 
                 if (currentDataExhausted && moreDataAvailable) {
                     // days를 점진적으로 증가: 7 → 14 → 30 → 90 → 9999 (전체)
@@ -2074,6 +2167,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         // days가 증가했으면 offset 초기화하고 다시 로드 (기존 데이터는 유지)
                         if (oldDays !== partnerNewsData.days) {
+                            console.log('[제휴처 뉴스] days 증가:', oldDays, '→', partnerNewsData.days);
                             partnerNewsData.offset = 0; // offset만 초기화, items는 유지
                             partnerNewsData.loading = false; // 로딩 플래그 해제하여 재호출 가능하게
                             loadMorePartnerNews(); // 재귀 호출로 새로운 범위의 데이터 로드
@@ -2367,9 +2461,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 // totalCountAll은 항상 업데이트 (API에서 전달된 값 우선 사용)
                 if (data.totalCountAll !== undefined && data.totalCountAll !== null) {
                     techNewsData.totalCountAll = data.totalCountAll;
-                } else if (!techNewsData.totalCountAll) {
-                    // totalCountAll이 없으면 totalCount를 사용 (초기값)
-                    techNewsData.totalCountAll = data.totalCount;
+                    console.log('[신기술 뉴스] totalCountAll 업데이트:', data.totalCountAll, 'totalCount:', data.totalCount);
+                } else {
+                    // totalCountAll이 없으면 경고 로그 출력
+                    console.warn('[신기술 뉴스] totalCountAll이 응답에 없습니다. totalCount 사용:', data.totalCount);
+                    if (!techNewsData.totalCountAll) {
+                        // 초기값으로만 사용 (나중에 totalCountAll이 오면 업데이트)
+                        techNewsData.totalCountAll = data.totalCount;
+                    }
                 }
                 
                 // offset 업데이트 (새 데이터가 추가된 경우)
@@ -2382,7 +2481,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
                 const currentDataExhausted = data.data.length === 0 || (techNewsData.offset >= data.totalCount);
-                const moreDataAvailable = techNewsData.items.length < techNewsData.totalCountAll;
+                const moreDataAvailable = techNewsData.totalCountAll > 0 && techNewsData.items.length < techNewsData.totalCountAll;
+                
+                console.log('[신기술 뉴스] 무한 스크롤 체크:', {
+                    currentDataExhausted,
+                    moreDataAvailable,
+                    itemsLength: techNewsData.items.length,
+                    totalCountAll: techNewsData.totalCountAll,
+                    totalCount: data.totalCount,
+                    days: techNewsData.days,
+                    offset: techNewsData.offset
+                });
                 
                 if (currentDataExhausted && moreDataAvailable) {
                     // days를 점진적으로 증가: 7 → 14 → 30 → 90 → 9999 (전체)
@@ -2395,6 +2504,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         
                         // days가 증가했으면 offset 초기화하고 다시 로드 (기존 데이터는 유지)
                         if (oldDays !== techNewsData.days) {
+                            console.log('[신기술 뉴스] days 증가:', oldDays, '→', techNewsData.days);
                             techNewsData.offset = 0; // offset만 초기화, items는 유지
                             techNewsData.loading = false; // 로딩 플래그 해제하여 재호출 가능하게
                             loadMoreTechNews(); // 재귀 호출로 새로운 범위의 데이터 로드
