@@ -894,20 +894,66 @@ document.addEventListener('DOMContentLoaded', function() {
     // 공휴일 데이터 가져오기 (연도 전체)
     async function fetchHolidays(year) {
         try {
+            // API 키가 이미 URL 인코딩되어 있으므로 그대로 사용
+            // 만약 인코딩되지 않은 키라면 encodeURIComponent() 사용 필요
             const API_KEY = 'DTrcjG%2BXCsB9m%2F6xPK4LmJ%2FG61dwF%2B3h%2FM7Rzv4IbI9ilfsqDRFErvOryzE45LblhwWpU4GSwuoA9W8CxVav5A%3D%3D';
-            const response = await fetch(`https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${API_KEY}&solYear=${year}&_type=json&numOfRows=100`);
+            const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${API_KEY}&solYear=${year}&_type=json&numOfRows=100`;
+            
+            console.log('[공휴일 API] 요청 URL:', url.replace(API_KEY, 'API_KEY_HIDDEN'));
+            
+            const response = await fetch(url);
+            
+            // 응답 상태 코드 확인
+            if (!response.ok) {
+                // 응답 본문을 텍스트로 먼저 읽어서 에러 메시지 확인
+                const errorText = await response.text();
+                console.error(`[공휴일 API] 호출 실패: ${response.status} ${response.statusText}`);
+                console.error(`[공휴일 API] 응답 본문:`, errorText);
+                
+                // 403 에러의 경우 일반적으로 API 키 문제이거나 CORS 문제
+                if (response.status === 403) {
+                    console.error('[공휴일 API] 403 Forbidden - 가능한 원인:');
+                    console.error('  1. API 키가 만료되었거나 유효하지 않음');
+                    console.error('  2. CORS 정책으로 인한 브라우저 차단 (서버를 통한 프록시 필요)');
+                    console.error('  3. API 사용량 초과');
+                    console.error('  4. IP 차단 또는 지역 제한');
+                }
+                
+                return [];
+            }
+            
             const data = await response.json();
+            
+            // API 응답 에러 체크 (data.go.kr API는 성공해도 에러 코드를 반환할 수 있음)
+            if (data.response && data.response.header) {
+                const resultCode = data.response.header.resultCode;
+                const resultMsg = data.response.header.resultMsg;
+                
+                if (resultCode !== '00') {
+                    console.error(`[공휴일 API] API 에러: ${resultCode} - ${resultMsg}`);
+                    return [];
+                }
+            }
+            
             if (data.response && data.response.body && data.response.body.items) {
                 let items = data.response.body.items.item;
                 if (!Array.isArray(items)) items = [items];
-                return items.map(holiday => ({
+                const holidays = items.map(holiday => ({
                     date: `${holiday.locdate}`.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
                     title: holiday.dateName
                 }));
+                console.log(`[공휴일 API] ${year}년 공휴일 ${holidays.length}개 로드 완료`);
+                return holidays;
             }
             return [];
         } catch (error) {
-            console.error('공휴일 데이터를 가져오는데 실패했습니다:', error);
+            // 네트워크 에러나 JSON 파싱 에러
+            if (error instanceof SyntaxError) {
+                console.error('[공휴일 API] JSON 파싱 실패:', error.message);
+                console.error('[공휴일 API] 응답이 JSON 형식이 아닙니다. API 키 문제일 수 있습니다.');
+            } else {
+                console.error('[공휴일 API] 데이터 가져오기 실패:', error.message);
+            }
             return [];
         }
     }
@@ -1391,6 +1437,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function renderRiskNewsContent() {
+        console.log('[리스크 분석] renderRiskNewsContent 함수 호출됨');
         const newsFeed = document.getElementById('newsFeed');
         const today = await getKoreaToday();
         
@@ -1399,6 +1446,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // === 분석 보고서 표출 ===
         const analysisReport = riskNewsData.analysisReport;
+        console.log('[리스크 분석] riskNewsData.analysisReport:', analysisReport);
         const reportDiv = document.createElement('div');
         reportDiv.className = 'card mb-4';
         reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #6c757d;';
@@ -2047,6 +2095,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function renderPartnerNewsContent() {
+        console.log('[제휴처 분석] renderPartnerNewsContent 함수 호출됨');
         const resultsDiv = document.getElementById('partnerResults');
         const today = await getKoreaToday();
         
@@ -2055,6 +2104,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // === AI 분석 보고서 표출 ===
         const analysisReport = partnerNewsData.analysisReport;
+        console.log('[제휴처 분석] partnerNewsData.analysisReport:', analysisReport);
         const reportDiv = document.createElement('div');
         reportDiv.className = 'card mb-4';
         reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #1565c0;';
@@ -2359,6 +2409,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function renderTechNewsContent() {
+        console.log('[신기술 분석] renderTechNewsContent 함수 호출됨');
         const resultsDiv = document.getElementById('techTrendResults');
         const today = await getKoreaToday();
         
@@ -2367,6 +2418,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // === AI 분석 보고서 표출 ===
         const analysisReport = techNewsData.analysisReport;
+        console.log('[신기술 분석] techNewsData.analysisReport:', analysisReport);
         const reportDiv = document.createElement('div');
         reportDiv.className = 'card mb-4';
         reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #512da8;';
