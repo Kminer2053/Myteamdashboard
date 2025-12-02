@@ -893,6 +893,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 공휴일 데이터 가져오기 (연도 전체)
     async function fetchHolidays(year) {
+        // 버전 확인 로그
+        console.log('[공휴일 API] 함수 버전: 2025-12-02-v2 (최신)');
+        
         try {
             // API 키가 이미 URL 인코딩되어 있으므로 그대로 사용
             // 만약 인코딩되지 않은 키라면 encodeURIComponent() 사용 필요
