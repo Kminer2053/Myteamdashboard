@@ -1331,10 +1331,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     return true;
                 });
                 riskNewsData.totalCount = data.totalCount;
-                riskNewsData.totalCountAll = data.totalCountAll || data.totalCount; // 전체 누적 건수 사용
+                // totalCountAll은 항상 업데이트 (첫 로드이거나 더 큰 값일 때)
+                if (!riskNewsData.totalCountAll || (data.totalCountAll && data.totalCountAll > riskNewsData.totalCountAll)) {
+                    riskNewsData.totalCountAll = data.totalCountAll || data.totalCount;
+                }
+                
+                // offset 업데이트 (새 데이터가 추가된 경우)
+                if (newData.length > 0) {
+                    riskNewsData.offset += newData.length;
+                }
                 
                 // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
-                if (data.data.length === 0 || (riskNewsData.offset + data.data.length >= data.totalCount && riskNewsData.items.length < riskNewsData.totalCountAll)) {
+                const currentDataExhausted = data.data.length === 0 || (riskNewsData.offset >= data.totalCount);
+                const moreDataAvailable = riskNewsData.items.length < riskNewsData.totalCountAll;
+                
+                if (currentDataExhausted && moreDataAvailable) {
                     // days를 점진적으로 증가: 7 → 14 → 30 → 90 → 9999 (전체)
                     if (riskNewsData.days < 9999) {
                         const oldDays = riskNewsData.days;
@@ -1343,10 +1354,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         else if (riskNewsData.days < 90) riskNewsData.days = 90;
                         else riskNewsData.days = 9999; // 전체 데이터
                         
-                        // days가 증가했으면 offset 초기화하고 다시 로드
+                        // days가 증가했으면 offset 초기화하고 다시 로드 (기존 데이터는 유지)
                         if (oldDays !== riskNewsData.days) {
-                            riskNewsData.offset = 0;
-                            // 기존 데이터는 유지하고, 새로운 범위의 데이터를 추가로 로드
+                            riskNewsData.offset = 0; // offset만 초기화, items는 유지
                             riskNewsData.loading = false; // 로딩 플래그 해제하여 재호출 가능하게
                             loadMoreRiskNews(); // 재귀 호출로 새로운 범위의 데이터 로드
                             return;
@@ -1356,7 +1366,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // 전체 데이터를 다 로드했는지 확인
                 riskNewsData.hasMore = riskNewsData.items.length < riskNewsData.totalCountAll;
-                riskNewsData.offset += data.data.length;
                 
                 // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
                 if (riskNewsData.offset === data.data.length || !riskNewsData.analysisReport) {
@@ -1577,38 +1586,89 @@ document.addEventListener('DOMContentLoaded', function() {
     function formatAnalysisText(text) {
         if (!text) return '분석 내용이 없습니다.';
         
-        // 구조화된 섹션들 (콜론으로 구분)
-        const sections = text.split(/(?=^[가-힣]+:)/m);
+        // 마크다운을 HTML로 변환
+        let html = text;
         
-        if (sections.length > 1) {
-            // 구조화된 텍스트인 경우
-            return sections.map(section => {
-                const trimmed = section.trim();
-                if (!trimmed) return '';
-                
-                if (trimmed.includes(':')) {
-                    const [title, ...content] = trimmed.split(':');
-                    const contentText = content.join(':').trim();
-                    
-                    if (title && contentText) {
-                        return `
-                            <div style="margin-bottom: 15px;">
-                                <strong style="color: #333; font-size: 1.1em;">${title.trim()}</strong>
-                                <div style="margin-top: 5px; color: #666; line-height: 1.6;">${contentText}</div>
-                            </div>
-                        `;
-                    }
+        // 코드 블록 제거 (이미 서버에서 처리했지만 혹시 모를 경우 대비)
+        html = html.replace(/```[\s\S]*?```/g, '');
+        
+        // 헤더 변환 (##, ###)
+        html = html.replace(/^### (.*$)/gim, '<h3 style="color: #333; font-size: 1.2em; margin-top: 20px; margin-bottom: 10px; font-weight: bold;">$1</h3>');
+        html = html.replace(/^## (.*$)/gim, '<h2 style="color: #333; font-size: 1.4em; margin-top: 25px; margin-bottom: 15px; font-weight: bold; border-bottom: 2px solid #e0e0e0; padding-bottom: 5px;">$1</h2>');
+        html = html.replace(/^# (.*$)/gim, '<h1 style="color: #333; font-size: 1.6em; margin-top: 30px; margin-bottom: 20px; font-weight: bold;">$1</h1>');
+        
+        // 볼드 (**text**)
+        html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
+        
+        // 이탤릭 (*text*)
+        html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        
+        // 링크 ([text](url))
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #007bff; text-decoration: none;">$1</a>');
+        
+        // 인라인 코드 (`code`)
+        html = html.replace(/`([^`]+)`/g, '<code style="background-color: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;">$1</code>');
+        
+        // 리스트 변환 (- 또는 *)
+        const lines = html.split('\n');
+        let inList = false;
+        let listItems = [];
+        let processedLines = [];
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const listMatch = line.match(/^[\s]*[-*]\s+(.+)$/);
+            
+            if (listMatch) {
+                if (!inList) {
+                    inList = true;
+                    listItems = [];
                 }
-                
-                return `<div style="color: #666; line-height: 1.6; margin-bottom: 10px;">${trimmed}</div>`;
-            }).join('');
-        } else {
-            // 일반 텍스트인 경우 단락으로 분리
-            const paragraphs = text.split(/\n+/).filter(p => p.trim());
-            return paragraphs.map(paragraph => 
-                `<div style="color: #666; line-height: 1.6; margin-bottom: 10px;">${paragraph.trim()}</div>`
-            ).join('');
+                listItems.push(listMatch[1]);
+            } else {
+                if (inList && listItems.length > 0) {
+                    processedLines.push('<ul style="margin: 10px 0; padding-left: 25px; line-height: 1.8;">');
+                    listItems.forEach(item => {
+                        processedLines.push(`<li style="margin-bottom: 5px; color: #666;">${item}</li>`);
+                    });
+                    processedLines.push('</ul>');
+                    listItems = [];
+                    inList = false;
+                }
+                if (line.trim()) {
+                    processedLines.push(line);
+                }
+            }
         }
+        
+        // 마지막 리스트 처리
+        if (inList && listItems.length > 0) {
+            processedLines.push('<ul style="margin: 10px 0; padding-left: 25px; line-height: 1.8;">');
+            listItems.forEach(item => {
+                processedLines.push(`<li style="margin-bottom: 5px; color: #666;">${item}</li>`);
+            });
+            processedLines.push('</ul>');
+        }
+        
+        html = processedLines.length > 0 ? processedLines.join('\n') : html;
+        
+        // 줄바꿈 처리 (빈 줄은 단락 구분, 일반 줄바꿈은 <br>)
+        const paragraphs = html.split(/\n\s*\n/).filter(p => p.trim());
+        html = paragraphs.map(paragraph => {
+            const trimmed = paragraph.trim();
+            if (!trimmed) return '';
+            
+            // 헤더나 리스트는 그대로 유지
+            if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') || trimmed.startsWith('<li')) {
+                return trimmed;
+            }
+            
+            // 일반 텍스트는 <p> 태그로 감싸기
+            const withBreaks = trimmed.replace(/\n/g, '<br>');
+            return `<p style="color: #666; line-height: 1.8; margin-bottom: 12px;">${withBreaks}</p>`;
+        }).join('');
+        
+        return html || '분석 내용이 없습니다.';
     }
 
     // 뉴스 카드 생성 함수
@@ -1819,10 +1879,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     return true;
                 });
                 partnerNewsData.totalCount = data.totalCount;
-                partnerNewsData.totalCountAll = data.totalCountAll || data.totalCount; // 전체 누적 건수 사용
+                // totalCountAll은 항상 업데이트 (첫 로드이거나 더 큰 값일 때)
+                if (!partnerNewsData.totalCountAll || (data.totalCountAll && data.totalCountAll > partnerNewsData.totalCountAll)) {
+                    partnerNewsData.totalCountAll = data.totalCountAll || data.totalCount;
+                }
+                
+                // offset 업데이트 (새 데이터가 추가된 경우)
+                if (newData.length > 0) {
+                    partnerNewsData.offset += newData.length;
+                }
                 
                 // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
-                if (data.data.length === 0 || (partnerNewsData.offset + data.data.length >= data.totalCount && partnerNewsData.items.length < partnerNewsData.totalCountAll)) {
+                const currentDataExhausted = data.data.length === 0 || (partnerNewsData.offset >= data.totalCount);
+                const moreDataAvailable = partnerNewsData.items.length < partnerNewsData.totalCountAll;
+                
+                if (currentDataExhausted && moreDataAvailable) {
                     // days를 점진적으로 증가: 7 → 14 → 30 → 90 → 9999 (전체)
                     if (partnerNewsData.days < 9999) {
                         const oldDays = partnerNewsData.days;
@@ -1831,10 +1902,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         else if (partnerNewsData.days < 90) partnerNewsData.days = 90;
                         else partnerNewsData.days = 9999; // 전체 데이터
                         
-                        // days가 증가했으면 offset 초기화하고 다시 로드
+                        // days가 증가했으면 offset 초기화하고 다시 로드 (기존 데이터는 유지)
                         if (oldDays !== partnerNewsData.days) {
-                            partnerNewsData.offset = 0;
-                            // 기존 데이터는 유지하고, 새로운 범위의 데이터를 추가로 로드
+                            partnerNewsData.offset = 0; // offset만 초기화, items는 유지
                             partnerNewsData.loading = false; // 로딩 플래그 해제하여 재호출 가능하게
                             loadMorePartnerNews(); // 재귀 호출로 새로운 범위의 데이터 로드
                             return;
@@ -1844,7 +1914,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // 전체 데이터를 다 로드했는지 확인
                 partnerNewsData.hasMore = partnerNewsData.items.length < partnerNewsData.totalCountAll;
-                partnerNewsData.offset += data.data.length;
                 
                 // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
                 if (partnerNewsData.offset === data.data.length || !partnerNewsData.analysisReport) {
@@ -2107,10 +2176,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     return true;
                 });
                 techNewsData.totalCount = data.totalCount;
-                techNewsData.totalCountAll = data.totalCountAll || data.totalCount; // 전체 누적 건수 사용
+                // totalCountAll은 항상 업데이트 (첫 로드이거나 더 큰 값일 때)
+                if (!techNewsData.totalCountAll || (data.totalCountAll && data.totalCountAll > techNewsData.totalCountAll)) {
+                    techNewsData.totalCountAll = data.totalCountAll || data.totalCount;
+                }
+                
+                // offset 업데이트 (새 데이터가 추가된 경우)
+                if (newData.length > 0) {
+                    techNewsData.offset += newData.length;
+                }
                 
                 // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
-                if (data.data.length === 0 || (techNewsData.offset + data.data.length >= data.totalCount && techNewsData.items.length < techNewsData.totalCountAll)) {
+                const currentDataExhausted = data.data.length === 0 || (techNewsData.offset >= data.totalCount);
+                const moreDataAvailable = techNewsData.items.length < techNewsData.totalCountAll;
+                
+                if (currentDataExhausted && moreDataAvailable) {
                     // days를 점진적으로 증가: 7 → 14 → 30 → 90 → 9999 (전체)
                     if (techNewsData.days < 9999) {
                         const oldDays = techNewsData.days;
@@ -2119,10 +2199,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         else if (techNewsData.days < 90) techNewsData.days = 90;
                         else techNewsData.days = 9999; // 전체 데이터
                         
-                        // days가 증가했으면 offset 초기화하고 다시 로드
+                        // days가 증가했으면 offset 초기화하고 다시 로드 (기존 데이터는 유지)
                         if (oldDays !== techNewsData.days) {
-                            techNewsData.offset = 0;
-                            // 기존 데이터는 유지하고, 새로운 범위의 데이터를 추가로 로드
+                            techNewsData.offset = 0; // offset만 초기화, items는 유지
                             techNewsData.loading = false; // 로딩 플래그 해제하여 재호출 가능하게
                             loadMoreTechNews(); // 재귀 호출로 새로운 범위의 데이터 로드
                             return;
@@ -2132,7 +2211,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // 전체 데이터를 다 로드했는지 확인
                 techNewsData.hasMore = techNewsData.items.length < techNewsData.totalCountAll;
-                techNewsData.offset += data.data.length;
                 
                 // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
                 if (techNewsData.offset === data.data.length || !techNewsData.analysisReport) {
