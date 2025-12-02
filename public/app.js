@@ -1334,10 +1334,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function loadMoreRiskNews() {
-        if (riskNewsData.loading || !riskNewsData.hasMore) return;
+        console.log('[리스크 뉴스] loadMoreRiskNews 호출됨', {
+            loading: riskNewsData.loading,
+            hasMore: riskNewsData.hasMore,
+            offset: riskNewsData.offset
+        });
+        
+        if (riskNewsData.loading || !riskNewsData.hasMore) {
+            console.log('[리스크 뉴스] loadMoreRiskNews 건너뜀 (loading:', riskNewsData.loading, 'hasMore:', riskNewsData.hasMore, ')');
+            return;
+        }
         
         riskNewsData.loading = true;
         const newsFeed = document.getElementById('newsFeed');
+        console.log('[리스크 뉴스] newsFeed 요소:', !!newsFeed);
         
         try {
             // days 파라미터 동적 증가: 7일 → 14일 → 30일 → 90일 → 전체(9999일)
@@ -1422,9 +1432,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
                 if (riskNewsData.offset === data.data.length || !riskNewsData.analysisReport) {
                     riskNewsData.analysisReport = data.analysisReport;
+                    console.log('[리스크 뉴스] analysisReport 저장됨:', !!data.analysisReport);
                 }
                 
+                console.log('[리스크 뉴스] renderRiskNewsContent 호출 전');
                 await renderRiskNewsContent();
+                console.log('[리스크 뉴스] renderRiskNewsContent 호출 후');
             }
         } catch (error) {
             console.error('리스크 뉴스 로드 실패:', error);
