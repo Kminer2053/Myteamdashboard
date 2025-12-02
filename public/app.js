@@ -971,11 +971,13 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             // 네트워크 에러나 JSON 파싱 에러
             if (error instanceof SyntaxError) {
-                console.error('[공휴일 API] JSON 파싱 실패:', error.message);
-                console.error('[공휴일 API] 응답이 JSON 형식이 아닙니다. API 키 문제일 수 있습니다.');
+                // 이미 response.text()로 읽었는데 JSON 파싱을 시도한 경우는 여기서 처리하지 않음
+                // (위에서 이미 처리됨)
+                console.warn('[공휴일 API] JSON 파싱 실패 (이미 처리됨):', error.message);
             } else {
-                console.error('[공휴일 API] 데이터 가져오기 실패:', error.message);
+                console.warn('[공휴일 API] 네트워크 에러:', error.message);
             }
+            // 에러 발생 시 빈 배열 반환 (캘린더는 공휴일 없이도 작동)
             return [];
         }
     }
@@ -1376,6 +1378,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const daysParam = riskNewsData.days;
             const response = await fetch(`${API_BASE_URL}/api/risk-news?limit=${riskNewsData.limit}&offset=${riskNewsData.offset}&days=${daysParam}`);
             const data = await response.json();
+            
+            console.log('📥 리스크 뉴스 응답:', data);
+            console.log('📊 리스크 뉴스 응답 상세:', {
+                success: data.success,
+                totalCount: data.totalCount,
+                totalCountAll: data.totalCountAll,
+                hasMore: data.hasMore,
+                count: data.count,
+                dataLength: data.data?.length
+            });
             
             if (data.success) {
                 // 첫 번째 로드인 경우 기존 데이터 초기화
@@ -2087,6 +2099,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             console.log('📥 제휴처 뉴스 응답:', data);
+            console.log('📊 제휴처 뉴스 응답 상세:', {
+                success: data.success,
+                totalCount: data.totalCount,
+                totalCountAll: data.totalCountAll,
+                hasMore: data.hasMore,
+                count: data.count,
+                dataLength: data.data?.length
+            });
             
             if (data.success) {
                 // 첫 번째 로드인 경우 기존 데이터 초기화
@@ -2425,6 +2445,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const daysParam = techNewsData.days;
             const response = await fetch(`${API_BASE_URL}/api/tech-news?limit=${techNewsData.limit}&offset=${techNewsData.offset}&days=${daysParam}`);
             const data = await response.json();
+            
+            console.log('📥 신기술 뉴스 응답:', data);
+            console.log('📊 신기술 뉴스 응답 상세:', {
+                success: data.success,
+                totalCount: data.totalCount,
+                totalCountAll: data.totalCountAll,
+                hasMore: data.hasMore,
+                count: data.count,
+                dataLength: data.data?.length
+            });
             
             if (data.success) {
                 // 첫 번째 로드인 경우 기존 데이터 초기화
