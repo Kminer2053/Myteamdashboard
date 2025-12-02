@@ -1413,11 +1413,21 @@ document.addEventListener('DOMContentLoaded', function() {
         newsFeed.appendChild(reportDiv);
         
         // 마크다운 변환 후 DOM에 삽입
+        console.log('[리스크 분석] 분석보고서 존재 여부:', !!analysisReport);
+        console.log('[리스크 분석] 분석 내용 존재 여부:', !!analysisReport?.analysis);
         const contentDiv = reportDiv.querySelector('#riskAnalysisContent');
+        console.log('[리스크 분석] contentDiv 찾기:', !!contentDiv);
         if (contentDiv) {
-            const formattedContent = formatStructuredAnalysis(analysisReport?.analysis || '분석 내용이 없습니다.');
+            const analysisText = analysisReport?.analysis || '분석 내용이 없습니다.';
+            console.log('[리스크 분석] 분석 텍스트 길이:', analysisText.length);
+            console.log('[리스크 분석] 분석 텍스트 시작:', analysisText.substring(0, 100));
+            const formattedContent = formatStructuredAnalysis(analysisText);
+            console.log('[리스크 분석] 변환된 HTML 길이:', formattedContent.length);
+            console.log('[리스크 분석] 변환된 HTML 시작:', formattedContent.substring(0, 200));
             contentDiv.innerHTML = formattedContent;
             console.log('[리스크 분석] 마크다운 변환 완료');
+        } else {
+            console.error('[리스크 분석] contentDiv를 찾을 수 없습니다!');
         }
         
         // === 뉴스 현황 표시 ===
@@ -2059,11 +2069,19 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.appendChild(reportDiv);
         
         // 마크다운 변환 후 DOM에 삽입
+        console.log('[제휴처 분석] 분석보고서 존재 여부:', !!analysisReport);
+        console.log('[제휴처 분석] 분석 내용 존재 여부:', !!analysisReport?.analysis);
         const contentDiv = reportDiv.querySelector('#partnerAnalysisContent');
+        console.log('[제휴처 분석] contentDiv 찾기:', !!contentDiv);
         if (contentDiv) {
-            const formattedContent = formatStructuredAnalysis(analysisReport?.analysis || '분석 내용이 없습니다.');
+            const analysisText = analysisReport?.analysis || '분석 내용이 없습니다.';
+            console.log('[제휴처 분석] 분석 텍스트 길이:', analysisText.length);
+            const formattedContent = formatStructuredAnalysis(analysisText);
+            console.log('[제휴처 분석] 변환된 HTML 길이:', formattedContent.length);
             contentDiv.innerHTML = formattedContent;
             console.log('[제휴처 분석] 마크다운 변환 완료');
+        } else {
+            console.error('[제휴처 분석] contentDiv를 찾을 수 없습니다!');
         }
         
         // === 상단 건수/정보갱신 버튼 ===
@@ -2363,11 +2381,19 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsDiv.appendChild(reportDiv);
         
         // 마크다운 변환 후 DOM에 삽입
+        console.log('[신기술 분석] 분석보고서 존재 여부:', !!analysisReport);
+        console.log('[신기술 분석] 분석 내용 존재 여부:', !!analysisReport?.analysis);
         const contentDiv = reportDiv.querySelector('#techAnalysisContent');
+        console.log('[신기술 분석] contentDiv 찾기:', !!contentDiv);
         if (contentDiv) {
-            const formattedContent = formatStructuredAnalysis(analysisReport?.analysis || '분석 내용이 없습니다.');
+            const analysisText = analysisReport?.analysis || '분석 내용이 없습니다.';
+            console.log('[신기술 분석] 분석 텍스트 길이:', analysisText.length);
+            const formattedContent = formatStructuredAnalysis(analysisText);
+            console.log('[신기술 분석] 변환된 HTML 길이:', formattedContent.length);
             contentDiv.innerHTML = formattedContent;
             console.log('[신기술 분석] 마크다운 변환 완료');
+        } else {
+            console.error('[신기술 분석] contentDiv를 찾을 수 없습니다!');
         }
         
         // === 상단 건수/정보갱신 버튼 ===
