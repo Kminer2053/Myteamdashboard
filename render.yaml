@@ -2,7 +2,7 @@ services:
   - type: web
     name: news-monitoring-system
     env: node
-    buildCommand: rm -rf node_modules && npm install --production=false && npm run build
+    buildCommand: rm -rf node_modules package-lock.json && npm install --production=false && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
