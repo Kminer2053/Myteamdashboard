@@ -2517,6 +2517,34 @@ app.get('/', (req, res) => {
 // calendar_images 폴더 static 서빙
 app.use('/calendar_images', express.static(path.join(__dirname, 'calendar_images')));
 
+// 디버그: 빌드된 파일 버전 확인
+app.get('/debug/version', (req, res) => {
+    const fs = require('fs');
+    const path = require('path');
+    const appJsPath = path.join(__dirname, 'dist', 'app.js');
+    try {
+        const content = fs.readFileSync(appJsPath, 'utf8');
+        const hasVersion = content.includes('함수 버전: 2025-12-02-v2');
+        const hasOldError = content.includes('공휴일 데이터를 가져오는데 실패했습니다');
+        const fileSize = fs.statSync(appJsPath).size;
+        const fileDate = fs.statSync(appJsPath).mtime;
+        res.json({
+            success: true,
+            hasVersion: hasVersion,
+            hasOldError: hasOldError,
+            fileSize: fileSize,
+            fileDate: fileDate,
+            filePath: appJsPath
+        });
+    } catch (error) {
+        res.json({
+            success: false,
+            error: error.message,
+            filePath: appJsPath
+        });
+    }
+});
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, async () => {
   console.log(`[서버] http://localhost:${PORT} 에서 실행 중`);
