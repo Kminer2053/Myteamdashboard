@@ -34,6 +34,12 @@ const HotTopicAnalysisSchema = new mongoose.Schema({
       shoppingInsight: { type: Number, default: 0 }
     },
     
+    shopping: {
+      searchVolume: { type: Number, default: 0 },
+      trendScore: { type: Number, default: 0 },
+      shoppingInsight: { type: Number, default: 0 }
+    },
+    
     youtube: {
       videoCount: { type: Number, default: 0 },
       totalViews: { type: Number, default: 0 },

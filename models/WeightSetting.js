@@ -119,3 +119,5 @@ WeightSettingSchema.methods.normalizeWeights = function() {
 };
 
 module.exports = mongoose.model('WeightSetting', WeightSettingSchema);
+
+

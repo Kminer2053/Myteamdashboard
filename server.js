@@ -718,13 +718,23 @@ ${categoryContext}
 async function processAiResponse(aiResponse, keywords, category, maxTokens) {
   console.log(`[AI 수집][${category}] 응답 형식 감지 중...`);
   
+  // 마크다운 코드 블록 제거 (```json ... ``` 형식)
+  let cleanedResponse = aiResponse.trim();
+  if (cleanedResponse.startsWith('```json')) {
+    console.log(`[AI 수집][${category}] 마크다운 코드 블록 감지, 제거 중...`);
+    cleanedResponse = cleanedResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+  } else if (cleanedResponse.startsWith('```')) {
+    console.log(`[AI 수집][${category}] 마크다운 코드 블록 감지, 제거 중...`);
+    cleanedResponse = cleanedResponse.replace(/^```[a-z]*\s*/, '').replace(/\s*```$/, '');
+  }
+  
   // JSON 형식인지 확인
-  const isJsonResponse = aiResponse.trim().startsWith('{') || aiResponse.trim().startsWith('[');
+  const isJsonResponse = cleanedResponse.trim().startsWith('{') || cleanedResponse.trim().startsWith('[');
   
   if (isJsonResponse) {
     console.log(`[AI 수집][${category}] JSON 형식 감지됨, JSON 파싱 시도`);
     try {
-      const result = JSON.parse(aiResponse);
+      const result = JSON.parse(cleanedResponse);
       
       // 뉴스 데이터 정규화 및 검증
       let newsData = [];
@@ -755,7 +765,7 @@ async function processAiResponse(aiResponse, keywords, category, maxTokens) {
       }
     } catch (parseError) {
       console.error(`[AI 수집][${category}] JSON 파싱 실패:`, parseError);
-      console.log(`[AI 수집][${category}] JSON 응답 일부:`, aiResponse.substring(0, 200) + '...');
+      console.log(`[AI 수집][${category}] JSON 응답 일부:`, cleanedResponse.substring(0, 200) + '...');
       console.log(`[AI 수집][${category}] 텍스트 파싱으로 전환`);
       return parseTextResponse(aiResponse, keywords, category);
     }
@@ -1603,10 +1613,13 @@ app.get('/api/risk-news', async (req, res) => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
     
-    // 전체 건수 조회
+    // 전체 건수 조회 (최근 N일)
     const totalCount = await RiskNews.countDocuments({
       createdAt: { $gte: cutoffDate }
     });
+    
+    // 전체 누적 건수 조회 (날짜 제한 없음)
+    const totalCountAll = await RiskNews.countDocuments({});
     
     const news = await RiskNews.find({
       createdAt: { $gte: cutoffDate }
@@ -1640,6 +1653,7 @@ app.get('/api/risk-news', async (req, res) => {
       otherNews: otherNews,
       count: news.length,
       totalCount: totalCount,
+      totalCountAll: totalCountAll, // 전체 누적 건수 추가
       hasMore: parseInt(offset) + parseInt(limit) < totalCount,
       offset: parseInt(offset),
       limit: parseInt(limit),
@@ -1677,10 +1691,13 @@ app.get('/api/partner-news', async (req, res) => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
     
-    // 전체 건수 조회
+    // 전체 건수 조회 (최근 N일)
     const totalCount = await PartnerNews.countDocuments({
       createdAt: { $gte: cutoffDate }
     });
+    
+    // 전체 누적 건수 조회 (날짜 제한 없음)
+    const totalCountAll = await PartnerNews.countDocuments({});
     
     const news = await PartnerNews.find({
       createdAt: { $gte: cutoffDate }
@@ -1714,6 +1731,7 @@ app.get('/api/partner-news', async (req, res) => {
       otherNews: otherNews,
       count: news.length,
       totalCount: totalCount,
+      totalCountAll: totalCountAll, // 전체 누적 건수 추가
       hasMore: parseInt(offset) + parseInt(limit) < totalCount,
       offset: parseInt(offset),
       limit: parseInt(limit),
@@ -1751,10 +1769,13 @@ app.get('/api/tech-news', async (req, res) => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
     
-    // 전체 건수 조회
+    // 전체 건수 조회 (최근 N일)
     const totalCount = await TechNews.countDocuments({
       createdAt: { $gte: cutoffDate }
     });
+    
+    // 전체 누적 건수 조회 (날짜 제한 없음)
+    const totalCountAll = await TechNews.countDocuments({});
     
     const news = await TechNews.find({
       createdAt: { $gte: cutoffDate }
@@ -1788,6 +1809,7 @@ app.get('/api/tech-news', async (req, res) => {
       otherNews: otherNews,
       count: news.length,
       totalCount: totalCount,
+      totalCountAll: totalCountAll, // 전체 누적 건수 추가
       hasMore: parseInt(offset) + parseInt(limit) < totalCount,
       offset: parseInt(offset),
       limit: parseInt(limit),

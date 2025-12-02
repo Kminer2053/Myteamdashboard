@@ -314,6 +314,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (result.success) {
                     updateProgress('분석 완료!', 100);
+                    console.log('분석 결과:', result.data);
+                    console.log('결과 배열 길이:', result.data ? result.data.length : 'undefined');
                     displayResults(result.data);
                 } else {
                     throw new Error(result.message || '분석 중 오류가 발생했습니다.');
@@ -361,6 +363,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const result = results[0];
         if (!result) {
             showToast('분석 결과를 찾을 수 없습니다.');
+            // 진행상황 카드 다시 표시
+            document.getElementById('progressCard').style.display = 'block';
+            document.getElementById('resultsCard').style.display = 'none';
             return;
         }
         
@@ -1252,8 +1257,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let riskNewsData = {
         items: [],
         totalCount: 0,
+        totalCountAll: 0, // 전체 누적 건수
         offset: 0,
         limit: 50,
+        days: 7, // 초기값: 최근 7일
         loading: false,
         hasMore: true
     };
@@ -1269,8 +1276,10 @@ document.addEventListener('DOMContentLoaded', function() {
         riskNewsData = {
             items: [],
             totalCount: 0,
+            totalCountAll: 0, // 전체 누적 건수
             offset: 0,
             limit: 50,
+            days: 7, // 초기값: 최근 7일
             loading: false,
             hasMore: true
         };
@@ -1285,7 +1294,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const newsFeed = document.getElementById('newsFeed');
         
         try {
-            const response = await fetch(`${API_BASE_URL}/api/risk-news?limit=${riskNewsData.limit}&offset=${riskNewsData.offset}`);
+            // days 파라미터 동적 증가: 7일 → 14일 → 30일 → 90일 → 전체(9999일)
+            const daysParam = riskNewsData.days;
+            const response = await fetch(`${API_BASE_URL}/api/risk-news?limit=${riskNewsData.limit}&offset=${riskNewsData.offset}&days=${daysParam}`);
             const data = await response.json();
             
             if (data.success) {
@@ -1297,12 +1308,54 @@ document.addEventListener('DOMContentLoaded', function() {
                     newsFeed.innerHTML = '';
                 }
                 
-                // 새 데이터 추가
-                riskNewsData.items = [...riskNewsData.items, ...data.data];
-                riskNewsData.todayNews = data.todayNews || [];
-                riskNewsData.otherNews = data.otherNews || [];
+                // 새 데이터 추가 (중복 제거)
+                const existingIds = new Set(riskNewsData.items.map(item => item._id || item.link));
+                const newData = data.data.filter(item => !existingIds.has(item._id || item.link));
+                riskNewsData.items = [...riskNewsData.items, ...newData];
+                
+                // todayNews와 otherNews도 중복 제거하여 업데이트
+                const allTodayNews = [...(riskNewsData.todayNews || []), ...(data.todayNews || [])];
+                const allOtherNews = [...(riskNewsData.otherNews || []), ...(data.otherNews || [])];
+                const todayNewsIds = new Set();
+                const otherNewsIds = new Set();
+                riskNewsData.todayNews = allTodayNews.filter(item => {
+                    const id = item._id || item.link;
+                    if (todayNewsIds.has(id)) return false;
+                    todayNewsIds.add(id);
+                    return true;
+                });
+                riskNewsData.otherNews = allOtherNews.filter(item => {
+                    const id = item._id || item.link;
+                    if (otherNewsIds.has(id)) return false;
+                    otherNewsIds.add(id);
+                    return true;
+                });
                 riskNewsData.totalCount = data.totalCount;
-                riskNewsData.hasMore = data.hasMore;
+                riskNewsData.totalCountAll = data.totalCountAll || data.totalCount; // 전체 누적 건수 사용
+                
+                // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
+                if (data.data.length === 0 || (riskNewsData.offset + data.data.length >= data.totalCount && riskNewsData.items.length < riskNewsData.totalCountAll)) {
+                    // days를 점진적으로 증가: 7 → 14 → 30 → 90 → 9999 (전체)
+                    if (riskNewsData.days < 9999) {
+                        const oldDays = riskNewsData.days;
+                        if (riskNewsData.days < 14) riskNewsData.days = 14;
+                        else if (riskNewsData.days < 30) riskNewsData.days = 30;
+                        else if (riskNewsData.days < 90) riskNewsData.days = 90;
+                        else riskNewsData.days = 9999; // 전체 데이터
+                        
+                        // days가 증가했으면 offset 초기화하고 다시 로드
+                        if (oldDays !== riskNewsData.days) {
+                            riskNewsData.offset = 0;
+                            // 기존 데이터는 유지하고, 새로운 범위의 데이터를 추가로 로드
+                            riskNewsData.loading = false; // 로딩 플래그 해제하여 재호출 가능하게
+                            loadMoreRiskNews(); // 재귀 호출로 새로운 범위의 데이터 로드
+                            return;
+                        }
+                    }
+                }
+                
+                // 전체 데이터를 다 로드했는지 확인
+                riskNewsData.hasMore = riskNewsData.items.length < riskNewsData.totalCountAll;
                 riskNewsData.offset += data.data.length;
                 
                 // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
@@ -1350,7 +1403,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const statusDiv = document.createElement('div');
         statusDiv.className = 'd-flex justify-content-end align-items-center mb-3';
         statusDiv.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${riskNewsData.totalCount}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${riskNewsData.totalCountAll || riskNewsData.totalCount}</b>건</span>
             <button class="btn btn-sm btn-outline-section-risk" id="refreshRiskBtn">정보갱신</button>
         `;
         newsFeed.appendChild(statusDiv);
@@ -1683,8 +1736,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let partnerNewsData = {
         items: [],
         totalCount: 0,
+        totalCountAll: 0, // 전체 누적 건수
         offset: 0,
         limit: 50,
+        days: 7, // 초기값: 최근 7일
         loading: false,
         hasMore: true
     };
@@ -1700,8 +1755,10 @@ document.addEventListener('DOMContentLoaded', function() {
         partnerNewsData = {
             items: [],
             totalCount: 0,
+            totalCountAll: 0, // 전체 누적 건수
             offset: 0,
             limit: 50,
+            days: 7, // 초기값: 최근 7일
             loading: false,
             hasMore: true
         };
@@ -1722,7 +1779,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         try {
-            const response = await fetch(`${API_BASE_URL}/api/partner-news?limit=${partnerNewsData.limit}&offset=${partnerNewsData.offset}`);
+            // days 파라미터 동적 증가: 7일 → 14일 → 30일 → 90일 → 전체(9999일)
+            const daysParam = partnerNewsData.days;
+            const response = await fetch(`${API_BASE_URL}/api/partner-news?limit=${partnerNewsData.limit}&offset=${partnerNewsData.offset}&days=${daysParam}`);
             const data = await response.json();
             
             console.log('📥 제휴처 뉴스 응답:', data);
@@ -1737,12 +1796,54 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('🔄 첫 번째 로드 - 데이터 초기화');
                 }
                 
-                // 새 데이터 추가
-                partnerNewsData.items = [...partnerNewsData.items, ...data.data];
-                partnerNewsData.todayNews = data.todayNews || [];
-                partnerNewsData.otherNews = data.otherNews || [];
+                // 새 데이터 추가 (중복 제거)
+                const existingIds = new Set(partnerNewsData.items.map(item => item._id || item.link));
+                const newData = data.data.filter(item => !existingIds.has(item._id || item.link));
+                partnerNewsData.items = [...partnerNewsData.items, ...newData];
+                
+                // todayNews와 otherNews도 중복 제거하여 업데이트
+                const allTodayNews = [...(partnerNewsData.todayNews || []), ...(data.todayNews || [])];
+                const allOtherNews = [...(partnerNewsData.otherNews || []), ...(data.otherNews || [])];
+                const todayNewsIds = new Set();
+                const otherNewsIds = new Set();
+                partnerNewsData.todayNews = allTodayNews.filter(item => {
+                    const id = item._id || item.link;
+                    if (todayNewsIds.has(id)) return false;
+                    todayNewsIds.add(id);
+                    return true;
+                });
+                partnerNewsData.otherNews = allOtherNews.filter(item => {
+                    const id = item._id || item.link;
+                    if (otherNewsIds.has(id)) return false;
+                    otherNewsIds.add(id);
+                    return true;
+                });
                 partnerNewsData.totalCount = data.totalCount;
-                partnerNewsData.hasMore = data.hasMore;
+                partnerNewsData.totalCountAll = data.totalCountAll || data.totalCount; // 전체 누적 건수 사용
+                
+                // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
+                if (data.data.length === 0 || (partnerNewsData.offset + data.data.length >= data.totalCount && partnerNewsData.items.length < partnerNewsData.totalCountAll)) {
+                    // days를 점진적으로 증가: 7 → 14 → 30 → 90 → 9999 (전체)
+                    if (partnerNewsData.days < 9999) {
+                        const oldDays = partnerNewsData.days;
+                        if (partnerNewsData.days < 14) partnerNewsData.days = 14;
+                        else if (partnerNewsData.days < 30) partnerNewsData.days = 30;
+                        else if (partnerNewsData.days < 90) partnerNewsData.days = 90;
+                        else partnerNewsData.days = 9999; // 전체 데이터
+                        
+                        // days가 증가했으면 offset 초기화하고 다시 로드
+                        if (oldDays !== partnerNewsData.days) {
+                            partnerNewsData.offset = 0;
+                            // 기존 데이터는 유지하고, 새로운 범위의 데이터를 추가로 로드
+                            partnerNewsData.loading = false; // 로딩 플래그 해제하여 재호출 가능하게
+                            loadMorePartnerNews(); // 재귀 호출로 새로운 범위의 데이터 로드
+                            return;
+                        }
+                    }
+                }
+                
+                // 전체 데이터를 다 로드했는지 확인
+                partnerNewsData.hasMore = partnerNewsData.items.length < partnerNewsData.totalCountAll;
                 partnerNewsData.offset += data.data.length;
                 
                 // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
@@ -1798,7 +1899,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${partnerNewsData.totalCount}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${partnerNewsData.totalCountAll || partnerNewsData.totalCount}</b>건</span>
             <button class="btn btn-sm btn-outline-section-partner" id="refreshPartnerBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);
@@ -1932,8 +2033,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let techNewsData = {
         items: [],
         totalCount: 0,
+        totalCountAll: 0, // 전체 누적 건수
         offset: 0,
         limit: 50,
+        days: 7, // 초기값: 최근 7일
         loading: false,
         hasMore: true
     };
@@ -1949,8 +2052,10 @@ document.addEventListener('DOMContentLoaded', function() {
         techNewsData = {
             items: [],
             totalCount: 0,
+            totalCountAll: 0, // 전체 누적 건수
             offset: 0,
             limit: 50,
+            days: 7, // 초기값: 최근 7일
             loading: false,
             hasMore: true
         };
@@ -1965,7 +2070,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const resultsDiv = document.getElementById('techTrendResults');
         
         try {
-            const response = await fetch(`${API_BASE_URL}/api/tech-news?limit=${techNewsData.limit}&offset=${techNewsData.offset}`);
+            // days 파라미터 동적 증가: 7일 → 14일 → 30일 → 90일 → 전체(9999일)
+            const daysParam = techNewsData.days;
+            const response = await fetch(`${API_BASE_URL}/api/tech-news?limit=${techNewsData.limit}&offset=${techNewsData.offset}&days=${daysParam}`);
             const data = await response.json();
             
             if (data.success) {
@@ -1977,12 +2084,54 @@ document.addEventListener('DOMContentLoaded', function() {
                     resultsDiv.innerHTML = '';
                 }
                 
-                // 새 데이터 추가
-                techNewsData.items = [...techNewsData.items, ...data.data];
-                techNewsData.todayNews = data.todayNews || [];
-                techNewsData.otherNews = data.otherNews || [];
+                // 새 데이터 추가 (중복 제거)
+                const existingIds = new Set(techNewsData.items.map(item => item._id || item.link));
+                const newData = data.data.filter(item => !existingIds.has(item._id || item.link));
+                techNewsData.items = [...techNewsData.items, ...newData];
+                
+                // todayNews와 otherNews도 중복 제거하여 업데이트
+                const allTodayNews = [...(techNewsData.todayNews || []), ...(data.todayNews || [])];
+                const allOtherNews = [...(techNewsData.otherNews || []), ...(data.otherNews || [])];
+                const todayNewsIds = new Set();
+                const otherNewsIds = new Set();
+                techNewsData.todayNews = allTodayNews.filter(item => {
+                    const id = item._id || item.link;
+                    if (todayNewsIds.has(id)) return false;
+                    todayNewsIds.add(id);
+                    return true;
+                });
+                techNewsData.otherNews = allOtherNews.filter(item => {
+                    const id = item._id || item.link;
+                    if (otherNewsIds.has(id)) return false;
+                    otherNewsIds.add(id);
+                    return true;
+                });
                 techNewsData.totalCount = data.totalCount;
-                techNewsData.hasMore = data.hasMore;
+                techNewsData.totalCountAll = data.totalCountAll || data.totalCount; // 전체 누적 건수 사용
+                
+                // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
+                if (data.data.length === 0 || (techNewsData.offset + data.data.length >= data.totalCount && techNewsData.items.length < techNewsData.totalCountAll)) {
+                    // days를 점진적으로 증가: 7 → 14 → 30 → 90 → 9999 (전체)
+                    if (techNewsData.days < 9999) {
+                        const oldDays = techNewsData.days;
+                        if (techNewsData.days < 14) techNewsData.days = 14;
+                        else if (techNewsData.days < 30) techNewsData.days = 30;
+                        else if (techNewsData.days < 90) techNewsData.days = 90;
+                        else techNewsData.days = 9999; // 전체 데이터
+                        
+                        // days가 증가했으면 offset 초기화하고 다시 로드
+                        if (oldDays !== techNewsData.days) {
+                            techNewsData.offset = 0;
+                            // 기존 데이터는 유지하고, 새로운 범위의 데이터를 추가로 로드
+                            techNewsData.loading = false; // 로딩 플래그 해제하여 재호출 가능하게
+                            loadMoreTechNews(); // 재귀 호출로 새로운 범위의 데이터 로드
+                            return;
+                        }
+                    }
+                }
+                
+                // 전체 데이터를 다 로드했는지 확인
+                techNewsData.hasMore = techNewsData.items.length < techNewsData.totalCountAll;
                 techNewsData.offset += data.data.length;
                 
                 // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
@@ -2031,7 +2180,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const topBar = document.createElement('div');
         topBar.className = 'd-flex justify-content-end align-items-center mb-2';
         topBar.innerHTML = `
-            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${techNewsData.totalCount}</b>건</span>
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${techNewsData.totalCountAll || techNewsData.totalCount}</b>건</span>
             <button class="btn btn-sm btn-outline-section-tech" id="refreshTechBtn">정보갱신</button>
         `;
         resultsDiv.appendChild(topBar);

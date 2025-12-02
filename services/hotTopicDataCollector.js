@@ -78,7 +78,7 @@ class HotTopicDataCollector {
                     'naver-news': () => this.collectNewsData(keyword, startDate, endDate),
                     'naver-trend': () => this.collectTrendData(keyword, startDate, endDate),
                     'youtube': () => this.collectYouTubeData(keyword, startDate, endDate),
-                    'naver-shopping': () => this.collectTrendData(keyword, startDate, endDate), // 쇼핑인사이트는 트렌드와 같은 API
+                    'naver-shopping': () => this.collectShoppingData(keyword, startDate, endDate), // 쇼핑인사이트는 별도 함수
                     'twitter': () => this.collectTwitterData(keyword, startDate, endDate),
                     'instagram': () => this.collectInstagramData(keyword, startDate, endDate),
                     'tiktok': () => this.collectTikTokData(keyword, startDate, endDate)
@@ -108,10 +108,8 @@ class HotTopicDataCollector {
                                 analysisData.sources.youtube = results[resultIndex].value;
                                 break;
                             case 'naver-shopping':
-                                // 쇼핑인사이트 데이터는 별도 필드에 저장하거나 트렌드와 통합
-                                if (!analysisData.sources.trend) {
-                                    analysisData.sources.trend = results[resultIndex].value;
-                                }
+                                // 쇼핑인사이트 데이터는 별도 필드에 저장
+                                analysisData.sources.shopping = results[resultIndex].value;
                                 break;
                             case 'twitter':
                                 analysisData.sources.twitter = results[resultIndex].value;
@@ -128,9 +126,14 @@ class HotTopicDataCollector {
                 });
 
                 // 지수 계산
+                console.log(`📊 분석 데이터 생성 중: ${keyword}`);
                 const analysis = new HotTopicAnalysis(analysisData);
                 analysis.calculateMetrics(weightSetting);
                 analysis.processingTime = Date.now() - startTime;
+                console.log(`📊 분석 객체 생성 완료: ${keyword}`, {
+                    metrics: analysis.metrics,
+                    sources: Object.keys(analysis.sources)
+                });
 
                 // AI 인사이트 생성
                 const insights = await this.aiInsightService.generateComprehensiveInsights(analysis);
@@ -147,8 +150,15 @@ class HotTopicDataCollector {
                     await analysis.save();
                 }
                 
+                console.log(`📊 results 배열에 추가 전: ${results.length}`);
                 results.push(analysis);
                 console.log(`✅ 키워드 분석 완료: ${keyword} (${analysis.processingTime}ms)`);
+                console.log(`📊 현재 results 배열 길이: ${results.length}`);
+                console.log(`📊 추가된 analysis 객체:`, {
+                    keyword: analysis.keyword,
+                    date: analysis.date,
+                    metrics: analysis.metrics
+                });
             }
 
             console.log(`🎉 화제성 분석 완료: ${results.length}개 키워드 처리`);
@@ -275,6 +285,47 @@ class HotTopicDataCollector {
         }
     }
 
+    // 네이버 쇼핑인사이트 데이터 수집
+    async collectShoppingData(keyword, startDate, endDate) {
+        try {
+            console.log(`🛒 네이버 쇼핑인사이트 데이터 수집: ${keyword}`);
+            
+            const shoppingResponse = await axios.post('https://openapi.naver.com/v1/datalab/shopping/categories', {
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
+                timeUnit: 'date',
+                category: [{
+                    name: keyword,
+                    param: [keyword]
+                }]
+            }, {
+                headers: {
+                    'X-Naver-Client-Id': this.naverClientId,
+                    'X-Naver-Client-Secret': this.naverClientSecret,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const shoppingData = shoppingResponse.data.results[0]?.data || [];
+            const shoppingInsight = shoppingData.reduce((sum, item) => sum + item.ratio, 0);
+            const avgShopping = Math.round(shoppingInsight / Math.max(shoppingData.length, 1));
+
+            return {
+                searchVolume: shoppingInsight,
+                trendScore: avgShopping,
+                shoppingInsight: avgShopping
+            };
+
+        } catch (error) {
+            console.error(`❌ 네이버 쇼핑인사이트 데이터 수집 오류 (${keyword}):`, error.message);
+            return {
+                searchVolume: 0,
+                trendScore: 0,
+                shoppingInsight: 0
+            };
+        }
+    }
+
     // YouTube 데이터 수집
     async collectYouTubeData(keyword, startDate, endDate) {
         try {
@@ -293,7 +344,7 @@ class HotTopicDataCollector {
                 },
                 headers: {
                     'User-Agent': 'MyTeamDashboard/1.0',
-                    'Referer': 'http://localhost:4000'
+                    'Referer': 'https://myteamdashboard.onrender.com'
                 }
             });
 

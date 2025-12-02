@@ -544,4 +544,4 @@ class ReportGenerator {
     }
 }
 
-module.exports = ReportGenerator;
+module.exports = ReportGenerato
