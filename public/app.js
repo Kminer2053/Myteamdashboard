@@ -1406,11 +1406,19 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="card-header" style="background: linear-gradient(135deg, #6c757d, #495057); color: white; padding: 15px 20px;">
                 <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport?.analysisModel || 'perplexity-ai'}</small></h6>
             </div>
-            <div class="card-body" style="padding: 20px;">
-                ${formatStructuredAnalysis(analysisReport?.analysis || '분석 내용이 없습니다.')}
+            <div class="card-body" style="padding: 20px;" id="riskAnalysisContent">
+                <!-- 마크다운 변환 중... -->
             </div>
         `;
         newsFeed.appendChild(reportDiv);
+        
+        // 마크다운 변환 후 DOM에 삽입
+        const contentDiv = reportDiv.querySelector('#riskAnalysisContent');
+        if (contentDiv) {
+            const formattedContent = formatStructuredAnalysis(analysisReport?.analysis || '분석 내용이 없습니다.');
+            contentDiv.innerHTML = formattedContent;
+            console.log('[리스크 분석] 마크다운 변환 완료');
+        }
         
         // === 뉴스 현황 표시 ===
         const todayCount = riskNewsData.todayNews ? riskNewsData.todayNews.length : 0;
@@ -1606,6 +1614,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function formatAnalysisText(text) {
         if (!text) return '분석 내용이 없습니다.';
         
+        console.log('[마크다운 변환] 시작:', text.substring(0, 100));
+        
         // 마크다운을 HTML로 변환
         let html = String(text);
         
@@ -1746,7 +1756,9 @@ document.addEventListener('DOMContentLoaded', function() {
             result.push('</ul>');
         }
         
-        return result.join('') || '분석 내용이 없습니다.';
+        const finalHtml = result.join('') || '분석 내용이 없습니다.';
+        console.log('[마크다운 변환] 완료:', finalHtml.substring(0, 200));
+        return finalHtml;
     }
 
     // 뉴스 카드 생성 함수
@@ -2040,11 +2052,19 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="card-header" style="background: linear-gradient(135deg, #1565c0, #0d47a1); color: white; padding: 15px 20px;">
                 <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport?.analysisModel || 'perplexity-ai'}</small></h6>
             </div>
-            <div class="card-body" style="padding: 20px;">
-                <div style="color: #666; line-height: 1.6;">${formatAnalysisText(analysisReport?.analysis || '분석 내용이 없습니다.')}</div>
+            <div class="card-body" style="padding: 20px;" id="partnerAnalysisContent">
+                <!-- 마크다운 변환 중... -->
             </div>
         `;
         resultsDiv.appendChild(reportDiv);
+        
+        // 마크다운 변환 후 DOM에 삽입
+        const contentDiv = reportDiv.querySelector('#partnerAnalysisContent');
+        if (contentDiv) {
+            const formattedContent = formatStructuredAnalysis(analysisReport?.analysis || '분석 내용이 없습니다.');
+            contentDiv.innerHTML = formattedContent;
+            console.log('[제휴처 분석] 마크다운 변환 완료');
+        }
         
         // === 상단 건수/정보갱신 버튼 ===
         const todayCount = partnerNewsData.todayNews ? partnerNewsData.todayNews.length : 0;
@@ -2336,11 +2356,19 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="card-header" style="background: linear-gradient(135deg, #512da8, #311b92); color: white; padding: 15px 20px;">
                 <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport?.analysisModel || 'perplexity-ai'}</small></h6>
             </div>
-            <div class="card-body" style="padding: 20px;">
-                <div style="color: #666; line-height: 1.6;">${formatAnalysisText(analysisReport?.analysis || '분석 내용이 없습니다.')}</div>
+            <div class="card-body" style="padding: 20px;" id="techAnalysisContent">
+                <!-- 마크다운 변환 중... -->
             </div>
         `;
         resultsDiv.appendChild(reportDiv);
+        
+        // 마크다운 변환 후 DOM에 삽입
+        const contentDiv = reportDiv.querySelector('#techAnalysisContent');
+        if (contentDiv) {
+            const formattedContent = formatStructuredAnalysis(analysisReport?.analysis || '분석 내용이 없습니다.');
+            contentDiv.innerHTML = formattedContent;
+            console.log('[신기술 분석] 마크다운 변환 완료');
+        }
         
         // === 상단 건수/정보갱신 버튼 ===
         const todayCount = techNewsData.todayNews ? techNewsData.todayNews.length : 0;
