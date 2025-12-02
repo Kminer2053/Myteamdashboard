@@ -1331,14 +1331,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     return true;
                 });
                 riskNewsData.totalCount = data.totalCount;
-                // totalCountAll은 항상 업데이트 (첫 로드이거나 더 큰 값일 때)
-                if (!riskNewsData.totalCountAll || (data.totalCountAll && data.totalCountAll > riskNewsData.totalCountAll)) {
-                    riskNewsData.totalCountAll = data.totalCountAll || data.totalCount;
+                // totalCountAll은 항상 업데이트 (API에서 전달된 값 우선 사용)
+                if (data.totalCountAll !== undefined && data.totalCountAll !== null) {
+                    riskNewsData.totalCountAll = data.totalCountAll;
+                } else if (!riskNewsData.totalCountAll) {
+                    // totalCountAll이 없으면 totalCount를 사용 (초기값)
+                    riskNewsData.totalCountAll = data.totalCount;
                 }
                 
                 // offset 업데이트 (새 데이터가 추가된 경우)
                 if (newData.length > 0) {
                     riskNewsData.offset += newData.length;
+                } else {
+                    // 새 데이터가 없으면 현재 offset을 유지 (다음 요청을 위해)
+                    riskNewsData.offset = data.offset || riskNewsData.offset;
                 }
                 
                 // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
@@ -1587,88 +1593,146 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!text) return '분석 내용이 없습니다.';
         
         // 마크다운을 HTML로 변환
-        let html = text;
+        let html = String(text);
         
         // 코드 블록 제거 (이미 서버에서 처리했지만 혹시 모를 경우 대비)
         html = html.replace(/```[\s\S]*?```/g, '');
         
-        // 헤더 변환 (##, ###)
-        html = html.replace(/^### (.*$)/gim, '<h3 style="color: #333; font-size: 1.2em; margin-top: 20px; margin-bottom: 10px; font-weight: bold;">$1</h3>');
-        html = html.replace(/^## (.*$)/gim, '<h2 style="color: #333; font-size: 1.4em; margin-top: 25px; margin-bottom: 15px; font-weight: bold; border-bottom: 2px solid #e0e0e0; padding-bottom: 5px;">$1</h2>');
-        html = html.replace(/^# (.*$)/gim, '<h1 style="color: #333; font-size: 1.6em; margin-top: 30px; margin-bottom: 20px; font-weight: bold;">$1</h1>');
-        
-        // 볼드 (**text**)
-        html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
-        
-        // 이탤릭 (*text*)
-        html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-        
-        // 링크 ([text](url))
-        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #007bff; text-decoration: none;">$1</a>');
-        
-        // 인라인 코드 (`code`)
-        html = html.replace(/`([^`]+)`/g, '<code style="background-color: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;">$1</code>');
-        
-        // 리스트 변환 (- 또는 *)
+        // 줄 단위로 처리
         const lines = html.split('\n');
+        let result = [];
         let inList = false;
         let listItems = [];
-        let processedLines = [];
         
         for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            const listMatch = line.match(/^[\s]*[-*]\s+(.+)$/);
+            let line = lines[i].trim();
+            if (!line) {
+                // 빈 줄: 리스트 종료
+                if (inList && listItems.length > 0) {
+                    result.push('<ul style="margin: 10px 0; padding-left: 25px; line-height: 1.8;">');
+                    listItems.forEach(item => {
+                        // 리스트 아이템 내부 마크다운 처리
+                        let itemHtml = item;
+                        itemHtml = itemHtml.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
+                        itemHtml = itemHtml.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #007bff; text-decoration: none;">$1</a>');
+                        result.push(`<li style="margin-bottom: 5px; color: #666;">${itemHtml}</li>`);
+                    });
+                    result.push('</ul>');
+                    listItems = [];
+                    inList = false;
+                }
+                continue;
+            }
             
+            // 헤더 처리 (먼저 처리)
+            if (line.startsWith('### ')) {
+                if (inList) {
+                    // 리스트 종료
+                    if (listItems.length > 0) {
+                        result.push('<ul style="margin: 10px 0; padding-left: 25px; line-height: 1.8;">');
+                        listItems.forEach(item => {
+                            let itemHtml = item.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
+                            itemHtml = itemHtml.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #007bff; text-decoration: none;">$1</a>');
+                            result.push(`<li style="margin-bottom: 5px; color: #666;">${itemHtml}</li>`);
+                        });
+                        result.push('</ul>');
+                        listItems = [];
+                    }
+                    inList = false;
+                }
+                const content = line.substring(4).trim();
+                let contentHtml = content.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
+                result.push(`<h3 style="color: #333; font-size: 1.2em; margin-top: 20px; margin-bottom: 10px; font-weight: bold;">${contentHtml}</h3>`);
+                continue;
+            } else if (line.startsWith('## ')) {
+                if (inList) {
+                    if (listItems.length > 0) {
+                        result.push('<ul style="margin: 10px 0; padding-left: 25px; line-height: 1.8;">');
+                        listItems.forEach(item => {
+                            let itemHtml = item.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
+                            itemHtml = itemHtml.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #007bff; text-decoration: none;">$1</a>');
+                            result.push(`<li style="margin-bottom: 5px; color: #666;">${itemHtml}</li>`);
+                        });
+                        result.push('</ul>');
+                        listItems = [];
+                    }
+                    inList = false;
+                }
+                const content = line.substring(3).trim();
+                let contentHtml = content.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
+                result.push(`<h2 style="color: #333; font-size: 1.4em; margin-top: 25px; margin-bottom: 15px; font-weight: bold; border-bottom: 2px solid #e0e0e0; padding-bottom: 5px;">${contentHtml}</h2>`);
+                continue;
+            } else if (line.startsWith('# ')) {
+                if (inList) {
+                    if (listItems.length > 0) {
+                        result.push('<ul style="margin: 10px 0; padding-left: 25px; line-height: 1.8;">');
+                        listItems.forEach(item => {
+                            let itemHtml = item.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
+                            itemHtml = itemHtml.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #007bff; text-decoration: none;">$1</a>');
+                            result.push(`<li style="margin-bottom: 5px; color: #666;">${itemHtml}</li>`);
+                        });
+                        result.push('</ul>');
+                        listItems = [];
+                    }
+                    inList = false;
+                }
+                const content = line.substring(2).trim();
+                let contentHtml = content.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
+                result.push(`<h1 style="color: #333; font-size: 1.6em; margin-top: 30px; margin-bottom: 20px; font-weight: bold;">${contentHtml}</h1>`);
+                continue;
+            }
+            
+            // 리스트 아이템 처리
+            const listMatch = line.match(/^[-*]\s+(.+)$/);
             if (listMatch) {
                 if (!inList) {
                     inList = true;
                     listItems = [];
                 }
                 listItems.push(listMatch[1]);
-            } else {
-                if (inList && listItems.length > 0) {
-                    processedLines.push('<ul style="margin: 10px 0; padding-left: 25px; line-height: 1.8;">');
-                    listItems.forEach(item => {
-                        processedLines.push(`<li style="margin-bottom: 5px; color: #666;">${item}</li>`);
-                    });
-                    processedLines.push('</ul>');
-                    listItems = [];
-                    inList = false;
-                }
-                if (line.trim()) {
-                    processedLines.push(line);
-                }
+                continue;
             }
+            
+            // 일반 텍스트 처리
+            if (inList) {
+                // 리스트 종료
+                if (listItems.length > 0) {
+                    result.push('<ul style="margin: 10px 0; padding-left: 25px; line-height: 1.8;">');
+                    listItems.forEach(item => {
+                        let itemHtml = item;
+                        itemHtml = itemHtml.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
+                        itemHtml = itemHtml.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #007bff; text-decoration: none;">$1</a>');
+                        result.push(`<li style="margin-bottom: 5px; color: #666;">${itemHtml}</li>`);
+                    });
+                    result.push('</ul>');
+                    listItems = [];
+                }
+                inList = false;
+            }
+            
+            // 일반 텍스트 마크다운 처리
+            let textHtml = line;
+            textHtml = textHtml.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
+            textHtml = textHtml.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            textHtml = textHtml.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #007bff; text-decoration: none;">$1</a>');
+            textHtml = textHtml.replace(/`([^`]+)`/g, '<code style="background-color: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 0.9em;">$1</code>');
+            
+            result.push(`<p style="color: #666; line-height: 1.8; margin-bottom: 12px;">${textHtml}</p>`);
         }
         
         // 마지막 리스트 처리
         if (inList && listItems.length > 0) {
-            processedLines.push('<ul style="margin: 10px 0; padding-left: 25px; line-height: 1.8;">');
+            result.push('<ul style="margin: 10px 0; padding-left: 25px; line-height: 1.8;">');
             listItems.forEach(item => {
-                processedLines.push(`<li style="margin-bottom: 5px; color: #666;">${item}</li>`);
+                let itemHtml = item;
+                itemHtml = itemHtml.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #333; font-weight: bold;">$1</strong>');
+                itemHtml = itemHtml.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color: #007bff; text-decoration: none;">$1</a>');
+                result.push(`<li style="margin-bottom: 5px; color: #666;">${itemHtml}</li>`);
             });
-            processedLines.push('</ul>');
+            result.push('</ul>');
         }
         
-        html = processedLines.length > 0 ? processedLines.join('\n') : html;
-        
-        // 줄바꿈 처리 (빈 줄은 단락 구분, 일반 줄바꿈은 <br>)
-        const paragraphs = html.split(/\n\s*\n/).filter(p => p.trim());
-        html = paragraphs.map(paragraph => {
-            const trimmed = paragraph.trim();
-            if (!trimmed) return '';
-            
-            // 헤더나 리스트는 그대로 유지
-            if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') || trimmed.startsWith('<li')) {
-                return trimmed;
-            }
-            
-            // 일반 텍스트는 <p> 태그로 감싸기
-            const withBreaks = trimmed.replace(/\n/g, '<br>');
-            return `<p style="color: #666; line-height: 1.8; margin-bottom: 12px;">${withBreaks}</p>`;
-        }).join('');
-        
-        return html || '분석 내용이 없습니다.';
+        return result.join('') || '분석 내용이 없습니다.';
     }
 
     // 뉴스 카드 생성 함수
@@ -1879,14 +1943,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     return true;
                 });
                 partnerNewsData.totalCount = data.totalCount;
-                // totalCountAll은 항상 업데이트 (첫 로드이거나 더 큰 값일 때)
-                if (!partnerNewsData.totalCountAll || (data.totalCountAll && data.totalCountAll > partnerNewsData.totalCountAll)) {
-                    partnerNewsData.totalCountAll = data.totalCountAll || data.totalCount;
+                // totalCountAll은 항상 업데이트 (API에서 전달된 값 우선 사용)
+                if (data.totalCountAll !== undefined && data.totalCountAll !== null) {
+                    partnerNewsData.totalCountAll = data.totalCountAll;
+                } else if (!partnerNewsData.totalCountAll) {
+                    // totalCountAll이 없으면 totalCount를 사용 (초기값)
+                    partnerNewsData.totalCountAll = data.totalCount;
                 }
                 
                 // offset 업데이트 (새 데이터가 추가된 경우)
                 if (newData.length > 0) {
                     partnerNewsData.offset += newData.length;
+                } else {
+                    // 새 데이터가 없으면 현재 offset을 유지 (다음 요청을 위해)
+                    partnerNewsData.offset = data.offset || partnerNewsData.offset;
                 }
                 
                 // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
@@ -2176,14 +2246,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     return true;
                 });
                 techNewsData.totalCount = data.totalCount;
-                // totalCountAll은 항상 업데이트 (첫 로드이거나 더 큰 값일 때)
-                if (!techNewsData.totalCountAll || (data.totalCountAll && data.totalCountAll > techNewsData.totalCountAll)) {
-                    techNewsData.totalCountAll = data.totalCountAll || data.totalCount;
+                // totalCountAll은 항상 업데이트 (API에서 전달된 값 우선 사용)
+                if (data.totalCountAll !== undefined && data.totalCountAll !== null) {
+                    techNewsData.totalCountAll = data.totalCountAll;
+                } else if (!techNewsData.totalCountAll) {
+                    // totalCountAll이 없으면 totalCount를 사용 (초기값)
+                    techNewsData.totalCountAll = data.totalCount;
                 }
                 
                 // offset 업데이트 (새 데이터가 추가된 경우)
                 if (newData.length > 0) {
                     techNewsData.offset += newData.length;
+                } else {
+                    // 새 데이터가 없으면 현재 offset을 유지 (다음 요청을 위해)
+                    techNewsData.offset = data.offset || techNewsData.offset;
                 }
                 
                 // 더 이상 데이터가 없거나, 현재 days 범위의 데이터를 다 로드한 경우 days 증가
