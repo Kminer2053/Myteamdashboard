@@ -62,17 +62,17 @@ jobs:
           # 토큰 JSON 문자열 생성 (이스케이프 처리)
           TOKEN_JSON="{\"access_token\":\"\",\"token_type\":\"Bearer\",\"refresh_token\":\"$GDRIVE_REFRESH_TOKEN\",\"expiry\":\"2000-01-01T00:00:00Z\"}"
           
-          # rclone 설정 파일 직접 생성
+          # rclone 설정 파일 직접 생성 (heredoc 대신 printf 사용)
           echo "📝 rclone 설정 파일 생성 중..."
-          cat > ~/.config/rclone/rclone.conf << EOF
-[gdrive]
-type = drive
-client_id = $GDRIVE_CLIENT_ID
-client_secret = $GDRIVE_CLIENT_SECRET
-token = $TOKEN_JSON
-scope = drive.file
-root_folder_id = $GDRIVE_FOLDER_ID
-EOF
+          {
+            echo "[gdrive]"
+            echo "type = drive"
+            echo "client_id = $GDRIVE_CLIENT_ID"
+            echo "client_secret = $GDRIVE_CLIENT_SECRET"
+            echo "token = $TOKEN_JSON"
+            echo "scope = drive.file"
+            echo "root_folder_id = $GDRIVE_FOLDER_ID"
+          } > ~/.config/rclone/rclone.conf
           
           echo "✅ OAuth 설정 완료"
           echo "📋 설정 파일 확인:"
