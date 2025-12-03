@@ -59,19 +59,34 @@ jobs:
           # rclone 설정 디렉토리 생성
           mkdir -p ~/.config/rclone
           
-          # Python을 사용하여 토큰 JSON 생성 (YAML 파서 충돌 방지)
-          echo "📝 토큰 JSON 생성 중..."
-          TOKEN_JSON=$(python3 -c "import json, os; print(json.dumps({'access_token': '', 'token_type': 'Bearer', 'refresh_token': os.environ['GDRIVE_REFRESH_TOKEN'], 'expiry': '2000-01-01T00:00:00Z'}))")
-          
-          # rclone 설정 생성
-          echo "📝 rclone 설정 생성 중..."
-          rclone config create gdrive drive \
-            client_id="$GDRIVE_CLIENT_ID" \
-            client_secret="$GDRIVE_CLIENT_SECRET" \
-            token="$TOKEN_JSON" \
-            scope=drive.file \
-            root_folder_id="$GDRIVE_FOLDER_ID" \
-            --non-interactive
+          # Python을 사용하여 토큰 JSON 생성 및 설정 파일 생성
+          echo "📝 rclone 설정 파일 생성 중..."
+          python3 -c "
+import os
+import json
+
+token_json = {
+    'access_token': '',
+    'token_type': 'Bearer',
+    'refresh_token': os.environ['GDRIVE_REFRESH_TOKEN'],
+    'expiry': '2000-01-01T00:00:00Z'
+}
+
+config_path = os.path.expanduser('~/.config/rclone/rclone.conf')
+config_content = f\"\"\"[gdrive]
+type = drive
+client_id = {os.environ['GDRIVE_CLIENT_ID']}
+client_secret = {os.environ['GDRIVE_CLIENT_SECRET']}
+token = {json.dumps(token_json)}
+scope = drive.file
+root_folder_id = {os.environ['GDRIVE_FOLDER_ID']}
+\"\"\"
+
+with open(config_path, 'w') as f:
+    f.write(config_content)
+
+print('✅ 설정 파일 생성 완료')
+"
           
           echo "✅ OAuth 설정 완료"
 
