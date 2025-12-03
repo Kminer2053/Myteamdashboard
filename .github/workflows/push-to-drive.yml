@@ -61,18 +61,7 @@ jobs:
           
           # Python을 사용하여 토큰 JSON 생성 (YAML 파서 충돌 방지)
           echo "📝 토큰 JSON 생성 중..."
-          TOKEN_JSON=$(python3 << PYTHON_EOF
-import json
-import os
-token = {
-    "access_token": "",
-    "token_type": "Bearer",
-    "refresh_token": os.environ["GDRIVE_REFRESH_TOKEN"],
-    "expiry": "2000-01-01T00:00:00Z"
-}
-print(json.dumps(token))
-PYTHON_EOF
-)
+          TOKEN_JSON=$(python3 -c "import json, os; print(json.dumps({'access_token': '', 'token_type': 'Bearer', 'refresh_token': os.environ['GDRIVE_REFRESH_TOKEN'], 'expiry': '2000-01-01T00:00:00Z'}))")
           
           # rclone 설정 생성
           echo "📝 rclone 설정 생성 중..."
