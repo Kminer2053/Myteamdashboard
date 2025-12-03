@@ -70,8 +70,8 @@ jobs:
             echo "type = drive"
             echo "client_id = $GDRIVE_CLIENT_ID"
             echo "client_secret = $GDRIVE_CLIENT_SECRET"
-            # 토큰은 JSON 문자열로 저장 (따옴표로 감싸기)
-            echo "token = \"$TOKEN_JSON\""
+            # 토큰은 JSON 문자열로 저장 (rclone이 자동으로 파싱)
+            echo "token = $TOKEN_JSON"
             echo "scope = drive.file"
             echo "root_folder_id = $GDRIVE_FOLDER_ID"
           } > ~/.config/rclone/rclone.conf
