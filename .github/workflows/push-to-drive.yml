@@ -20,10 +20,43 @@ jobs:
         run: |
           sudo apt update && sudo apt install -y rclone
 
-      - name: Configure rclone with service account credentials
+      - name: Configure rclone with OAuth credentials
         run: |
-          echo "$GDRIVE_CREDENTIALS" > credentials.json
-          rclone config create gdrive drive scope=drive service_account_file=credentials.json root_folder_id=${{ secrets.GDRIVE_FOLDER_ID }}
+          # OAuth 2.0을 사용하여 개인 Google 계정 권한으로 업로드
+          echo "🔐 OAuth 2.0 모드로 설정 중..."
+          
+          # 환경 변수 확인 (디버깅용 - 실제 값은 마스킹)
+          echo "📋 환경 변수 확인:"
+          echo "  CLIENT_ID: ${GDRIVE_CLIENT_ID:0:20}..."
+          echo "  CLIENT_SECRET: ${GDRIVE_CLIENT_SECRET:0:10}..."
+          echo "  REFRESH_TOKEN: ${GDRIVE_REFRESH_TOKEN:0:20}..."
+          echo "  FOLDER_ID: $GDRIVE_FOLDER_ID"
+          
+          # 리프레시 토큰이 비어있는지 확인
+          if [ -z "$GDRIVE_REFRESH_TOKEN" ]; then
+            echo "❌ 오류: GDRIVE_REFRESH_TOKEN이 설정되지 않았습니다!"
+            echo "📝 GitHub Secrets에 GDRIVE_REFRESH_TOKEN을 추가하세요."
+            exit 1
+          fi
+          
+          # 리프레시 토큰을 JSON 형식으로 준비
+          TOKEN_JSON="{\"access_token\":\"\",\"token_type\":\"Bearer\",\"refresh_token\":\"$GDRIVE_REFRESH_TOKEN\",\"expiry\":\"2000-01-01T00:00:00Z\"}"
+          
+          # rclone 설정 생성
+          echo "📝 rclone 설정 생성 중..."
+          rclone config create gdrive drive \
+            client_id="$GDRIVE_CLIENT_ID" \
+            client_secret="$GDRIVE_CLIENT_SECRET" \
+            token="$TOKEN_JSON" \
+            scope=drive.file \
+            root_folder_id="$GDRIVE_FOLDER_ID"
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ OAuth 설정 완료"
+          else
+            echo "❌ rclone 설정 실패"
+            exit 1
+          fi
 
       - name: Generate summary files (overwrite with details)
         run: |
@@ -33,11 +66,25 @@ jobs:
           git diff $(git rev-list --max-parents=0 HEAD)..HEAD >> Myteamdashboard_summary_detail.txt
 
       - name: Upload summary file to Google Drive
-        run: rclone -v copyto Myteamdashboard_summary.txt gdrive:Myteamdashboard_summary.txt
+        run: |
+          rclone -v copyto Myteamdashboard_summary.txt gdrive:Myteamdashboard_summary.txt || {
+            echo "❌ 업로드 실패: Service Account에 폴더 접근 권한이 있는지 확인하세요."
+            echo "📝 해결 방법:"
+            echo "   1. Google Drive에서 폴더를 열고 '공유' 클릭"
+            echo "   2. Service Account 이메일 주소를 공유자로 추가 (편집자 권한)"
+            echo "   3. 또는 Shared Drive를 사용하는 경우 GDRIVE_TEAM_DRIVE_ID secret을 설정하세요"
+            exit 1
+          }
 
       - name: Upload detailed summary file to Google Drive
-        run: rclone -v copyto Myteamdashboard_summary_detail.txt gdrive:Myteamdashboard_summary_detail.txt
+        run: |
+          rclone -v copyto Myteamdashboard_summary_detail.txt gdrive:Myteamdashboard_summary_detail.txt || {
+            echo "❌ 상세 요약 파일 업로드 실패"
+            exit 1
+          }
 
     env:
-      GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+      GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+      GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+      GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
       GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
