@@ -56,33 +56,27 @@ jobs:
             exit 1
           fi
           
-          # 토큰 JSON 파일 생성
+          # rclone 설정 디렉토리 생성
           mkdir -p ~/.config/rclone
-          cat > token.json << EOF
-          {
-            "access_token": "",
-            "token_type": "Bearer",
-            "refresh_token": "$GDRIVE_REFRESH_TOKEN",
-            "expiry": "2000-01-01T00:00:00Z"
-          }
-          EOF
           
-          # rclone 설정 생성 (토큰 파일 사용)
-          echo "📝 rclone 설정 생성 중..."
-          rclone config create gdrive drive \
-            client_id="$GDRIVE_CLIENT_ID" \
-            client_secret="$GDRIVE_CLIENT_SECRET" \
-            token="$(cat token.json)" \
-            scope=drive.file \
-            root_folder_id="$GDRIVE_FOLDER_ID" \
-            --non-interactive
+          # 토큰 JSON 문자열 생성 (이스케이프 처리)
+          TOKEN_JSON="{\"access_token\":\"\",\"token_type\":\"Bearer\",\"refresh_token\":\"$GDRIVE_REFRESH_TOKEN\",\"expiry\":\"2000-01-01T00:00:00Z\"}"
           
-          if [ $? -eq 0 ]; then
-            echo "✅ OAuth 설정 완료"
-          else
-            echo "❌ rclone 설정 실패"
-            exit 1
-          fi
+          # rclone 설정 파일 직접 생성
+          echo "📝 rclone 설정 파일 생성 중..."
+          cat > ~/.config/rclone/rclone.conf << EOF
+[gdrive]
+type = drive
+client_id = $GDRIVE_CLIENT_ID
+client_secret = $GDRIVE_CLIENT_SECRET
+token = $TOKEN_JSON
+scope = drive.file
+root_folder_id = $GDRIVE_FOLDER_ID
+EOF
+          
+          echo "✅ OAuth 설정 완료"
+          echo "📋 설정 파일 확인:"
+          cat ~/.config/rclone/rclone.conf | grep -v "token\|secret" || true
 
       - name: Generate summary files (overwrite with details)
         run: |
