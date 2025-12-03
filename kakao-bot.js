@@ -100,19 +100,23 @@ async function filterTodayNews(news) {
     });
 }
 
-// 연도별 공휴일 데이터 가져오기 (공공데이터포털)
+// 연도별 공휴일 데이터 가져오기 (Nager.Date API)
 async function fetchHolidays(year) {
     try {
-        const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${HOLIDAY_API_KEY}&solYear=${year}&_type=json&numOfRows=100`;
+        // Nager.Date API - 한국 공휴일 정보 (API 키 불필요, Rate limit 없음)
+        // https://date.nager.at/API
+        const url = `https://date.nager.at/api/v3/PublicHolidays/${year}/KR`;
         const response = await axios.get(url);
         const data = response.data;
-        if (data.response && data.response.body && data.response.body.items) {
-            let items = data.response.body.items.item;
-            if (!Array.isArray(items)) items = [items];
-            return items.map(holiday => ({
-                date: `${holiday.locdate}`.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
-                title: holiday.dateName
-            }));
+        
+        // Nager.Date API 응답 형식: 직접 배열
+        if (Array.isArray(data) && data.length > 0) {
+            return data
+                .filter(holiday => holiday.types && holiday.types.includes('Public')) // 공휴일만 필터링
+                .map(holiday => ({
+                    date: holiday.date, // 이미 YYYY-MM-DD 형식
+                    title: holiday.localName || holiday.name // 한국어 이름 우선, 없으면 영어 이름
+                }));
         }
         return [];
     } catch (error) {

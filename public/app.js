@@ -894,90 +894,42 @@ document.addEventListener('DOMContentLoaded', function() {
     // 공휴일 데이터 가져오기 (연도 전체)
     async function fetchHolidays(year) {
         // 버전 확인 로그
-        console.log('[공휴일 API] 함수 버전: 2025-12-02-v2 (최신)');
+        console.log('[공휴일 API] 함수 버전: 2025-12-03-NagerDate');
         
         try {
-            // 원래 방식: 이미 URL 인코딩된 키를 그대로 사용
-            // 새 인증키 (2025/12/03 발급) - 특수문자 없어서 인코딩해도 동일하지만 원래 방식 유지
-            // 키가 아직 활성화되지 않았을 수 있음 (401/403 에러 발생 시 확인 필요)
-            const API_KEY = '59c12627231e31f0c49b608447cbafdb00eeea0a469b5d1338b7268f03bcf0fb';
-            const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${API_KEY}&solYear=${year}&_type=json&numOfRows=100`;
+            // Nager.Date API - 한국 공휴일 정보 (CORS 활성화, API 키 불필요, Rate limit 없음)
+            // https://date.nager.at/API
+            const url = `https://date.nager.at/api/v3/PublicHolidays/${year}/KR`;
             
-            console.log('[공휴일 API] 요청 URL:', url.replace(API_KEY, 'API_KEY_HIDDEN'));
+            console.log('[공휴일 API] 요청 URL:', url);
             
             const response = await fetch(url);
             
             // 응답 상태 코드 확인
             if (!response.ok) {
-                // 응답 본문을 텍스트로 먼저 읽어서 에러 메시지 확인
-                let errorText = '';
-                try {
-                    errorText = await response.text();
-                } catch (e) {
-                    errorText = '응답 본문을 읽을 수 없습니다.';
-                }
                 console.error(`[공휴일 API] 호출 실패: ${response.status} ${response.statusText}`);
-                console.error(`[공휴일 API] 응답 본문:`, errorText);
-                
-                // 403 에러의 경우 일반적으로 API 키 문제이거나 CORS 문제
-                if (response.status === 403) {
-                    console.error('[공휴일 API] 403 Forbidden - 가능한 원인:');
-                    console.error('  1. API 키가 만료되었거나 유효하지 않음');
-                    console.error('  2. CORS 정책으로 인한 브라우저 차단 (서버를 통한 프록시 필요)');
-                    console.error('  3. API 사용량 초과');
-                    console.error('  4. IP 차단 또는 지역 제한');
-                }
-                
-                // 에러 발생 시 빈 배열 반환 (캘린더는 공휴일 없이도 작동)
                 return [];
             }
             
-            // JSON 파싱 시도
-            let data;
-            try {
-                const responseText = await response.text();
-                if (!responseText || responseText.trim() === '') {
-                    console.warn('[공휴일 API] 응답 본문이 비어있습니다.');
-                    return [];
-                }
-                data = JSON.parse(responseText);
-            } catch (e) {
-                console.error('[공휴일 API] JSON 파싱 실패:', e.message);
-                console.error('[공휴일 API] 응답이 JSON 형식이 아닙니다. API 키 문제일 수 있습니다.');
-                return [];
-            }
+            // JSON 파싱
+            const data = await response.json();
             
-            // API 응답 에러 체크 (data.go.kr API는 성공해도 에러 코드를 반환할 수 있음)
-            if (data.response && data.response.header) {
-                const resultCode = data.response.header.resultCode;
-                const resultMsg = data.response.header.resultMsg;
+            // Nager.Date API 응답 형식: 직접 배열
+            if (Array.isArray(data) && data.length > 0) {
+                const holidays = data
+                    .filter(holiday => holiday.types && holiday.types.includes('Public')) // 공휴일만 필터링
+                    .map(holiday => ({
+                        date: holiday.date, // 이미 YYYY-MM-DD 형식
+                        title: holiday.localName || holiday.name // 한국어 이름 우선, 없으면 영어 이름
+                    }));
                 
-                if (resultCode !== '00') {
-                    console.error(`[공휴일 API] API 에러: ${resultCode} - ${resultMsg}`);
-                    return [];
-                }
-            }
-            
-            if (data.response && data.response.body && data.response.body.items) {
-                let items = data.response.body.items.item;
-                if (!Array.isArray(items)) items = [items];
-                const holidays = items.map(holiday => ({
-                    date: `${holiday.locdate}`.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
-                    title: holiday.dateName
-                }));
                 console.log(`[공휴일 API] ${year}년 공휴일 ${holidays.length}개 로드 완료`);
                 return holidays;
             }
+            
             return [];
         } catch (error) {
-            // 네트워크 에러나 JSON 파싱 에러
-            if (error instanceof SyntaxError) {
-                // 이미 response.text()로 읽었는데 JSON 파싱을 시도한 경우는 여기서 처리하지 않음
-                // (위에서 이미 처리됨)
-                console.warn('[공휴일 API] JSON 파싱 실패 (이미 처리됨):', error.message);
-            } else {
-                console.warn('[공휴일 API] 네트워크 에러:', error.message);
-            }
+            console.error('[공휴일 API] 에러:', error.message);
             // 에러 발생 시 빈 배열 반환 (캘린더는 공휴일 없이도 작동)
             return [];
         }
