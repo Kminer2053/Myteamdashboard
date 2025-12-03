@@ -59,24 +59,22 @@ jobs:
           # rclone 설정 디렉토리 생성
           mkdir -p ~/.config/rclone
           
-          # 토큰 JSON 파일 생성 (임시 파일)
-          TOKEN_FILE=$(mktemp)
-          cat > "$TOKEN_FILE" << 'TOKEN_EOF'
-{
-  "access_token": "",
-  "token_type": "Bearer",
-  "refresh_token": "REFRESH_TOKEN_PLACEHOLDER",
-  "expiry": "2000-01-01T00:00:00Z"
+          # Python을 사용하여 토큰 JSON 생성 (YAML 파서 충돌 방지)
+          echo "📝 토큰 JSON 생성 중..."
+          TOKEN_JSON=$(python3 << PYTHON_EOF
+import json
+import os
+token = {
+    "access_token": "",
+    "token_type": "Bearer",
+    "refresh_token": os.environ["GDRIVE_REFRESH_TOKEN"],
+    "expiry": "2000-01-01T00:00:00Z"
 }
-TOKEN_EOF
+print(json.dumps(token))
+PYTHON_EOF
+)
           
-          # 플레이스홀더를 실제 리프레시 토큰으로 교체
-          sed -i "s|REFRESH_TOKEN_PLACEHOLDER|$GDRIVE_REFRESH_TOKEN|g" "$TOKEN_FILE"
-          
-          # 토큰 JSON 읽기
-          TOKEN_JSON=$(cat "$TOKEN_FILE")
-          
-          # rclone 설정 생성 (토큰 파일 사용)
+          # rclone 설정 생성
           echo "📝 rclone 설정 생성 중..."
           rclone config create gdrive drive \
             client_id="$GDRIVE_CLIENT_ID" \
@@ -85,9 +83,6 @@ TOKEN_EOF
             scope=drive.file \
             root_folder_id="$GDRIVE_FOLDER_ID" \
             --non-interactive
-          
-          # 임시 파일 삭제
-          rm -f "$TOKEN_FILE"
           
           echo "✅ OAuth 설정 완료"
 
