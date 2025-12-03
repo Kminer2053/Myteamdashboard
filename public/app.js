@@ -897,9 +897,9 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('[공휴일 API] 함수 버전: 2025-12-02-v2 (최신)');
         
         try {
-            // API 키가 이미 URL 인코딩되어 있으므로 그대로 사용
-            // 만약 인코딩되지 않은 키라면 encodeURIComponent() 사용 필요
-            const API_KEY = 'DTrcjG%2BXCsB9m%2F6xPK4LmJ%2FG61dwF%2B3h%2FM7Rzv4IbI9ilfsqDRFErvOryzE45LblhwWpU4GSwuoA9W8CxVav5A%3D%3D';
+            // 새 인증키 (2025/12/03 발급) - URL 인코딩 필요
+            const API_KEY_RAW = '59c12627231e31f0c49b608447cbafdb00eeea0a469b5d1338b7268f03bcf0fb';
+            const API_KEY = encodeURIComponent(API_KEY_RAW);
             const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${API_KEY}&solYear=${year}&_type=json&numOfRows=100`;
             
             console.log('[공휴일 API] 요청 URL:', url.replace(API_KEY, 'API_KEY_HIDDEN'));
