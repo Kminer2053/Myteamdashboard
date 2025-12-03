@@ -897,11 +897,11 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('[공휴일 API] 함수 버전: 2025-12-02-v2 (최신)');
         
         try {
-            // 새 인증키 (2025/12/03 발급)
-            // 공개데이터포털: "포털에서 제공되는 Encoding/Decoding 된 인증키를 적용하면서 구동되는 키를 사용하시기 바랍니다"
-            // 일반 인증키는 그대로 사용 (URL 인코딩 불필요)
+            // 원래 방식: 이미 URL 인코딩된 키를 그대로 사용
+            // 새 인증키 (2025/12/03 발급) - 특수문자 없어서 인코딩해도 동일하지만 원래 방식 유지
+            // 키가 아직 활성화되지 않았을 수 있음 (401/403 에러 발생 시 확인 필요)
             const API_KEY = '59c12627231e31f0c49b608447cbafdb00eeea0a469b5d1338b7268f03bcf0fb';
-            const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${encodeURIComponent(API_KEY)}&solYear=${year}&_type=json&numOfRows=100`;
+            const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${API_KEY}&solYear=${year}&_type=json&numOfRows=100`;
             
             console.log('[공휴일 API] 요청 URL:', url.replace(API_KEY, 'API_KEY_HIDDEN'));
             
