@@ -25,11 +25,12 @@ jobs:
           # OAuth 2.0을 사용하여 개인 Google 계정 권한으로 업로드
           echo "🔐 OAuth 2.0 모드로 설정 중..."
           
-          # 환경 변수 확인 (디버깅용 - 실제 값은 마스킹)
+          # 환경 변수 확인 (디버깅용)
           echo "📋 환경 변수 확인:"
-          echo "  CLIENT_ID: ${GDRIVE_CLIENT_ID:0:20}..."
-          echo "  CLIENT_SECRET: ${GDRIVE_CLIENT_SECRET:0:10}..."
-          echo "  REFRESH_TOKEN: ${GDRIVE_REFRESH_TOKEN:0:20}..."
+          echo "  CLIENT_ID 길이: ${#GDRIVE_CLIENT_ID}"
+          echo "  CLIENT_SECRET 길이: ${#GDRIVE_CLIENT_SECRET}"
+          echo "  REFRESH_TOKEN 길이: ${#GDRIVE_REFRESH_TOKEN}"
+          echo "  REFRESH_TOKEN 시작: ${GDRIVE_REFRESH_TOKEN:0:10}..."
           echo "  FOLDER_ID: $GDRIVE_FOLDER_ID"
           
           # 리프레시 토큰이 비어있는지 확인
@@ -39,17 +40,42 @@ jobs:
             exit 1
           fi
           
-          # 리프레시 토큰을 JSON 형식으로 준비
-          TOKEN_JSON="{\"access_token\":\"\",\"token_type\":\"Bearer\",\"refresh_token\":\"$GDRIVE_REFRESH_TOKEN\",\"expiry\":\"2000-01-01T00:00:00Z\"}"
+          # 리프레시 토큰이 CLIENT_SECRET과 같은지 확인 (잘못 설정된 경우)
+          if [ "$GDRIVE_REFRESH_TOKEN" = "$GDRIVE_CLIENT_SECRET" ]; then
+            echo "❌ 오류: REFRESH_TOKEN이 CLIENT_SECRET과 같습니다!"
+            echo "📝 GitHub Secrets에서 GDRIVE_REFRESH_TOKEN을 올바른 값으로 설정하세요."
+            echo "   리프레시 토큰은 '1//'로 시작하는 긴 문자열이어야 합니다."
+            exit 1
+          fi
           
-          # rclone 설정 생성
+          # 리프레시 토큰이 올바른 형식인지 확인 (1//로 시작해야 함)
+          if [[ ! "$GDRIVE_REFRESH_TOKEN" =~ ^1// ]]; then
+            echo "❌ 오류: REFRESH_TOKEN 형식이 올바르지 않습니다!"
+            echo "📝 리프레시 토큰은 '1//'로 시작해야 합니다."
+            echo "   현재 값 시작: ${GDRIVE_REFRESH_TOKEN:0:10}..."
+            exit 1
+          fi
+          
+          # 토큰 JSON 파일 생성
+          mkdir -p ~/.config/rclone
+          cat > token.json << EOF
+          {
+            "access_token": "",
+            "token_type": "Bearer",
+            "refresh_token": "$GDRIVE_REFRESH_TOKEN",
+            "expiry": "2000-01-01T00:00:00Z"
+          }
+          EOF
+          
+          # rclone 설정 생성 (토큰 파일 사용)
           echo "📝 rclone 설정 생성 중..."
           rclone config create gdrive drive \
             client_id="$GDRIVE_CLIENT_ID" \
             client_secret="$GDRIVE_CLIENT_SECRET" \
-            token="$TOKEN_JSON" \
+            token="$(cat token.json)" \
             scope=drive.file \
-            root_folder_id="$GDRIVE_FOLDER_ID"
+            root_folder_id="$GDRIVE_FOLDER_ID" \
+            --non-interactive
           
           if [ $? -eq 0 ]; then
             echo "✅ OAuth 설정 완료"
