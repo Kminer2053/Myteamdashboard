@@ -59,33 +59,37 @@ jobs:
           # rclone 설정 디렉토리 생성
           mkdir -p ~/.config/rclone
           
-          # 토큰 JSON 문자열 생성 (이스케이프 처리)
-          # rclone은 토큰을 JSON 문자열로 저장해야 함
-          TOKEN_JSON="{\"access_token\":\"\",\"token_type\":\"Bearer\",\"refresh_token\":\"$GDRIVE_REFRESH_TOKEN\",\"expiry\":\"2000-01-01T00:00:00Z\"}"
+          # 토큰 JSON 파일 생성 (임시 파일)
+          TOKEN_FILE=$(mktemp)
+          cat > "$TOKEN_FILE" << 'TOKEN_EOF'
+{
+  "access_token": "",
+  "token_type": "Bearer",
+  "refresh_token": "REFRESH_TOKEN_PLACEHOLDER",
+  "expiry": "2000-01-01T00:00:00Z"
+}
+TOKEN_EOF
           
-          # rclone 설정 파일 직접 생성
-          echo "📝 rclone 설정 파일 생성 중..."
-          {
-            echo "[gdrive]"
-            echo "type = drive"
-            echo "client_id = $GDRIVE_CLIENT_ID"
-            echo "client_secret = $GDRIVE_CLIENT_SECRET"
-            # 토큰은 JSON 문자열로 저장 (rclone이 자동으로 파싱)
-            echo "token = $TOKEN_JSON"
-            echo "scope = drive.file"
-            echo "root_folder_id = $GDRIVE_FOLDER_ID"
-          } > ~/.config/rclone/rclone.conf
+          # 플레이스홀더를 실제 리프레시 토큰으로 교체
+          sed -i "s|REFRESH_TOKEN_PLACEHOLDER|$GDRIVE_REFRESH_TOKEN|g" "$TOKEN_FILE"
           
-          # 설정 파일 검증
-          echo "🔍 설정 파일 검증 중..."
-          if ! grep -q "refresh_token" ~/.config/rclone/rclone.conf; then
-            echo "❌ 오류: refresh_token이 설정 파일에 없습니다!"
-            exit 1
-          fi
+          # 토큰 JSON 읽기
+          TOKEN_JSON=$(cat "$TOKEN_FILE")
+          
+          # rclone 설정 생성 (토큰 파일 사용)
+          echo "📝 rclone 설정 생성 중..."
+          rclone config create gdrive drive \
+            client_id="$GDRIVE_CLIENT_ID" \
+            client_secret="$GDRIVE_CLIENT_SECRET" \
+            token="$TOKEN_JSON" \
+            scope=drive.file \
+            root_folder_id="$GDRIVE_FOLDER_ID" \
+            --non-interactive
+          
+          # 임시 파일 삭제
+          rm -f "$TOKEN_FILE"
           
           echo "✅ OAuth 설정 완료"
-          echo "📋 설정 파일 확인:"
-          cat ~/.config/rclone/rclone.conf | grep -v "token\|secret" || true
 
       - name: Generate summary files (overwrite with details)
         run: |
