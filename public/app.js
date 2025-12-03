@@ -897,10 +897,11 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('[공휴일 API] 함수 버전: 2025-12-02-v2 (최신)');
         
         try {
-            // 새 인증키 (2025/12/03 발급) - URL 인코딩 필요
-            const API_KEY_RAW = '59c12627231e31f0c49b608447cbafdb00eeea0a469b5d1338b7268f03bcf0fb';
-            const API_KEY = encodeURIComponent(API_KEY_RAW);
-            const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${API_KEY}&solYear=${year}&_type=json&numOfRows=100`;
+            // 새 인증키 (2025/12/03 발급)
+            // 공개데이터포털: "포털에서 제공되는 Encoding/Decoding 된 인증키를 적용하면서 구동되는 키를 사용하시기 바랍니다"
+            // 일반 인증키는 그대로 사용 (URL 인코딩 불필요)
+            const API_KEY = '59c12627231e31f0c49b608447cbafdb00eeea0a469b5d1338b7268f03bcf0fb';
+            const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${encodeURIComponent(API_KEY)}&solYear=${year}&_type=json&numOfRows=100`;
             
             console.log('[공휴일 API] 요청 URL:', url.replace(API_KEY, 'API_KEY_HIDDEN'));
             
