@@ -59,13 +59,13 @@ jobs:
           # rclone 설정 디렉토리 생성
           mkdir -p ~/.config/rclone
           
-          # Python을 사용하여 토큰 JSON 생성 및 설정 파일 생성
-          echo "📝 rclone 설정 파일 생성 중..."
-          python3 -c "import os, json; token_json = {'access_token': '', 'token_type': 'Bearer', 'refresh_token': os.environ['GDRIVE_REFRESH_TOKEN'], 'expiry': '2000-01-01T00:00:00Z'}; config_path = os.path.expanduser('~/.config/rclone/rclone.conf'); config_content = f'[gdrive]\ntype = drive\nclient_id = {os.environ[\"GDRIVE_CLIENT_ID\"]}\nclient_secret = {os.environ[\"GDRIVE_CLIENT_SECRET\"]}\ntoken = {json.dumps(token_json)}\nscope = drive.file\nroot_folder_id = {os.environ[\"GDRIVE_FOLDER_ID\"]}\n'; open(config_path, 'w').write(config_content); print('✅ 설정 파일 생성 완료')"
+          # 방법 1: JSON을 compact 형식(공백 없이)으로 저장하고, 토큰을 따옴표로 감싸기
+          echo "📝 방법 1: Compact JSON + 따옴표로 감싸기 시도 중..."
+          python3 -c "import os, json; token_json = {'access_token': '', 'token_type': 'Bearer', 'refresh_token': os.environ['GDRIVE_REFRESH_TOKEN'], 'expiry': '2000-01-01T00:00:00Z'}; token_json_str = json.dumps(token_json, separators=(',', ':')); config_path = os.path.expanduser('~/.config/rclone/rclone.conf'); config_content = f'[gdrive]\ntype = drive\nclient_id = {os.environ[\"GDRIVE_CLIENT_ID\"]}\nclient_secret = {os.environ[\"GDRIVE_CLIENT_SECRET\"]}\ntoken = \"{token_json_str}\"\nscope = drive.file\nroot_folder_id = {os.environ[\"GDRIVE_FOLDER_ID\"]}\n'; open(config_path, 'w').write(config_content); print('✅ 방법 1: 설정 파일 생성 완료')"
           
           # 디버깅: 생성된 설정 파일 내용 확인 (보안 주의: 민감한 정보 포함)
           echo ""
-          echo "🔍 생성된 설정 파일 내용 확인:"
+          echo "🔍 생성된 설정 파일 내용 확인 (방법 1):"
           echo "=========================================="
           cat ~/.config/rclone/rclone.conf
           echo "=========================================="
@@ -77,7 +77,7 @@ jobs:
           echo "..."
           echo ""
           
-          echo "✅ OAuth 설정 완료"
+          echo "✅ OAuth 설정 완료 (방법 1)"
 
       - name: Generate summary files (overwrite with details)
         run: |
@@ -88,21 +88,52 @@ jobs:
 
       - name: Upload summary file to Google Drive
         run: |
-          rclone -v copyto Myteamdashboard_summary.txt gdrive:Myteamdashboard_summary.txt || {
-            echo "❌ 업로드 실패: Service Account에 폴더 접근 권한이 있는지 확인하세요."
-            echo "📝 해결 방법:"
-            echo "   1. Google Drive에서 폴더를 열고 '공유' 클릭"
-            echo "   2. Service Account 이메일 주소를 공유자로 추가 (편집자 권한)"
-            echo "   3. 또는 Shared Drive를 사용하는 경우 GDRIVE_TEAM_DRIVE_ID secret을 설정하세요"
-            exit 1
-          }
+          # 방법 1로 업로드 시도
+          if rclone -v copyto Myteamdashboard_summary.txt gdrive:Myteamdashboard_summary.txt 2>&1 | grep -q "token expired\|no refresh token"; then
+            echo "⚠️ 방법 1 실패: 토큰 인식 오류 감지"
+            echo "📝 방법 2: 토큰을 따옴표 없이 직접 저장 시도 중..."
+            
+            # 방법 2: 토큰을 따옴표 없이 직접 저장 (compact JSON)
+            python3 -c "import os, json; token_json = {'access_token': '', 'token_type': 'Bearer', 'refresh_token': os.environ['GDRIVE_REFRESH_TOKEN'], 'expiry': '2000-01-01T00:00:00Z'}; token_json_str = json.dumps(token_json, separators=(',', ':')); config_path = os.path.expanduser('~/.config/rclone/rclone.conf'); config_content = f'[gdrive]\ntype = drive\nclient_id = {os.environ[\"GDRIVE_CLIENT_ID\"]}\nclient_secret = {os.environ[\"GDRIVE_CLIENT_SECRET\"]}\ntoken = {token_json_str}\nscope = drive.file\nroot_folder_id = {os.environ[\"GDRIVE_FOLDER_ID\"]}\n'; open(config_path, 'w').write(config_content); print('✅ 방법 2: 설정 파일 재생성 완료')"
+            
+            echo ""
+            echo "🔍 재생성된 설정 파일 내용 확인 (방법 2):"
+            echo "=========================================="
+            cat ~/.config/rclone/rclone.conf
+            echo "=========================================="
+            echo ""
+            
+            # 방법 2로 재시도
+            rclone -v copyto Myteamdashboard_summary.txt gdrive:Myteamdashboard_summary.txt || {
+              echo "❌ 방법 2도 실패: 업로드 실패"
+              echo "📝 해결 방법:"
+              echo "   1. Google Drive에서 폴더를 열고 '공유' 클릭"
+              echo "   2. Google 계정 이메일 주소를 공유자로 추가 (편집자 권한)"
+              echo "   3. GDRIVE_REFRESH_TOKEN이 올바른지 확인하세요"
+              exit 1
+            }
+          else
+            echo "✅ 방법 1로 업로드 성공"
+          fi
 
       - name: Upload detailed summary file to Google Drive
         run: |
-          rclone -v copyto Myteamdashboard_summary_detail.txt gdrive:Myteamdashboard_summary_detail.txt || {
-            echo "❌ 상세 요약 파일 업로드 실패"
-            exit 1
-          }
+          # 방법 1로 업로드 시도
+          if rclone -v copyto Myteamdashboard_summary_detail.txt gdrive:Myteamdashboard_summary_detail.txt 2>&1 | grep -q "token expired\|no refresh token"; then
+            echo "⚠️ 방법 1 실패: 토큰 인식 오류 감지"
+            echo "📝 방법 2: 토큰을 따옴표 없이 직접 저장 시도 중..."
+            
+            # 방법 2: 토큰을 따옴표 없이 직접 저장 (compact JSON)
+            python3 -c "import os, json; token_json = {'access_token': '', 'token_type': 'Bearer', 'refresh_token': os.environ['GDRIVE_REFRESH_TOKEN'], 'expiry': '2000-01-01T00:00:00Z'}; token_json_str = json.dumps(token_json, separators=(',', ':')); config_path = os.path.expanduser('~/.config/rclone/rclone.conf'); config_content = f'[gdrive]\ntype = drive\nclient_id = {os.environ[\"GDRIVE_CLIENT_ID\"]}\nclient_secret = {os.environ[\"GDRIVE_CLIENT_SECRET\"]}\ntoken = {token_json_str}\nscope = drive.file\nroot_folder_id = {os.environ[\"GDRIVE_FOLDER_ID\"]}\n'; open(config_path, 'w').write(config_content); print('✅ 방법 2: 설정 파일 재생성 완료')"
+            
+            # 방법 2로 재시도
+            rclone -v copyto Myteamdashboard_summary_detail.txt gdrive:Myteamdashboard_summary_detail.txt || {
+              echo "❌ 상세 요약 파일 업로드 실패 (방법 2도 실패)"
+              exit 1
+            }
+          else
+            echo "✅ 상세 요약 파일 업로드 성공"
+          fi
 
     env:
       GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
