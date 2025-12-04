@@ -63,6 +63,20 @@ jobs:
           echo "📝 rclone 설정 파일 생성 중..."
           python3 -c "import os, json; token_json = {'access_token': '', 'token_type': 'Bearer', 'refresh_token': os.environ['GDRIVE_REFRESH_TOKEN'], 'expiry': '2000-01-01T00:00:00Z'}; config_path = os.path.expanduser('~/.config/rclone/rclone.conf'); config_content = f'[gdrive]\ntype = drive\nclient_id = {os.environ[\"GDRIVE_CLIENT_ID\"]}\nclient_secret = {os.environ[\"GDRIVE_CLIENT_SECRET\"]}\ntoken = {json.dumps(token_json)}\nscope = drive.file\nroot_folder_id = {os.environ[\"GDRIVE_FOLDER_ID\"]}\n'; open(config_path, 'w').write(config_content); print('✅ 설정 파일 생성 완료')"
           
+          # 디버깅: 생성된 설정 파일 내용 확인 (보안 주의: 민감한 정보 포함)
+          echo ""
+          echo "🔍 생성된 설정 파일 내용 확인:"
+          echo "=========================================="
+          cat ~/.config/rclone/rclone.conf
+          echo "=========================================="
+          echo ""
+          
+          # 토큰 JSON 부분만 추출하여 확인
+          echo "🔍 토큰 JSON 부분 확인:"
+          grep "token = " ~/.config/rclone/rclone.conf | head -c 200
+          echo "..."
+          echo ""
+          
           echo "✅ OAuth 설정 완료"
 
       - name: Generate summary files (overwrite with details)
