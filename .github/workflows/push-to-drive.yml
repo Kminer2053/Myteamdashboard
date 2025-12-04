@@ -25,13 +25,12 @@ jobs:
           # OAuth 2.0을 사용하여 개인 Google 계정 권한으로 업로드
           echo "🔐 OAuth 2.0 모드로 설정 중..."
           
-          # 환경 변수 확인 (디버깅용)
+          # 환경 변수 확인 (보안: 길이만 확인)
           echo "📋 환경 변수 확인:"
           echo "  CLIENT_ID 길이: ${#GDRIVE_CLIENT_ID}"
           echo "  CLIENT_SECRET 길이: ${#GDRIVE_CLIENT_SECRET}"
           echo "  REFRESH_TOKEN 길이: ${#GDRIVE_REFRESH_TOKEN}"
-          echo "  REFRESH_TOKEN 시작: ${GDRIVE_REFRESH_TOKEN:0:10}..."
-          echo "  FOLDER_ID: $GDRIVE_FOLDER_ID"
+          echo "  FOLDER_ID 길이: ${#GDRIVE_FOLDER_ID}"
           
           # 리프레시 토큰이 비어있는지 확인
           if [ -z "$GDRIVE_REFRESH_TOKEN" ]; then
@@ -52,7 +51,6 @@ jobs:
           if [[ ! "$GDRIVE_REFRESH_TOKEN" =~ ^1// ]]; then
             echo "❌ 오류: REFRESH_TOKEN 형식이 올바르지 않습니다!"
             echo "📝 리프레시 토큰은 '1//'로 시작해야 합니다."
-            echo "   현재 값 시작: ${GDRIVE_REFRESH_TOKEN:0:10}..."
             exit 1
           fi
           
@@ -63,19 +61,14 @@ jobs:
           echo "📝 방법 1: Compact JSON + 따옴표로 감싸기 시도 중..."
           python3 -c "import os, json; token_json = {'access_token': '', 'token_type': 'Bearer', 'refresh_token': os.environ['GDRIVE_REFRESH_TOKEN'], 'expiry': '2000-01-01T00:00:00Z'}; token_json_str = json.dumps(token_json, separators=(',', ':')); config_path = os.path.expanduser('~/.config/rclone/rclone.conf'); config_content = f'[gdrive]\ntype = drive\nclient_id = {os.environ[\"GDRIVE_CLIENT_ID\"]}\nclient_secret = {os.environ[\"GDRIVE_CLIENT_SECRET\"]}\ntoken = \"{token_json_str}\"\nscope = drive.file\nroot_folder_id = {os.environ[\"GDRIVE_FOLDER_ID\"]}\n'; open(config_path, 'w').write(config_content); print('✅ 방법 1: 설정 파일 생성 완료')"
           
-          # 디버깅: 생성된 설정 파일 내용 확인 (보안 주의: 민감한 정보 포함)
-          echo ""
-          echo "🔍 생성된 설정 파일 내용 확인 (방법 1):"
-          echo "=========================================="
-          cat ~/.config/rclone/rclone.conf
-          echo "=========================================="
-          echo ""
-          
-          # 토큰 JSON 부분만 추출하여 확인
-          echo "🔍 토큰 JSON 부분 확인:"
-          grep "token = " ~/.config/rclone/rclone.conf | head -c 200
-          echo "..."
-          echo ""
+          # 설정 파일 생성 확인 (보안: 민감한 정보 노출 없이)
+          if [ -f ~/.config/rclone/rclone.conf ]; then
+            CONFIG_LINES=$(wc -l < ~/.config/rclone/rclone.conf)
+            echo "✅ 설정 파일 생성 확인: $CONFIG_LINES 줄"
+          else
+            echo "❌ 오류: 설정 파일이 생성되지 않았습니다!"
+            exit 1
+          fi
           
           echo "✅ OAuth 설정 완료 (방법 1)"
 
@@ -96,12 +89,14 @@ jobs:
             # 방법 2: 토큰을 따옴표 없이 직접 저장 (compact JSON)
             python3 -c "import os, json; token_json = {'access_token': '', 'token_type': 'Bearer', 'refresh_token': os.environ['GDRIVE_REFRESH_TOKEN'], 'expiry': '2000-01-01T00:00:00Z'}; token_json_str = json.dumps(token_json, separators=(',', ':')); config_path = os.path.expanduser('~/.config/rclone/rclone.conf'); config_content = f'[gdrive]\ntype = drive\nclient_id = {os.environ[\"GDRIVE_CLIENT_ID\"]}\nclient_secret = {os.environ[\"GDRIVE_CLIENT_SECRET\"]}\ntoken = {token_json_str}\nscope = drive.file\nroot_folder_id = {os.environ[\"GDRIVE_FOLDER_ID\"]}\n'; open(config_path, 'w').write(config_content); print('✅ 방법 2: 설정 파일 재생성 완료')"
             
-            echo ""
-            echo "🔍 재생성된 설정 파일 내용 확인 (방법 2):"
-            echo "=========================================="
-            cat ~/.config/rclone/rclone.conf
-            echo "=========================================="
-            echo ""
+            # 설정 파일 재생성 확인 (보안: 민감한 정보 노출 없이)
+            if [ -f ~/.config/rclone/rclone.conf ]; then
+              CONFIG_LINES=$(wc -l < ~/.config/rclone/rclone.conf)
+              echo "✅ 설정 파일 재생성 확인: $CONFIG_LINES 줄"
+            else
+              echo "❌ 오류: 설정 파일이 재생성되지 않았습니다!"
+              exit 1
+            fi
             
             # 방법 2로 재시도
             rclone -v copyto Myteamdashboard_summary.txt gdrive:Myteamdashboard_summary.txt || {
@@ -125,6 +120,15 @@ jobs:
             
             # 방법 2: 토큰을 따옴표 없이 직접 저장 (compact JSON)
             python3 -c "import os, json; token_json = {'access_token': '', 'token_type': 'Bearer', 'refresh_token': os.environ['GDRIVE_REFRESH_TOKEN'], 'expiry': '2000-01-01T00:00:00Z'}; token_json_str = json.dumps(token_json, separators=(',', ':')); config_path = os.path.expanduser('~/.config/rclone/rclone.conf'); config_content = f'[gdrive]\ntype = drive\nclient_id = {os.environ[\"GDRIVE_CLIENT_ID\"]}\nclient_secret = {os.environ[\"GDRIVE_CLIENT_SECRET\"]}\ntoken = {token_json_str}\nscope = drive.file\nroot_folder_id = {os.environ[\"GDRIVE_FOLDER_ID\"]}\n'; open(config_path, 'w').write(config_content); print('✅ 방법 2: 설정 파일 재생성 완료')"
+            
+            # 설정 파일 재생성 확인 (보안: 민감한 정보 노출 없이)
+            if [ -f ~/.config/rclone/rclone.conf ]; then
+              CONFIG_LINES=$(wc -l < ~/.config/rclone/rclone.conf)
+              echo "✅ 설정 파일 재생성 확인: $CONFIG_LINES 줄"
+            else
+              echo "❌ 오류: 설정 파일이 재생성되지 않았습니다!"
+              exit 1
+            fi
             
             # 방법 2로 재시도
             rclone -v copyto Myteamdashboard_summary_detail.txt gdrive:Myteamdashboard_summary_detail.txt || {
