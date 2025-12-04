@@ -44,6 +44,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 // 정적 파일 서빙 설정
 app.use(express.static(path.join(__dirname, 'dist')));
 app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use('/reports', express.static(path.join(__dirname, 'reports')));
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID || 'e037eF7sxB3VuJHBpay5';
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET || 'qkPfGHxNkN';

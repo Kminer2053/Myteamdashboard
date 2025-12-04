@@ -251,16 +251,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 이벤트 리스너 초기화
     function initEventListeners() {
-        const startAnalysisBtn = document.getElementById('startAdvancedAnalysis');
-        const downloadReportBtn = document.getElementById('downloadReportBtn');
-        const downloadDataBtn = document.getElementById('downloadDataBtn');
+        // 화제성 분석 이벤트 리스너
+        const searchInfoBtn = document.getElementById('searchInfoBtn');
+        const generateReportBtn = document.getElementById('generateReportBtn');
+        const startAnalysisBtn = document.getElementById('startAnalysisBtn');
+        const downloadPDFBtn = document.getElementById('downloadPDFBtn');
+        const downloadNewsCSV = document.getElementById('downloadNewsCSV');
         
-        // 분석 시작 버튼
-        startAnalysisBtn.addEventListener('click', startAdvancedAnalysis);
-        
-        // 다운로드 버튼들
-        downloadReportBtn.addEventListener('click', downloadReport);
-        downloadDataBtn.addEventListener('click', downloadData);
+        if (searchInfoBtn) {
+            searchInfoBtn.addEventListener('click', searchHotTopicInfo);
+        }
+        if (generateReportBtn) {
+            generateReportBtn.addEventListener('click', () => {
+                document.getElementById('analysisSection').style.display = 'block';
+            });
+        }
+        if (startAnalysisBtn) {
+            startAnalysisBtn.addEventListener('click', generateHotTopicReport);
+        }
+        if (downloadPDFBtn) {
+            downloadPDFBtn.addEventListener('click', downloadPDF);
+        }
+        if (downloadNewsCSV) {
+            downloadNewsCSV.addEventListener('click', downloadNewsCSVFile);
+        }
     }
 
     // 고급 분석 시작
@@ -3311,4 +3325,427 @@ async function logUserAction(action, meta = {}) {
     } catch (e) {
         console.warn('사용자 액션 로깅 중 오류:', e.message);
     }
+}
+
+// ===== 화제성 분석 새로운 워크플로우 =====
+let hotTopicData = {
+    keyword: '',
+    startDate: '',
+    endDate: '',
+    newsData: null,
+    naverTrend: null,
+    googleTrend: null,
+    markdownReport: null,
+    pdfUrl: null
+};
+
+// 정보검색 시작
+async function searchHotTopicInfo() {
+    const keyword = document.getElementById('hotTopicKeyword')?.value.trim();
+    const startDate = document.getElementById('hotTopicStartDate')?.value;
+    const endDate = document.getElementById('hotTopicEndDate')?.value;
+    
+    if (!keyword) {
+        showToast('키워드를 입력해주세요.');
+        return;
+    }
+    
+    if (!startDate || !endDate) {
+        showToast('분석 기간을 설정해주세요.');
+        return;
+    }
+    
+    if (new Date(startDate) > new Date(endDate)) {
+        showToast('시작일은 종료일보다 이전이어야 합니다.');
+        return;
+    }
+    
+    const searchInfoBtn = document.getElementById('searchInfoBtn');
+    searchInfoBtn.disabled = true;
+    searchInfoBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>검색 중...';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/hot-topic-analysis/search-info`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                keyword,
+                startDate,
+                endDate
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            hotTopicData = {
+                keyword,
+                startDate,
+                endDate,
+                newsData: result.data.newsData,
+                naverTrend: result.data.naverTrend,
+                googleTrend: result.data.googleTrend
+            };
+            
+            // 정보검색 결과 표시
+            displaySearchInfoResults(result.data);
+            
+            // 화제성 분석 버튼 활성화
+            document.getElementById('generateReportBtn').disabled = false;
+            
+            showToast('정보검색이 완료되었습니다.');
+        } else {
+            throw new Error(result.message || '정보검색 실패');
+        }
+    } catch (error) {
+        console.error('정보검색 오류:', error);
+        showToast('정보검색 중 오류가 발생했습니다: ' + error.message);
+    } finally {
+        searchInfoBtn.disabled = false;
+        searchInfoBtn.innerHTML = '<i class="fas fa-search me-2"></i>정보검색 시작';
+    }
+}
+
+// 정보검색 결과 표시
+async function displaySearchInfoResults(data) {
+    const resultsSection = document.getElementById('searchInfoResults');
+    resultsSection.style.display = 'block';
+    
+    // 언론보도 효과성 표시
+    const newsCount = data.newsData?.totalCount || 0;
+    document.getElementById('newsCount').textContent = newsCount;
+    
+    // 뉴스 테이블 렌더링
+    renderNewsTable(data.newsData?.news || []);
+    
+    // 뉴스 차트 렌더링
+    await renderNewsChart(data.newsData?.aggregated || {});
+    
+    // 네이버 트렌드 차트 렌더링
+    await renderNaverTrendChart(data.naverTrend);
+    
+    // 구글 트렌드 차트 렌더링
+    await renderGoogleTrendChart(data.googleTrend);
+}
+
+// 뉴스 테이블 렌더링
+function renderNewsTable(news) {
+    const tbody = document.getElementById('newsTableBody');
+    if (!tbody) return;
+    
+    if (news.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center">뉴스가 없습니다.</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = news.slice(0, 20).map(item => `
+        <tr>
+            <td><a href="${item.link}" target="_blank">${item.title}</a></td>
+            <td>${item.source || '알 수 없음'}</td>
+            <td>${item.pubDate}</td>
+        </tr>
+    `).join('');
+}
+
+// 뉴스 차트 렌더링
+async function renderNewsChart(aggregated) {
+    await loadChartJS();
+    const ctx = document.getElementById('newsChart');
+    if (!ctx || typeof Chart === 'undefined') return;
+    
+    const labels = Object.keys(aggregated).sort();
+    const data = labels.map(label => aggregated[label]);
+    
+    if (window.newsChart) {
+        window.newsChart.destroy();
+    }
+    
+    window.newsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '보도건수',
+                data: data,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+
+// 네이버 트렌드 차트 렌더링
+async function renderNaverTrendChart(trendData) {
+    await loadChartJS();
+    const ctx = document.getElementById('naverTrendChart');
+    if (!ctx || typeof Chart === 'undefined' || !trendData || !trendData.data) return;
+    
+    const labels = trendData.data.map(item => item.date);
+    const data = trendData.data.map(item => item.value);
+    
+    if (window.naverTrendChart) {
+        window.naverTrendChart.destroy();
+    }
+    
+    window.naverTrendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '네이버 검색량',
+                data: data,
+                borderColor: '#03c75a',
+                backgroundColor: 'rgba(3, 199, 90, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// 구글 트렌드 차트 렌더링
+async function renderGoogleTrendChart(trendData) {
+    await loadChartJS();
+    const ctx = document.getElementById('googleTrendChart');
+    if (!ctx || typeof Chart === 'undefined' || !trendData || !trendData.data) return;
+    
+    const labels = trendData.data.map(item => item.date);
+    const data = trendData.data.map(item => item.value);
+    
+    if (window.googleTrendChart) {
+        window.googleTrendChart.destroy();
+    }
+    
+    window.googleTrendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '구글 검색량',
+                data: data,
+                borderColor: '#4285f4',
+                backgroundColor: 'rgba(66, 133, 244, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// 화제성 분석 보고서 생성
+async function generateHotTopicReport() {
+    const insights = document.getElementById('insightsInput')?.value.trim() || '';
+    
+    const startAnalysisBtn = document.getElementById('startAnalysisBtn');
+    const analysisLoading = document.getElementById('analysisLoading');
+    const reportPreview = document.getElementById('reportPreview');
+    
+    startAnalysisBtn.disabled = true;
+    analysisLoading.style.display = 'block';
+    reportPreview.style.display = 'none';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/hot-topic-analysis/generate-report`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                keyword: hotTopicData.keyword,
+                startDate: hotTopicData.startDate,
+                endDate: hotTopicData.endDate,
+                insights: insights,
+                newsData: hotTopicData.newsData,
+                naverTrend: hotTopicData.naverTrend,
+                googleTrend: hotTopicData.googleTrend
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            hotTopicData.markdownReport = result.data.report;
+            
+            // 마크다운 미리보기 표시
+            displayMarkdownPreview(result.data.report);
+            
+            reportPreview.style.display = 'block';
+            showToast('보고서가 생성되었습니다.');
+        } else {
+            throw new Error(result.message || '보고서 생성 실패');
+        }
+    } catch (error) {
+        console.error('보고서 생성 오류:', error);
+        showToast('보고서 생성 중 오류가 발생했습니다: ' + error.message);
+    } finally {
+        startAnalysisBtn.disabled = false;
+        analysisLoading.style.display = 'none';
+    }
+}
+
+// 마크다운 미리보기 표시
+function displayMarkdownPreview(markdown) {
+    const preview = document.getElementById('markdownPreview');
+    if (!preview) return;
+    
+    // 간단한 마크다운 렌더링
+    let html = markdown
+        // 코드 블록 처리
+        .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+        // 인라인 코드
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // 제목
+        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+        // 강조
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        // 링크
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+        // 리스트 (간단한 처리)
+        .split('\n')
+        .map(line => {
+            if (/^[-*]\s/.test(line)) {
+                return '<li>' + line.replace(/^[-*]\s/, '') + '</li>';
+            }
+            if (/^\d+\.\s/.test(line)) {
+                return '<li>' + line.replace(/^\d+\.\s/, '') + '</li>';
+            }
+            return line;
+        })
+        .join('\n')
+        .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+        // 줄바꿈
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>');
+    
+    // 문단 태그 추가
+    html = '<p>' + html + '</p>';
+    
+    preview.innerHTML = html;
+}
+
+// PDF 다운로드
+async function downloadPDF() {
+    if (!hotTopicData.markdownReport) {
+        showToast('먼저 보고서를 생성해주세요.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/hot-topic-analysis/convert-pdf`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                markdown: hotTopicData.markdownReport,
+                filename: `화제성분석_${hotTopicData.keyword}_${hotTopicData.startDate}`
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // PDF 다운로드
+            const downloadUrl = `${API_BASE_URL}/api/hot-topic-analysis/download-pdf/${result.data.fileName}`;
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = result.data.fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            showToast('PDF가 다운로드되었습니다.');
+        } else {
+            throw new Error(result.message || 'PDF 변환 실패');
+        }
+    } catch (error) {
+        console.error('PDF 다운로드 오류:', error);
+        showToast('PDF 다운로드 중 오류가 발생했습니다: ' + error.message);
+    }
+}
+
+// 뉴스 CSV 다운로드
+function downloadNewsCSVFile() {
+    if (!hotTopicData.newsData || !hotTopicData.newsData.news) {
+        showToast('뉴스 데이터가 없습니다.');
+        return;
+    }
+    
+    const news = hotTopicData.newsData.news;
+    const csv = [
+        ['제목', '링크', '언론사', '발행일'].join(','),
+        ...news.map(item => [
+            `"${(item.title || '').replace(/"/g, '""')}"`,
+            `"${item.link || ''}"`,
+            `"${(item.source || '').replace(/"/g, '""')}"`,
+            `"${item.pubDate || ''}"`
+        ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `언론보도효과성_${hotTopicData.keyword}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('CSV 파일이 다운로드되었습니다.');
 }

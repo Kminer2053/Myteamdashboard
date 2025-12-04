@@ -1,32 +1,29 @@
 const express = require('express');
 const router = express.Router();
-const path = require('path');
-const fs = require('fs');
-const HotTopicDataCollector = require('../services/hotTopicDataCollector');
-const HotTopicAnalysis = require('../models/HotTopicAnalysis');
-const WeightSetting = require('../models/WeightSetting');
-const ReportGenerator = require('../services/reportGenerator');
+const axios = require('axios');
+const GoogleTrendsService = require('../services/googleTrendsService');
+const PDFGenerator = require('../services/pdfGenerator');
 
-// 화제성 분석 시작
-router.post('/start', async (req, res) => {
+const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID || 'e037eF7sxB3VuJHBpay5';
+const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET || 'qkPfGHxNkN';
+const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
+const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
+
+const googleTrendsService = new GoogleTrendsService();
+const pdfGenerator = new PDFGenerator();
+
+// 정보검색 API (언론보도 효과성 + 검색트렌드)
+router.post('/search-info', async (req, res) => {
     try {
-        const { keywords, startDate, endDate, sources } = req.body;
+        const { keyword, startDate, endDate } = req.body;
         
-        if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
+        if (!keyword || !startDate || !endDate) {
             return res.status(400).json({
                 success: false,
-                message: '키워드가 필요합니다.'
+                message: '키워드, 시작일, 종료일이 모두 필요합니다.'
             });
         }
 
-        if (!startDate || !endDate) {
-            return res.status(400).json({
-                success: false,
-                message: '시작일과 종료일이 필요합니다.'
-            });
-        }
-
-        // 날짜 유효성 검사
         const start = new Date(startDate);
         const end = new Date(endDate);
         
@@ -44,416 +41,396 @@ router.post('/start', async (req, res) => {
             });
         }
 
-        // 데이터 수집 시작
-        const collector = new HotTopicDataCollector();
-        const results = await collector.collectHotTopicData(keywords, start, end, sources);
+        console.log(`🔍 정보검색 시작: ${keyword} (${startDate} ~ ${endDate})`);
 
-        res.json({
-            success: true,
-            message: '화제성 분석이 완료되었습니다.',
-            data: results
-        });
-
-    } catch (error) {
-        console.error('화제성 분석 오류:', error);
-        res.status(500).json({
-            success: false,
-            message: '화제성 분석 중 오류가 발생했습니다.',
-            error: error.message
-        });
-    }
-});
-
-// 화제성 분석 결과 조회
-router.get('/results', async (req, res) => {
-    try {
-        const { keyword, startDate, endDate, limit = 10 } = req.query;
-        
-        const query = {};
-        
-        if (keyword) {
-            query.keyword = keyword;
-        }
-        
-        if (startDate && endDate) {
-            query.date = {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
-            };
-        }
-
-        const results = await HotTopicAnalysis.find(query)
-            .sort({ date: -1 })
-            .limit(parseInt(limit))
-            .populate('weightSettingId', 'name description');
-
-        res.json({
-            success: true,
-            data: results
-        });
-
-    } catch (error) {
-        console.error('화제성 분석 결과 조회 오류:', error);
-        res.status(500).json({
-            success: false,
-            message: '결과 조회 중 오류가 발생했습니다.',
-            error: error.message
-        });
-    }
-});
-
-// 특정 키워드의 시계열 데이터 조회
-router.get('/timeseries/:keyword', async (req, res) => {
-    try {
-        const { keyword } = req.params;
-        const { startDate, endDate } = req.query;
-        
-        const query = { keyword };
-        
-        if (startDate && endDate) {
-            query.date = {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
-            };
-        }
-
-        const results = await HotTopicAnalysis.find(query)
-            .sort({ date: 1 })
-            .select('date metrics keyword');
-
-        // 시계열 데이터 포맷팅
-        const timeseriesData = {
-            labels: results.map(item => item.date.toISOString().split('T')[0]),
-            datasets: [
-                {
-                    label: '종합 지수',
-                    data: results.map(item => item.metrics.overall),
-                    borderColor: '#dc3545',
-                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                    tension: 0.4
+        // 1. 언론보도 효과성 데이터 수집 (기존 API 재사용)
+        let newsData = null;
+        try {
+            const newsResponse = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+                headers: {
+                    'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                    'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
                 },
-                {
-                    label: '노출 지수',
-                    data: results.map(item => item.metrics.exposure),
-                    borderColor: '#0d6efd',
-                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                    tension: 0.4
-                },
-                {
-                    label: '참여 지수',
-                    data: results.map(item => item.metrics.engagement),
-                    borderColor: '#198754',
-                    backgroundColor: 'rgba(25, 135, 84, 0.1)',
-                    tension: 0.4
-                },
-                {
-                    label: '수요 지수',
-                    data: results.map(item => item.metrics.demand),
-                    borderColor: '#ffc107',
-                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                    tension: 0.4
-                }
-            ]
-        };
-
-        res.json({
-            success: true,
-            data: timeseriesData
-        });
-
-    } catch (error) {
-        console.error('시계열 데이터 조회 오류:', error);
-        res.status(500).json({
-            success: false,
-            message: '시계열 데이터 조회 중 오류가 발생했습니다.',
-            error: error.message
-        });
-    }
-});
-
-// 특정 날짜의 상세 데이터 조회
-router.get('/detail/:keyword/:date', async (req, res) => {
-    try {
-        const { keyword, date } = req.params;
-        
-        const result = await HotTopicAnalysis.findOne({
-            keyword: keyword,
-            date: new Date(date)
-        }).populate('weightSettingId', 'name description');
-
-        if (!result) {
-            return res.status(404).json({
-                success: false,
-                message: '해당 날짜의 분석 데이터를 찾을 수 없습니다.'
-            });
-        }
-
-        res.json({
-            success: true,
-            data: result
-        });
-
-    } catch (error) {
-        console.error('상세 데이터 조회 오류:', error);
-        res.status(500).json({
-            success: false,
-            message: '상세 데이터 조회 중 오류가 발생했습니다.',
-            error: error.message
-        });
-    }
-});
-
-// 키워드별 통계 조회
-router.get('/stats/:keyword', async (req, res) => {
-    try {
-        const { keyword } = req.params;
-        const { startDate, endDate } = req.query;
-        
-        const query = { keyword };
-        
-        if (startDate && endDate) {
-            query.date = {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
-            };
-        }
-
-        const results = await HotTopicAnalysis.find(query)
-            .sort({ date: -1 });
-
-        if (results.length === 0) {
-            return res.json({
-                success: true,
-                data: {
-                    keyword: keyword,
-                    totalAnalyses: 0,
-                    avgMetrics: {
-                        exposure: 0,
-                        engagement: 0,
-                        demand: 0,
-                        overall: 0
-                    },
-                    maxMetrics: {
-                        exposure: 0,
-                        engagement: 0,
-                        demand: 0,
-                        overall: 0
-                    },
-                    minMetrics: {
-                        exposure: 0,
-                        engagement: 0,
-                        demand: 0,
-                        overall: 0
-                    },
-                    trend: 'stable'
+                params: {
+                    query: keyword,
+                    display: 100,
+                    sort: 'date'
                 }
             });
+
+            const newsItems = newsResponse.data.items || [];
+            const filteredNews = newsItems
+                .filter(item => {
+                    const pubDate = new Date(item.pubDate);
+                    return pubDate >= start && pubDate <= end;
+                })
+                .map(item => ({
+                    title: item.title.replace(/<[^>]+>/g, ''),
+                    link: item.link,
+                    description: item.description.replace(/<[^>]+>/g, ''),
+                    pubDate: new Date(item.pubDate).toISOString().split('T')[0],
+                    source: extractSourceFromLink(item.link),
+                    originallink: item.originallink
+                }));
+
+            // 날짜별 집계
+            const aggregated = {};
+            filteredNews.forEach(item => {
+                const date = item.pubDate;
+                aggregated[date] = (aggregated[date] || 0) + 1;
+            });
+
+            newsData = {
+                news: filteredNews,
+                aggregated: aggregated,
+                totalCount: filteredNews.length
+            };
+        } catch (error) {
+            console.error('언론보도 효과성 데이터 수집 오류:', error.message);
+            newsData = {
+                news: [],
+                aggregated: {},
+                totalCount: 0,
+                error: error.message
+            };
         }
 
-        // 통계 계산
-        const totalAnalyses = results.length;
-        
-        const avgMetrics = {
-            exposure: Math.round(results.reduce((sum, item) => sum + item.metrics.exposure, 0) / totalAnalyses),
-            engagement: Math.round(results.reduce((sum, item) => sum + item.metrics.engagement, 0) / totalAnalyses),
-            demand: Math.round(results.reduce((sum, item) => sum + item.metrics.demand, 0) / totalAnalyses),
-            overall: Math.round(results.reduce((sum, item) => sum + item.metrics.overall, 0) / totalAnalyses)
-        };
+        // 2. 네이버 검색트렌드 데이터 수집
+        let naverTrend = null;
+        try {
+            const trendResponse = await axios.post('https://openapi.naver.com/v1/datalab/search', {
+                startDate: start.toISOString().split('T')[0],
+                endDate: end.toISOString().split('T')[0],
+                timeUnit: 'date',
+                keywordGroups: [{
+                    groupName: keyword,
+                    keywords: [keyword]
+                }]
+            }, {
+                headers: {
+                    'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                    'X-Naver-Client-Secret': NAVER_CLIENT_SECRET,
+                    'Content-Type': 'application/json'
+                }
+            });
 
-        const maxMetrics = {
-            exposure: Math.max(...results.map(item => item.metrics.exposure)),
-            engagement: Math.max(...results.map(item => item.metrics.engagement)),
-            demand: Math.max(...results.map(item => item.metrics.demand)),
-            overall: Math.max(...results.map(item => item.metrics.overall))
-        };
+            const trendData = trendResponse.data.results[0]?.data || [];
+            naverTrend = {
+                keyword: keyword,
+                data: trendData.map(item => ({
+                    date: item.period,
+                    value: item.ratio || 0
+                })),
+                totalVolume: trendData.reduce((sum, item) => sum + (item.ratio || 0), 0),
+                avgValue: Math.round(trendData.reduce((sum, item) => sum + (item.ratio || 0), 0) / Math.max(trendData.length, 1))
+            };
+        } catch (error) {
+            console.error('네이버 검색트렌드 수집 오류:', error.message);
+            naverTrend = {
+                keyword: keyword,
+                data: [],
+                totalVolume: 0,
+                avgValue: 0,
+                error: error.message
+            };
+        }
 
-        const minMetrics = {
-            exposure: Math.min(...results.map(item => item.metrics.exposure)),
-            engagement: Math.min(...results.map(item => item.metrics.engagement)),
-            demand: Math.min(...results.map(item => item.metrics.demand)),
-            overall: Math.min(...results.map(item => item.metrics.overall))
-        };
-
-        // 트렌드 분석 (최근 3개 데이터 기준)
-        let trend = 'stable';
-        if (results.length >= 3) {
-            const recent = results.slice(0, 3);
-            const first = recent[2].metrics.overall;
-            const last = recent[0].metrics.overall;
-            
-            if (last > first + 5) {
-                trend = 'increasing';
-            } else if (last < first - 5) {
-                trend = 'decreasing';
-            }
+        // 3. 구글 검색트렌드 데이터 수집
+        let googleTrend = null;
+        try {
+            googleTrend = await googleTrendsService.getTrendData(keyword, start, end);
+        } catch (error) {
+            console.error('구글 검색트렌드 수집 오류:', error.message);
+            googleTrend = {
+                keyword: keyword,
+                data: [],
+                totalVolume: 0,
+                avgValue: 0,
+                error: error.message
+            };
         }
 
         res.json({
             success: true,
             data: {
                 keyword: keyword,
-                totalAnalyses: totalAnalyses,
-                avgMetrics: avgMetrics,
-                maxMetrics: maxMetrics,
-                minMetrics: minMetrics,
-                trend: trend
+                period: {
+                    startDate: startDate,
+                    endDate: endDate
+                },
+                newsData: newsData,
+                naverTrend: naverTrend,
+                googleTrend: googleTrend
             }
         });
 
     } catch (error) {
-        console.error('키워드 통계 조회 오류:', error);
+        console.error('정보검색 오류:', error);
         res.status(500).json({
             success: false,
-            message: '통계 조회 중 오류가 발생했습니다.',
+            message: '정보검색 중 오류가 발생했습니다.',
             error: error.message
         });
     }
 });
 
-// 분석 데이터 삭제
-router.delete('/:id', async (req, res) => {
+// 화제성 분석 보고서 생성 API
+router.post('/generate-report', async (req, res) => {
     try {
-        const { id } = req.params;
+        const { keyword, startDate, endDate, insights, newsData, naverTrend, googleTrend } = req.body;
         
-        const result = await HotTopicAnalysis.findByIdAndDelete(id);
-        
-        if (!result) {
-            return res.status(404).json({
+        if (!keyword || !startDate || !endDate) {
+            return res.status(400).json({
                 success: false,
-                message: '분석 데이터를 찾을 수 없습니다.'
+                message: '키워드, 시작일, 종료일이 필요합니다.'
             });
         }
+
+        if (!PERPLEXITY_API_KEY) {
+            return res.status(500).json({
+                success: false,
+                message: 'Perplexity API 키가 설정되지 않았습니다.'
+            });
+        }
+
+        console.log(`📊 화제성 분석 보고서 생성: ${keyword}`);
+
+        // 프롬프트 구성
+        const prompt = buildAnalysisPrompt(keyword, startDate, endDate, insights, newsData, naverTrend, googleTrend);
+
+        // Perplexity AI 호출
+        const response = await axios.post(PERPLEXITY_API_URL, {
+            model: 'sonar-pro',
+            messages: [
+                {
+                    role: 'system',
+                    content: '당신은 화제성 분석 전문가입니다. 주어진 데이터를 바탕으로 구조화된 마크다운 형식의 종합 분석 보고서를 작성해주세요.'
+                },
+                {
+                    role: 'user',
+                    content: prompt
+                }
+            ],
+            max_tokens: 2000,
+            temperature: 0.7
+        }, {
+            headers: {
+                'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 60000
+        });
+
+        const markdownReport = response.data.choices[0].message.content;
 
         res.json({
             success: true,
-            message: '분석 데이터가 삭제되었습니다.'
+            data: {
+                keyword: keyword,
+                report: markdownReport,
+                generatedAt: new Date().toISOString()
+            }
         });
 
     } catch (error) {
-        console.error('분석 데이터 삭제 오류:', error);
+        console.error('화제성 분석 보고서 생성 오류:', error);
         res.status(500).json({
             success: false,
-            message: '데이터 삭제 중 오류가 발생했습니다.',
+            message: '보고서 생성 중 오류가 발생했습니다.',
             error: error.message
         });
     }
 });
 
-// 키워드 목록 조회
-router.get('/keywords', async (req, res) => {
+// PDF 변환 API
+router.post('/convert-pdf', async (req, res) => {
     try {
-        const keywords = await HotTopicAnalysis.distinct('keyword');
+        const { markdown, filename } = req.body;
         
-        res.json({
-            success: true,
-            data: keywords
-        });
-
-    } catch (error) {
-        console.error('키워드 목록 조회 오류:', error);
-        res.status(500).json({
-            success: false,
-            message: '키워드 목록 조회 중 오류가 발생했습니다.',
-            error: error.message
-        });
-    }
-});
-
-// 보고서 다운로드
-router.get('/report/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        const analysis = await HotTopicAnalysis.findById(id);
-        if (!analysis) {
-            return res.status(404).json({
+        if (!markdown) {
+            return res.status(400).json({
                 success: false,
-                message: '분석 데이터를 찾을 수 없습니다.'
+                message: '마크다운 내용이 필요합니다.'
             });
         }
 
-        if (!analysis.reportPath || !fs.existsSync(analysis.reportPath)) {
-            return res.status(404).json({
-                success: false,
-                message: '보고서 파일을 찾을 수 없습니다.'
-            });
-        }
+        console.log('📄 PDF 변환 시작...');
 
-        res.download(analysis.reportPath, `hot-topic-report-${analysis.keyword}.html`);
+        const result = await pdfGenerator.convertToPDF(markdown, filename);
 
-    } catch (error) {
-        console.error('보고서 다운로드 오류:', error);
-        res.status(500).json({
-            success: false,
-            message: '보고서 다운로드 중 오류가 발생했습니다.',
-            error: error.message
-        });
-    }
-});
-
-// 보고서 재생성
-router.post('/report/:id/regenerate', async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        const analysis = await HotTopicAnalysis.findById(id);
-        if (!analysis) {
-            return res.status(404).json({
-                success: false,
-                message: '분석 데이터를 찾을 수 없습니다.'
-            });
-        }
-
-        const reportGenerator = new ReportGenerator();
-        const reportResult = await reportGenerator.generateHTMLReport(analysis, analysis.aiInsights);
-        
-        if (reportResult.success) {
-            analysis.reportPath = reportResult.filePath;
-            analysis.reportId = reportResult.reportId;
-            await analysis.save();
-            
+        if (result.success) {
             res.json({
                 success: true,
-                message: '보고서가 재생성되었습니다.',
-                reportId: reportResult.reportId
+                data: {
+                    filePath: result.filePath,
+                    fileName: result.fileName,
+                    fileSize: result.fileSize,
+                    url: result.url
+                }
             });
         } else {
             res.status(500).json({
                 success: false,
-                message: '보고서 생성에 실패했습니다.',
-                error: reportResult.error
+                message: 'PDF 변환 실패',
+                error: result.error
             });
         }
 
     } catch (error) {
-        console.error('보고서 재생성 오류:', error);
+        console.error('PDF 변환 오류:', error);
         res.status(500).json({
             success: false,
-            message: '보고서 재생성 중 오류가 발생했습니다.',
+            message: 'PDF 변환 중 오류가 발생했습니다.',
             error: error.message
         });
     }
 });
 
-// 보고서 목록 조회
-router.get('/reports', async (req, res) => {
+// PDF 다운로드 API
+router.get('/download-pdf/:filename', async (req, res) => {
     try {
-        const reportGenerator = new ReportGenerator();
-        const reports = reportGenerator.getReportList();
+        const { filename } = req.params;
+        const path = require('path');
+        const fs = require('fs');
         
-        res.json({
-            success: true,
-            data: reports
+        const reportsDir = path.join(__dirname, '../reports');
+        const filePath = path.join(reportsDir, filename);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({
+                success: false,
+                message: '파일을 찾을 수 없습니다.'
+            });
+        }
+
+        res.download(filePath, filename, (err) => {
+            if (err) {
+                console.error('PDF 다운로드 오류:', err);
+                res.status(500).json({
+                    success: false,
+                    message: '파일 다운로드 중 오류가 발생했습니다.'
+                });
+            }
         });
 
     } catch (error) {
-        console.error('보고서 목록 조회 오류:', error);
+        console.error('PDF 다운로드 오류:', error);
         res.status(500).json({
             success: false,
-            message: '보고서 목록 조회 중 오류가 발생했습니다.',
+            message: '파일 다운로드 중 오류가 발생했습니다.',
             error: error.message
         });
     }
 });
+
+// 프롬프트 구성 함수
+function buildAnalysisPrompt(keyword, startDate, endDate, insights, newsData, naverTrend, googleTrend) {
+    const newsCount = newsData?.totalCount || 0;
+    const newsList = newsData?.news?.slice(0, 10).map((item, idx) => 
+        `${idx + 1}. ${item.title} (${item.source}, ${item.pubDate})`
+    ).join('\n') || '없음';
+
+    const naverTrendData = naverTrend?.data?.map(item => 
+        `${item.date}: ${item.value}`
+    ).join('\n') || '데이터 없음';
+
+    const googleTrendData = googleTrend?.data?.map(item => 
+        `${item.date}: ${item.value}`
+    ).join('\n') || '데이터 없음';
+
+    return `
+# 화제성 분석 보고서 작성 요청
+
+## 분석 대상
+- **키워드**: ${keyword}
+- **분석 기간**: ${startDate} ~ ${endDate}
+- **착안사항**: ${insights || '없음'}
+
+## 수집된 데이터
+
+### 1. 언론보도 효과성
+- **총 보도건수**: ${newsCount}건
+- **주요 보도내역**:
+${newsList}
+
+### 2. 네이버 검색트렌드
+- **평균 검색량**: ${naverTrend?.avgValue || 0}
+- **시계열 데이터**:
+${naverTrendData}
+
+### 3. 구글 검색트렌드
+- **평균 검색량**: ${googleTrend?.avgValue || 0}
+- **시계열 데이터**:
+${googleTrendData}
+
+---
+
+위 데이터를 바탕으로 다음 구조로 마크다운 형식의 화제성 분석 보고서를 작성해주세요:
+
+# ${keyword} 화제성 분석 보고서
+
+## 📊 분석 개요
+- 분석 기간: ${startDate} ~ ${endDate}
+- 총 보도건수: ${newsCount}건
+- 네이버 평균 검색량: ${naverTrend?.avgValue || 0}
+- 구글 평균 검색량: ${googleTrend?.avgValue || 0}
+
+## 📰 언론보도 현황
+[언론보도 효과성에 대한 분석]
+
+## 📈 검색트렌드 분석
+[네이버와 구글 검색트렌드 비교 분석]
+
+## 🔍 주요 발견사항
+[데이터를 바탕으로 한 주요 발견사항]
+
+## 💡 종합 분석
+[착안사항을 반영한 종합 분석 및 인사이트]
+
+## 📋 결론 및 제언
+[결론 및 향후 제언]
+
+---
+
+**참고**: 마크다운 형식으로 작성하고, 표나 리스트를 적절히 활용해주세요.
+`;
+}
+
+// 언론사 추출 함수 (기존 함수 재사용)
+function extractSourceFromLink(link) {
+    try {
+        const url = new URL(link);
+        const hostname = url.hostname;
+        
+        // 주요 언론사 매핑
+        const sourceMap = {
+            'www.chosun.com': '조선일보',
+            'www.donga.com': '동아일보',
+            'www.joongang.co.kr': '중앙일보',
+            'www.hani.co.kr': '한겨레',
+            'www.khan.co.kr': '경향신문',
+            'www.hankyung.com': '한국경제',
+            'www.mk.co.kr': '매일경제',
+            'www.etnews.com': '전자신문',
+            'www.zdnet.co.kr': 'ZDNet Korea',
+            'news.naver.com': '네이버 뉴스',
+            'entertain.naver.com': '네이버 엔터테인먼트'
+        };
+        
+        if (sourceMap[hostname]) {
+            return sourceMap[hostname];
+        }
+        
+        // 도메인에서 언론사명 추출 시도
+        const domainParts = hostname.replace('www.', '').split('.');
+        if (domainParts.length >= 2) {
+            return domainParts[0];
+        }
+        
+        return hostname.replace('www.', '');
+    } catch (e) {
+        return '알 수 없음';
+    }
+}
 
 module.exports = router;
