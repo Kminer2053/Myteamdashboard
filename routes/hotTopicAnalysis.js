@@ -43,35 +43,54 @@ router.post('/search-info', async (req, res) => {
 
         console.log(`🔍 정보검색 시작: ${keyword} (${startDate} ~ ${endDate})`);
 
-        // 1. 언론보도 효과성 데이터 수집 (기존 API 재사용)
+        // 1. 언론보도 효과성 데이터 수집 (여러 페이지에서 수집)
         let newsData = null;
         try {
-            const newsResponse = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-                headers: {
-                    'X-Naver-Client-Id': NAVER_CLIENT_ID,
-                    'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-                },
-                params: {
-                    query: keyword,
-                    display: 100,
-                    sort: 'date'
-                }
-            });
+            let allNewsItems = [];
+            const maxPages = 10; // 최대 10페이지 (1000건)
+            
+            for (let page = 1; page <= maxPages; page++) {
+                const newsResponse = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+                    headers: {
+                        'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                        'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+                    },
+                    params: {
+                        query: keyword,
+                        display: 100,
+                        sort: 'date',
+                        start: (page - 1) * 100 + 1
+                    }
+                });
 
-            const newsItems = newsResponse.data.items || [];
-            const filteredNews = newsItems
+                const pageItems = newsResponse.data.items || [];
+                if (pageItems.length === 0) break;
+                
+                allNewsItems = allNewsItems.concat(pageItems);
+                
+                // API 호출 간격 조절
+                if (page < maxPages) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+
+            const filteredNews = allNewsItems
                 .filter(item => {
                     const pubDate = new Date(item.pubDate);
                     return pubDate >= start && pubDate <= end;
                 })
-                .map(item => ({
-                    title: item.title.replace(/<[^>]+>/g, ''),
-                    link: item.link,
-                    description: item.description.replace(/<[^>]+>/g, ''),
-                    pubDate: new Date(item.pubDate).toISOString().split('T')[0],
-                    source: extractSourceFromLink(item.link),
-                    originallink: item.originallink
-                }));
+                .map(item => {
+                    // originallink가 있으면 우선 사용, 없으면 link 사용
+                    const newsLink = item.originallink || item.link;
+                    return {
+                        title: item.title.replace(/<[^>]+>/g, ''),
+                        link: newsLink,
+                        description: item.description.replace(/<[^>]+>/g, ''),
+                        pubDate: new Date(item.pubDate).toISOString().split('T')[0],
+                        source: extractSourceFromLink(newsLink),
+                        originallink: item.originallink
+                    };
+                });
 
             // 날짜별 집계
             const aggregated = {};
@@ -199,7 +218,7 @@ router.post('/generate-report', async (req, res) => {
         const prompt = buildAnalysisPrompt(keyword, startDate, endDate, insights, newsData, naverTrend, googleTrend);
 
         // Perplexity AI 호출
-        const response = await axios.post(PERPLEXITY_API_URL, {
+            const response = await axios.post(PERPLEXITY_API_URL, {
             model: 'sonar-pro',
             messages: [
                 {
@@ -211,7 +230,7 @@ router.post('/generate-report', async (req, res) => {
                     content: prompt
                 }
             ],
-            max_tokens: 2000,
+            max_tokens: 4000,
             temperature: 0.7
         }, {
             headers: {
@@ -396,11 +415,68 @@ ${googleTrendData}
 `;
 }
 
-// 언론사 추출 함수 (기존 함수 재사용)
+// 언론사 추출 함수 (네이버 뉴스 링크 처리 개선)
 function extractSourceFromLink(link) {
     try {
+        if (!link) return '알 수 없음';
+        
         const url = new URL(link);
         const hostname = url.hostname;
+        const pathname = url.pathname;
+        
+        // 네이버 뉴스 링크 처리 (n.news.naver.com/mnews/article/언론사ID/기사ID)
+        if (hostname.includes('news.naver.com') || hostname.includes('n.news.naver.com')) {
+            const articleMatch = pathname.match(/\/article\/([^\/]+)\//);
+            if (articleMatch) {
+                const mediaId = articleMatch[1];
+                // 네이버 뉴스 언론사 ID 매핑 (주요 언론사)
+                const naverMediaMap = {
+                    '001': '연합뉴스',
+                    '020': '동아일보',
+                    '021': '조선일보',
+                    '022': '중앙일보',
+                    '023': '한겨레',
+                    '025': '한국경제',
+                    '028': '한국일보',
+                    '030': '매일경제',
+                    '031': '아시아경제',
+                    '032': '이데일리',
+                    '079': '노컷뉴스',
+                    '081': '서울신문',
+                    '082': '세계일보',
+                    '087': '프레시안',
+                    '088': '한국일보',
+                    '092': '뉴스타파',
+                    '094': '오마이뉴스',
+                    '119': '조선비즈',
+                    '215': '한국경제TV',
+                    '277': '아시아투데이',
+                    '293': '블로터',
+                    '296': '전자신문',
+                    '347': '디지털데일리',
+                    '366': '아이뉴스24',
+                    '421': '뉴스1',
+                    '422': '연합뉴스TV',
+                    '437': '이투데이',
+                    '469': '뉴시스',
+                    '586': '스포츠동아',
+                    '629': '스포츠조선',
+                    '656': '스포츠한국',
+                    '658': '스포츠서울',
+                    '660': '스포츠경향',
+                    '662': '스포츠월드',
+                    'idsn': '아이뉴스24',
+                    'n': '네이버 뉴스',
+                    'm-i': '머니투데이'
+                };
+                
+                if (naverMediaMap[mediaId]) {
+                    return naverMediaMap[mediaId];
+                }
+                // 매핑되지 않은 경우 ID를 한글로 변환 시도
+                return `언론사(${mediaId})`;
+            }
+        }
         
         // 주요 언론사 매핑
         const sourceMap = {
@@ -414,7 +490,8 @@ function extractSourceFromLink(link) {
             'www.etnews.com': '전자신문',
             'www.zdnet.co.kr': 'ZDNet Korea',
             'news.naver.com': '네이버 뉴스',
-            'entertain.naver.com': '네이버 엔터테인먼트'
+            'entertain.naver.com': '네이버 엔터테인먼트',
+            'n.news.naver.com': '네이버 뉴스'
         };
         
         if (sourceMap[hostname]) {

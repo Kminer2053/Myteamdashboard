@@ -3420,19 +3420,43 @@ async function displaySearchInfoResults(data) {
     
     // 언론보도 효과성 표시
     const newsCount = data.newsData?.totalCount || 0;
-    document.getElementById('newsCount').textContent = newsCount;
+    const newsCountEl = document.getElementById('newsCount');
+    if (newsCountEl) {
+        newsCountEl.textContent = newsCount;
+    }
     
     // 뉴스 테이블 렌더링
     renderNewsTable(data.newsData?.news || []);
     
     // 뉴스 차트 렌더링
-    await renderNewsChart(data.newsData?.aggregated || {});
+    if (data.newsData?.aggregated && Object.keys(data.newsData.aggregated).length > 0) {
+        await renderNewsChart(data.newsData.aggregated);
+    } else {
+        const newsChartEl = document.getElementById('newsChart');
+        if (newsChartEl && newsChartEl.parentElement) {
+            newsChartEl.parentElement.innerHTML = '<p class="text-muted text-center">차트 데이터가 없습니다.</p>';
+        }
+    }
     
     // 네이버 트렌드 차트 렌더링
-    await renderNaverTrendChart(data.naverTrend);
+    if (data.naverTrend && data.naverTrend.data && data.naverTrend.data.length > 0) {
+        await renderNaverTrendChart(data.naverTrend);
+    } else {
+        const naverChartEl = document.getElementById('naverTrendChart');
+        if (naverChartEl && naverChartEl.parentElement) {
+            naverChartEl.parentElement.innerHTML = '<p class="text-muted text-center">네이버 트렌드 데이터가 없습니다.</p>';
+        }
+    }
     
     // 구글 트렌드 차트 렌더링
-    await renderGoogleTrendChart(data.googleTrend);
+    if (data.googleTrend && data.googleTrend.data && data.googleTrend.data.length > 0) {
+        await renderGoogleTrendChart(data.googleTrend);
+    } else {
+        const googleChartEl = document.getElementById('googleTrendChart');
+        if (googleChartEl && googleChartEl.parentElement) {
+            googleChartEl.parentElement.innerHTML = '<p class="text-muted text-center">구글 트렌드 데이터가 없습니다.</p>';
+        }
+    }
 }
 
 // 뉴스 테이블 렌더링
@@ -3445,7 +3469,8 @@ function renderNewsTable(news) {
         return;
     }
     
-    tbody.innerHTML = news.slice(0, 20).map(item => `
+    // 전체 뉴스 표시 (20건 제한 제거)
+    tbody.innerHTML = news.map(item => `
         <tr>
             <td><a href="${item.link}" target="_blank">${item.title}</a></td>
             <td>${item.source || '알 수 없음'}</td>
@@ -3463,7 +3488,8 @@ async function renderNewsChart(aggregated) {
     const labels = Object.keys(aggregated).sort();
     const data = labels.map(label => aggregated[label]);
     
-    if (window.newsChart) {
+    // 기존 차트가 있고 destroy 메서드가 있는 경우에만 제거
+    if (window.newsChart && typeof window.newsChart.destroy === 'function') {
         window.newsChart.destroy();
     }
     
@@ -3505,12 +3531,18 @@ async function renderNewsChart(aggregated) {
 async function renderNaverTrendChart(trendData) {
     await loadChartJS();
     const ctx = document.getElementById('naverTrendChart');
-    if (!ctx || typeof Chart === 'undefined' || !trendData || !trendData.data) return;
+    if (!ctx || typeof Chart === 'undefined') return;
+    
+    if (!trendData || !trendData.data || trendData.data.length === 0) {
+        ctx.parentElement.innerHTML = '<p class="text-muted text-center">네이버 트렌드 데이터가 없습니다.</p>';
+        return;
+    }
     
     const labels = trendData.data.map(item => item.date);
     const data = trendData.data.map(item => item.value);
     
-    if (window.naverTrendChart) {
+    // 기존 차트가 있고 destroy 메서드가 있는 경우에만 제거
+    if (window.naverTrendChart && typeof window.naverTrendChart.destroy === 'function') {
         window.naverTrendChart.destroy();
     }
     
@@ -3549,12 +3581,18 @@ async function renderNaverTrendChart(trendData) {
 async function renderGoogleTrendChart(trendData) {
     await loadChartJS();
     const ctx = document.getElementById('googleTrendChart');
-    if (!ctx || typeof Chart === 'undefined' || !trendData || !trendData.data) return;
+    if (!ctx || typeof Chart === 'undefined') return;
+    
+    if (!trendData || !trendData.data || trendData.data.length === 0) {
+        ctx.parentElement.innerHTML = '<p class="text-muted text-center">구글 트렌드 데이터가 없습니다.</p>';
+        return;
+    }
     
     const labels = trendData.data.map(item => item.date);
     const data = trendData.data.map(item => item.value);
     
-    if (window.googleTrendChart) {
+    // 기존 차트가 있고 destroy 메서드가 있는 경우에만 제거
+    if (window.googleTrendChart && typeof window.googleTrendChart.destroy === 'function') {
         window.googleTrendChart.destroy();
     }
     

@@ -50,17 +50,27 @@ class PDFGenerator {
                         },
                         printBackground: true
                     },
-                    // stylesheet는 선택사항 (기본 스타일 사용)
                     body_class: 'markdown-body',
                     marked_options: {
                         headerIds: true,
                         mangle: false
+                    },
+                    launch_options: {
+                        args: ['--no-sandbox', '--disable-setuid-sandbox']
                     }
                 }
-            );
+            ).catch(error => {
+                console.error('md-to-pdf 변환 오류:', error);
+                throw error;
+            });
 
             if (!pdf) {
-                throw new Error('PDF 생성 실패');
+                throw new Error('PDF 생성 실패: 변환 결과가 없습니다');
+            }
+
+            // 파일이 실제로 생성되었는지 확인
+            if (!fs.existsSync(pdfFilePath)) {
+                throw new Error('PDF 파일이 생성되지 않았습니다');
             }
 
             console.log(`✅ PDF 변환 완료: ${pdfFilePath}`);
@@ -75,9 +85,10 @@ class PDFGenerator {
 
         } catch (error) {
             console.error('❌ PDF 변환 오류:', error);
+            console.error('오류 상세:', error.stack);
             return {
                 success: false,
-                error: error.message
+                error: error.message || 'PDF 변환 중 알 수 없는 오류가 발생했습니다'
             };
         }
     }
