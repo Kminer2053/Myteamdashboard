@@ -3679,74 +3679,92 @@ async function generateHotTopicReport() {
     }
 }
 
-// 마크다운 미리보기 표시
+// 마크다운 미리보기 표시 (표 지원 개선)
 function displayMarkdownPreview(markdown) {
     const preview = document.getElementById('markdownPreview');
     if (!preview) return;
     
-    // 마크다운을 HTML로 변환 (표 지원 포함)
-    let html = markdown
-        // 코드 블록 처리
-        .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-        // 인라인 코드
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        // 제목
-        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-        // 강조
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        // 링크
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
-        // 표 처리 (마크다운 표 형식)
-        .replace(/\|(.+)\|/g, (match, content) => {
-            const cells = content.split('|').map(cell => cell.trim());
-            return '<tr>' + cells.map(cell => {
-                // 헤더 행 감지 (다음 줄이 구분선인지 확인)
-                if (cell.includes('---')) return '';
-                return '<td>' + cell + '</td>';
-            }).join('') + '</tr>';
-        });
+    // 마크다운을 줄 단위로 분리
+    const lines = markdown.split('\n');
+    let html = '';
+    let inTable = false;
+    let tableRows = [];
+    let isHeaderRow = false;
     
-    // 표를 table 태그로 감싸기
-    html = html.replace(/(<tr>.*?<\/tr>)/gs, (match) => {
-        if (match.includes('---')) return '';
-        return match;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        
+        // 표 감지 (|로 시작하고 끝나는 줄)
+        if (line.startsWith('|') && line.endsWith('|')) {
+            if (!inTable) {
+                inTable = true;
+                tableRows = [];
+                isHeaderRow = true;
+            }
+            
+            // 구분선 제거 (|---|---|)
+            if (line.match(/^\|[\s\-:]+\|$/)) {
+                isHeaderRow = false;
+                continue;
+            }
+            
+            const cells = line.split('|').slice(1, -1).map(cell => cell.trim());
+            
+            if (isHeaderRow) {
+                // 헤더 행
+                tableRows.push('<thead><tr>' + cells.map(cell => `<th style="background-color: #f8f9fa; font-weight: bold;">${cell}</th>`).join('') + '</tr></thead><tbody>');
+                isHeaderRow = false;
+            } else {
+                // 데이터 행
+                tableRows.push('<tr>' + cells.map(cell => `<td>${cell}</td>`).join('') + '</tr>');
+            }
+        } else {
+            // 표 종료
+            if (inTable && tableRows.length > 0) {
+                html += '<table class="table table-bordered table-striped table-hover mt-3 mb-3" style="width: 100%; border-collapse: collapse;">' + 
+                        tableRows.join('') + '</tbody></table>';
+                tableRows = [];
+                inTable = false;
+                isHeaderRow = false;
+            }
+            
+            // 일반 마크다운 처리
+            if (line.startsWith('### ')) {
+                html += '<h3 class="mt-4 mb-3">' + line.substring(4) + '</h3>';
+            } else if (line.startsWith('## ')) {
+                html += '<h2 class="mt-4 mb-3">' + line.substring(3) + '</h2>';
+            } else if (line.startsWith('# ')) {
+                html += '<h1 class="mt-4 mb-3">' + line.substring(2) + '</h1>';
+            } else if (line.startsWith('- ') || line.startsWith('* ')) {
+                html += '<li class="mb-1">' + line.substring(2) + '</li>';
+            } else if (line.match(/^\d+\.\s/)) {
+                html += '<li class="mb-1">' + line.replace(/^\d+\.\s/, '') + '</li>';
+            } else if (line) {
+                // 강조 처리
+                let processedLine = line
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/`([^`]+)`/g, '<code class="bg-light px-1 rounded">$1</code>')
+                    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-primary">$1</a>');
+                html += '<p class="mb-2">' + processedLine + '</p>';
+            } else {
+                html += '<br>';
+            }
+        }
+    }
+    
+    // 마지막 표 처리
+    if (inTable && tableRows.length > 0) {
+        html += '<table class="table table-bordered table-striped table-hover mt-3 mb-3" style="width: 100%; border-collapse: collapse;">' + 
+                tableRows.join('') + '</tbody></table>';
+    }
+    
+    // 리스트를 ul로 감싸기
+    html = html.replace(/(<li[^>]*>.*?<\/li>)/gs, (match) => {
+        return '<ul class="list-unstyled ms-3">' + match + '</ul>';
     });
     
-    // 연속된 tr을 table로 감싸기
-    html = html.replace(/(<tr>[\s\S]*?<\/tr>)/g, (match) => {
-        if (!match.includes('---')) {
-            return '<table class="table table-bordered table-striped mt-3 mb-3">' + match + '</table>';
-        }
-        return '';
-    });
-    
-    // 리스트 처리
-    html = html.split('\n').map(line => {
-        if (/^[-*]\s/.test(line)) {
-            return '<li>' + line.replace(/^[-*]\s/, '') + '</li>';
-        }
-        if (/^\d+\.\s/.test(line)) {
-            return '<li>' + line.replace(/^\d+\.\s/, '') + '</li>';
-        }
-        return line;
-    }).join('\n');
-    
-    // 연속된 li를 ul로 감싸기
-    html = html.replace(/(<li>.*?<\/li>)/gs, (match) => {
-        return '<ul class="list-unstyled">' + match + '</ul>';
-    });
-    
-    // 줄바꿈 처리
-    html = html.replace(/\n\n/g, '</p><p>');
-    html = html.replace(/\n/g, '<br>');
-    
-    // 문단 태그 추가
-    html = '<div class="markdown-content">' + html + '</div>';
-    
-    preview.innerHTML = html;
+    preview.innerHTML = '<div class="markdown-content" style="line-height: 1.8; font-size: 14px;">' + html + '</div>';
 }
 
 // PDF 다운로드
