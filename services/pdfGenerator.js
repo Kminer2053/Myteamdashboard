@@ -20,15 +20,39 @@ class PDFGenerator {
         }
         
         // 한글 폰트 경로 설정 (.ttf 또는 .otf 지원)
-        this.koreanFontPath = [
+        // 폰트 파일이 실제로 유효한지 확인하는 함수
+        const isValidFontFile = (fontPath) => {
+            if (!fs.existsSync(fontPath)) return false;
+            try {
+                const fontBuffer = fs.readFileSync(fontPath);
+                // 최소 크기 확인 (1KB 이상)
+                if (fontBuffer.length < 1024) return false;
+                // 폰트 파일 시그니처 확인
+                const signature = fontBuffer.slice(0, 4);
+                // OTF: "OTTO" 또는 "ttcf"
+                const isOTF = signature[0] === 0x4F && signature[1] === 0x54 && signature[2] === 0x54 && signature[3] === 0x4F;
+                // TTF: 첫 4바이트가 특정 값
+                const isTTF = (signature[0] === 0x00 && signature[1] === 0x01 && signature[2] === 0x00 && signature[3] === 0x00) ||
+                             (signature[0] === 0x4C && signature[1] === 0x50);
+                // HTML 문서가 아닌지 확인 (HTML은 보통 "<!DOCTYPE" 또는 "<html"로 시작)
+                const isHTML = fontBuffer.toString('utf8', 0, Math.min(100, fontBuffer.length)).trim().toLowerCase().startsWith('<!');
+                return (isOTF || isTTF) && !isHTML;
+            } catch (error) {
+                return false;
+            }
+        };
+        
+        const fontPaths = [
             path.join(this.fontsDir, 'NotoSansKR-Regular.ttf'),
             path.join(this.fontsDir, 'NotoSansKR-Regular.otf')
-        ].find(p => fs.existsSync(p));
+        ];
+        this.koreanFontPath = fontPaths.find(p => isValidFontFile(p));
         
-        this.koreanFontBoldPath = [
+        const boldFontPaths = [
             path.join(this.fontsDir, 'NotoSansKR-Bold.ttf'),
             path.join(this.fontsDir, 'NotoSansKR-Bold.otf')
-        ].find(p => fs.existsSync(p));
+        ];
+        this.koreanFontBoldPath = boldFontPaths.find(p => isValidFontFile(p));
     }
 
     /**
@@ -73,7 +97,10 @@ class PDFGenerator {
                     console.log(`✅ 한글 폰트 등록 완료: ${this.koreanFontPath}`);
                 } catch (error) {
                     console.error('한글 폰트 등록 실패:', error.message);
+                    console.warn('⚠️ 한글 폰트 없이 기본 폰트로 진행합니다.');
                 }
+            } else {
+                console.warn('⚠️ 한글 폰트 파일을 찾을 수 없습니다. 기본 폰트를 사용합니다.');
             }
             
             if (this.koreanFontBoldPath) {
@@ -88,7 +115,7 @@ class PDFGenerator {
                         koreanFontBold = koreanFont;
                     }
                 }
-            } else if (this.koreanFontPath) {
+            } else if (koreanFont !== 'Helvetica') {
                 // Bold 폰트가 없으면 Regular 폰트를 Bold로도 사용
                 koreanFontBold = koreanFont;
             }
@@ -159,9 +186,13 @@ class PDFGenerator {
                     const hasKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(text);
                     const currentFont = doc._font ? doc._font.name : koreanFont;
                     
-                    // 한글이 있으면 한글 폰트 사용
-                    if (hasKorean && currentFont === 'Helvetica') {
-                        doc.font(koreanFont);
+                    // 한글이 있고 현재 폰트가 Helvetica 계열이면 한글 폰트 사용
+                    if (hasKorean && (currentFont === 'Helvetica' || currentFont === 'Helvetica-Bold')) {
+                        // 현재가 볼드면 볼드 폰트, 아니면 일반 폰트
+                        const targetFont = currentFont === 'Helvetica-Bold' ? koreanFontBold : koreanFont;
+                        if (targetFont !== 'Helvetica' && targetFont !== 'Helvetica-Bold') {
+                            doc.font(targetFont);
+                        }
                     }
                     
                     // 연속된 텍스트는 계속 이어서 출력
@@ -198,11 +229,16 @@ class PDFGenerator {
                 }
                 // 강조 처리 (볼드) - **텍스트** 또는 <strong>텍스트</strong>
                 else if (tagName === 'strong' || tagName === 'b') {
+                    // 현재 폰트 저장
+                    const prevFont = doc._font ? doc._font.name : koreanFont;
+                    // 볼드 폰트로 변경
                     doc.font(koreanFontBold);
+                    // 자식 노드 처리
                     if (node.children) {
                         node.children.forEach(processNode);
                     }
-                    doc.font(koreanFont); // 원래 폰트로 복원
+                    // 원래 폰트로 복원
+                    doc.font(prevFont);
                 }
                 else if (tagName === 'em' || tagName === 'i') {
                     doc.font('Helvetica-Oblique');
