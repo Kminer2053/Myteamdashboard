@@ -98,6 +98,28 @@
   color: #fff;
 }
 
+/* 뉴스 테이블 정렬 스타일 */
+#newsTable thead th {
+    position: relative;
+    user-select: none;
+}
+
+#newsTable thead th:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+#newsTable thead th.sort-asc::after {
+    content: ' ▲';
+    font-size: 0.8em;
+    color: #fff;
+}
+
+#newsTable thead th.sort-desc::after {
+    content: ' ▼';
+    font-size: 0.8em;
+    color: #fff;
+}
+
 .btn-outline-section-risk {
   color: #0288d1;
   border-color: #0288d1;

@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const GoogleTrendsService = require('../services/googleTrendsService');
 const PDFGenerator = require('../services/pdfGenerator');
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID || 'e037eF7sxB3VuJHBpay5';
@@ -9,7 +8,6 @@ const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET || 'qkPfGHxNkN';
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
 
-const googleTrendsService = new GoogleTrendsService();
 const pdfGenerator = new PDFGenerator();
 
 // 정보검색 API (언론보도 효과성 + 검색트렌드)
@@ -41,95 +39,48 @@ router.post('/search-info', async (req, res) => {
             });
         }
 
+        // 최대 3개월 제한
+        const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        const maxDays = 90; // 3개월
+        
+        if (daysDiff > maxDays) {
+            return res.status(400).json({
+            success: false,
+                message: `분석 기간은 최대 ${maxDays}일(3개월)까지만 가능합니다. 현재 기간: ${daysDiff}일`
+            });
+        }
+
         console.log(`🔍 정보검색 시작: ${keyword} (${startDate} ~ ${endDate})`);
 
-        // 1. 언론보도 효과성 데이터 수집 (기간을 나눠서 수집하여 1년치 데이터 확보)
+        // 1. 언론보도 효과성 데이터 수집 (한번에 조회)
         let newsData = null;
         try {
             let allNewsItems = [];
             const maxPages = 10; // 최대 10페이지 (1000건)
-            const maxTotalItems = 5000; // 최대 5000건까지 수집
             
-            // 기간이 1년 이상이면 월별로 나눠서 수집
-            const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-            const shouldSplitByMonth = daysDiff > 180; // 6개월 이상이면 월별로 나눠서 수집
-            
-            if (shouldSplitByMonth) {
-                console.log(`📅 기간이 ${daysDiff}일로 길어서 월별로 나눠서 수집합니다.`);
-                const months = [];
-                let currentDate = new Date(start);
-                
-                while (currentDate <= end) {
-                    const monthStart = new Date(currentDate);
-                    let monthEnd = new Date(currentDate);
-                    monthEnd.setMonth(monthEnd.getMonth() + 1);
-                    monthEnd.setDate(0); // 해당 월의 마지막 날
-                    
-                    if (monthEnd > end) {
-                        monthEnd = new Date(end);
+            // 한번에 조회 (월별 분할 제거)
+            for (let page = 1; page <= maxPages; page++) {
+                const newsResponse = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+                    headers: {
+                        'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                        'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+                    },
+                    params: {
+                        query: keyword,
+                        display: 100,
+                        sort: 'date',
+                        start: (page - 1) * 100 + 1
                     }
-                    
-                    months.push({ start: monthStart, end: monthEnd });
-                    currentDate = new Date(monthEnd);
-                    currentDate.setDate(currentDate.getDate() + 1);
-                }
-                
-                // 각 월별로 수집
-                for (const month of months) {
-                    for (let page = 1; page <= maxPages && allNewsItems.length < maxTotalItems; page++) {
-                        const newsResponse = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-                            headers: {
-                                'X-Naver-Client-Id': NAVER_CLIENT_ID,
-                                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-                            },
-                            params: {
-                                query: keyword,
-                                display: 100,
-                                sort: 'date',
-                                start: (page - 1) * 100 + 1
-                            }
-                        });
+                });
 
-                        const pageItems = newsResponse.data.items || [];
-                        if (pageItems.length === 0) break;
-                        
-                        // 해당 월 기간 내의 아이템만 필터링
-                        const filteredItems = pageItems.filter(item => {
-                            const pubDate = new Date(item.pubDate);
-                            return pubDate >= month.start && pubDate <= month.end;
-                        });
-                        
-                        allNewsItems = allNewsItems.concat(filteredItems);
-                        
-                        // API 호출 간격 조절
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                    }
-                }
-            } else {
-                // 기간이 짧으면 기존 방식대로 수집
-                for (let page = 1; page <= maxPages && allNewsItems.length < maxTotalItems; page++) {
-                    const newsResponse = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-                        headers: {
-                            'X-Naver-Client-Id': NAVER_CLIENT_ID,
-                            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-                        },
-                        params: {
-                            query: keyword,
-                            display: 100,
-                            sort: 'date',
-                            start: (page - 1) * 100 + 1
-                        }
-                    });
-
-                    const pageItems = newsResponse.data.items || [];
-                    if (pageItems.length === 0) break;
-                    
-                    allNewsItems = allNewsItems.concat(pageItems);
-                    
-                    // API 호출 간격 조절
-                    if (page < maxPages) {
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                    }
+                const pageItems = newsResponse.data.items || [];
+                if (pageItems.length === 0) break;
+                
+                allNewsItems = allNewsItems.concat(pageItems);
+                
+                // API 호출 간격 조절
+                if (page < maxPages) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
             }
 
@@ -158,18 +109,14 @@ router.post('/search-info', async (req, res) => {
                 aggregated[date] = (aggregated[date] || 0) + 1;
             });
 
-            // 최대 표출량 제한 (5000건)
-            const maxDisplayCount = 5000;
-            const displayNews = filteredNews.length > maxDisplayCount 
-                ? filteredNews.slice(0, maxDisplayCount)
-                : filteredNews;
+            // 네이버뉴스 API 제한 확인 (950건 이상 시 경고)
+            const apiLimitWarning = filteredNews.length >= 950;
             
             newsData = {
-                news: displayNews,
+                news: filteredNews,
                 aggregated: aggregated,
                 totalCount: filteredNews.length,
-                displayCount: displayNews.length,
-                isLimited: filteredNews.length > maxDisplayCount
+                apiLimitWarning: apiLimitWarning
             };
         } catch (error) {
             console.error('언론보도 효과성 데이터 수집 오류:', error.message);
@@ -221,23 +168,9 @@ router.post('/search-info', async (req, res) => {
             };
         }
 
-        // 3. 구글 검색트렌드 데이터 수집
-        let googleTrend = null;
-        try {
-            console.log(`🔍 구글 트렌드 데이터 수집 시작: ${keyword} (${start.toISOString().split('T')[0]} ~ ${end.toISOString().split('T')[0]})`);
-            googleTrend = await googleTrendsService.getTrendData(keyword, start, end);
-            console.log(`✅ 구글 트렌드 데이터 수집 완료: ${googleTrend.data?.length || 0}개 데이터 포인트`);
-        } catch (error) {
-            console.error('❌ 구글 검색트렌드 수집 오류:', error.message);
-            console.error('구글 트렌드 오류 상세:', error.stack);
-            googleTrend = {
-                keyword: keyword,
-                data: [],
-                totalVolume: 0,
-                avgValue: 0,
-                error: error.message
-            };
-        }
+        // 3. 구글 검색트렌드 데이터 수집 (제거됨)
+        // 구글 트렌드는 공식 API가 유료이고, 비공식 라이브러리가 불안정하여 제거
+        const googleTrend = null;
 
         res.json({
             success: true,
@@ -277,15 +210,15 @@ router.post('/generate-report', async (req, res) => {
 
         if (!PERPLEXITY_API_KEY) {
             return res.status(500).json({
-                success: false,
+            success: false,
                 message: 'Perplexity API 키가 설정되지 않았습니다.'
             });
         }
 
         console.log(`📊 화제성 분석 보고서 생성: ${keyword}`);
 
-        // 프롬프트 구성
-        const prompt = buildAnalysisPrompt(keyword, startDate, endDate, insights, newsData, naverTrend, googleTrend);
+        // 프롬프트 구성 (구글 트렌드 제거)
+        const prompt = buildAnalysisPrompt(keyword, startDate, endDate, insights, newsData, naverTrend, null);
 
         // Perplexity AI 호출
             const response = await axios.post(PERPLEXITY_API_URL, {
@@ -311,7 +244,7 @@ router.post('/generate-report', async (req, res) => {
         });
 
         const markdownReport = response.data.choices[0].message.content;
-
+        
         res.json({
             success: true,
             data: {
@@ -446,11 +379,6 @@ ${newsList}
 - **평균 검색량**: ${naverTrend?.avgValue || 0}
 - **시계열 데이터**:
 ${naverTrendData}
-
-### 3. 구글 검색트렌드
-- **평균 검색량**: ${googleTrend?.avgValue || 0}
-- **시계열 데이터**:
-${googleTrendData}
 
 ---
 

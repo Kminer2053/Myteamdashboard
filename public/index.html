@@ -205,6 +205,9 @@
                                                     <input type="date" class="form-control" id="hotTopicEndDate">
                                                 </div>
                                             </div>
+                                            <div class="form-text text-warning">
+                                                <i class="fas fa-exclamation-triangle me-1"></i>최대 3개월까지만 분석 가능합니다.
+                                            </div>
                                         </div>
                                     </div>
 
@@ -251,9 +254,9 @@
                                         <table class="table table-striped table-hover" id="newsTable">
                                             <thead class="table-dark" style="position: sticky; top: 0; z-index: 10;">
                                                 <tr>
-                                                    <th>제목</th>
-                                                    <th>언론사</th>
-                                                    <th>발행일</th>
+                                                    <th>제목 <i class="fas fa-sort ms-1"></i></th>
+                                                    <th>언론사 <i class="fas fa-sort ms-1"></i></th>
+                                                    <th>발행일 <i class="fas fa-sort ms-1"></i></th>
                                                 </tr>
                                             </thead>
                                             <tbody id="newsTableBody">
@@ -269,26 +272,7 @@
                                     <h5 class="card-title mb-0"><i class="fas fa-chart-line me-2"></i>검색트렌드</h5>
                                 </div>
                                 <div class="card-body">
-                                    <ul class="nav nav-tabs" role="tablist">
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link active" id="naver-trend-tab" data-bs-toggle="tab" data-bs-target="#naver-trend" type="button" role="tab">
-                                                네이버 트렌드
-                                            </button>
-                                        </li>
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link" id="google-trend-tab" data-bs-toggle="tab" data-bs-target="#google-trend" type="button" role="tab">
-                                                구글 트렌드
-                                            </button>
-                                        </li>
-                                    </ul>
-                                    <div class="tab-content mt-3">
-                                        <div class="tab-pane fade show active" id="naver-trend" role="tabpanel">
-                                            <canvas id="naverTrendChart" height="300"></canvas>
-                                        </div>
-                                        <div class="tab-pane fade" id="google-trend" role="tabpanel">
-                                            <canvas id="googleTrendChart" height="300"></canvas>
-                                        </div>
-                                    </div>
+                                    <canvas id="naverTrendChart" height="300"></canvas>
                                 </div>
                             </div>
                         </div>

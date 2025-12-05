@@ -3360,8 +3360,20 @@ async function searchHotTopicInfo() {
         return;
     }
     
-    if (new Date(startDate) > new Date(endDate)) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (start > end) {
         showToast('시작일은 종료일보다 이전이어야 합니다.');
+        return;
+    }
+    
+    // 최대 3개월 제한 확인
+    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    const maxDays = 90; // 3개월
+    
+    if (daysDiff > maxDays) {
+        showToast(`분석 기간은 최대 ${maxDays}일(3개월)까지만 가능합니다. 현재 기간: ${daysDiff}일`);
         return;
     }
     
@@ -3391,7 +3403,7 @@ async function searchHotTopicInfo() {
                 endDate,
                 newsData: result.data.newsData,
                 naverTrend: result.data.naverTrend,
-                googleTrend: result.data.googleTrend
+                googleTrend: null // 구글 트렌드 제거
             };
             
             // 정보검색 결과 표시
@@ -3420,24 +3432,20 @@ async function displaySearchInfoResults(data) {
     
     // 언론보도 효과성 표시
     const newsCount = data.newsData?.totalCount || 0;
-    const displayCount = data.newsData?.displayCount || newsCount;
-    const isLimited = data.newsData?.isLimited || false;
+    const apiLimitWarning = data.newsData?.apiLimitWarning || false;
     
     const newsCountEl = document.getElementById('newsCount');
     if (newsCountEl) {
         newsCountEl.textContent = newsCount;
-        if (isLimited) {
-            newsCountEl.innerHTML = `${newsCount}건 <small class="text-warning">(표시: ${displayCount}건)</small>`;
-        }
     }
     
-    // 데이터 제한 알림 표시
-    if (isLimited) {
+    // 네이버뉴스 API 제한 경고 표시 (950건 이상)
+    if (apiLimitWarning) {
         const alertHtml = `
             <div class="alert alert-warning alert-dismissible fade show" role="alert">
                 <i class="fas fa-exclamation-triangle me-2"></i>
-                총 ${newsCount}건의 뉴스가 있으나, 최대 표출량(${displayCount}건)을 초과했습니다. 
-                더 많은 데이터를 보려면 분석 기간을 조정해주세요.
+                네이버뉴스 API의 제한으로 누락된 자료가 있을 수 있습니다. 
+                더 정확한 분석을 위해 분석 기간을 조정해주세요.
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         `;
@@ -3449,6 +3457,11 @@ async function displaySearchInfoResults(data) {
     
     // 뉴스 테이블 렌더링 (전체 데이터 로드, 스크롤 가능)
     renderNewsTable(data.newsData?.news || []);
+    
+    // 테이블 정렬 기능 설정
+    setTimeout(() => {
+        setupNewsTableSorting();
+    }, 100);
     
     // 뉴스 차트 렌더링
     if (data.newsData?.aggregated && Object.keys(data.newsData.aggregated).length > 0) {
@@ -3470,18 +3483,14 @@ async function displaySearchInfoResults(data) {
         }
     }
     
-    // 구글 트렌드 차트 렌더링
-    if (data.googleTrend && data.googleTrend.data && data.googleTrend.data.length > 0) {
-        await renderGoogleTrendChart(data.googleTrend);
-    } else {
-        const googleChartEl = document.getElementById('googleTrendChart');
-        if (googleChartEl && googleChartEl.parentElement) {
-            googleChartEl.parentElement.innerHTML = '<p class="text-muted text-center">구글 트렌드 데이터가 없습니다.</p>';
-        }
-    }
+    // 구글 트렌드 제거됨
 }
 
-// 뉴스 테이블 렌더링 (전체 데이터 로드, 스크롤 가능)
+// 뉴스 테이블 렌더링 (전체 데이터 로드, 스크롤 가능, 정렬 기능)
+let currentNewsData = [];
+let sortColumn = 'pubDate';
+let sortDirection = 'desc'; // 기본: 최근일자순
+
 function renderNewsTable(news) {
     const tbody = document.getElementById('newsTableBody');
     if (!tbody) return;
@@ -3491,14 +3500,75 @@ function renderNewsTable(news) {
         return;
     }
     
+    // 데이터 저장 (정렬용)
+    currentNewsData = news;
+    
+    // 기본 정렬: 최근일자순
+    const sortedNews = sortNewsData(news, 'pubDate', 'desc');
+    
     // 전체 뉴스 표시 (스크롤로 확인 가능)
-    tbody.innerHTML = news.map(item => `
+    tbody.innerHTML = sortedNews.map(item => `
         <tr>
             <td><a href="${item.link}" target="_blank">${item.title}</a></td>
             <td>${item.source || '알 수 없음'}</td>
             <td>${item.pubDate}</td>
         </tr>
     `).join('');
+}
+
+// 뉴스 데이터 정렬 함수
+function sortNewsData(data, column, direction) {
+    const sorted = [...data].sort((a, b) => {
+        let aVal = a[column];
+        let bVal = b[column];
+        
+        if (column === 'pubDate') {
+            // 날짜 정렬
+            aVal = new Date(aVal);
+            bVal = new Date(bVal);
+        } else {
+            // 문자열 정렬
+            aVal = (aVal || '').toString().toLowerCase();
+            bVal = (bVal || '').toString().toLowerCase();
+        }
+        
+        if (direction === 'asc') {
+            return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+        } else {
+            return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+        }
+    });
+    
+    return sorted;
+}
+
+// 테이블 헤더 클릭 이벤트 설정
+function setupNewsTableSorting() {
+    const headers = document.querySelectorAll('#newsTable thead th');
+    headers.forEach((header, index) => {
+        header.style.cursor = 'pointer';
+        header.addEventListener('click', () => {
+            const columns = ['title', 'source', 'pubDate'];
+            const column = columns[index];
+            
+            // 같은 컬럼 클릭 시 정렬 방향 전환
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            
+            // 정렬 아이콘 업데이트
+            headers.forEach(h => {
+                h.classList.remove('sort-asc', 'sort-desc');
+            });
+            header.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+            
+            // 테이블 재렌더링
+            renderNewsTable(currentNewsData);
+        });
+    });
 }
 
 // 뉴스 차트 렌더링
@@ -3599,55 +3669,7 @@ async function renderNaverTrendChart(trendData) {
     });
 }
 
-// 구글 트렌드 차트 렌더링
-async function renderGoogleTrendChart(trendData) {
-    await loadChartJS();
-    const ctx = document.getElementById('googleTrendChart');
-    if (!ctx || typeof Chart === 'undefined') return;
-    
-    if (!trendData || !trendData.data || trendData.data.length === 0) {
-        ctx.parentElement.innerHTML = '<p class="text-muted text-center">구글 트렌드 데이터가 없습니다.</p>';
-        return;
-    }
-    
-    const labels = trendData.data.map(item => item.date);
-    const data = trendData.data.map(item => item.value);
-    
-    // 기존 차트가 있고 destroy 메서드가 있는 경우에만 제거
-    if (window.googleTrendChart && typeof window.googleTrendChart.destroy === 'function') {
-        window.googleTrendChart.destroy();
-    }
-    
-    window.googleTrendChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: '구글 검색량',
-                data: data,
-                borderColor: '#4285f4',
-                backgroundColor: 'rgba(66, 133, 244, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-}
+// 구글 트렌드 차트 렌더링 함수 제거됨
 
 // 화제성 분석 보고서 생성
 async function generateHotTopicReport() {
@@ -3674,7 +3696,7 @@ async function generateHotTopicReport() {
                 insights: insights,
                 newsData: hotTopicData.newsData,
                 naverTrend: hotTopicData.naverTrend,
-                googleTrend: hotTopicData.googleTrend
+                googleTrend: null // 구글 트렌드 제거
             })
         });
         
