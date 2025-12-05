@@ -61,11 +61,13 @@ router.post('/search-info', async (req, res) => {
                 
                 while (currentDate <= end) {
                     const monthStart = new Date(currentDate);
-                    const monthEnd = new Date(currentDate);
+                    let monthEnd = new Date(currentDate);
                     monthEnd.setMonth(monthEnd.getMonth() + 1);
                     monthEnd.setDate(0); // 해당 월의 마지막 날
                     
-                    if (monthEnd > end) monthEnd = new Date(end);
+                    if (monthEnd > end) {
+                        monthEnd = new Date(end);
+                    }
                     
                     months.push({ start: monthStart, end: monthEnd });
                     currentDate = new Date(monthEnd);

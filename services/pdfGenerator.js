@@ -56,33 +56,41 @@ class PDFGenerator {
             };
             
             // Render 서버 환경에서 Chrome 경로 설정
-            if (process.env.RENDER) {
-                // Render 서버에서는 시스템 Chrome 사용 시도
-                launchOptions.executablePath = process.env.CHROME_BIN || '/usr/bin/google-chrome-stable';
+            // md-to-pdf는 내부적으로 puppeteer-core를 사용하므로 Chrome 경로를 명시적으로 지정하지 않음
+            // postinstall 스크립트에서 설치한 Chrome을 사용하도록 함
+            if (process.env.RENDER && process.env.CHROME_BIN) {
+                launchOptions.executablePath = process.env.CHROME_BIN;
             }
             
             // HTML을 PDF로 변환
+            const pdfConfig = {
+                dest: pdfFilePath,
+                pdf_options: {
+                    format: 'A4',
+                    margin: {
+                        top: '20mm',
+                        right: '15mm',
+                        bottom: '20mm',
+                        left: '15mm'
+                    },
+                    printBackground: true
+                },
+                body_class: 'markdown-body',
+                marked_options: {
+                    headerIds: true,
+                    mangle: false
+                }
+            };
+            
+            // launch_options는 md-to-pdf v5에서 지원하지 않을 수 있으므로
+            // 환경 변수로 Puppeteer 옵션 전달
+            if (Object.keys(launchOptions).length > 0) {
+                pdfConfig.launch_options = launchOptions;
+            }
+            
             const pdf = await mdToPdf(
                 { content: htmlContent },
-                {
-                    dest: pdfFilePath,
-                    pdf_options: {
-                        format: 'A4',
-                        margin: {
-                            top: '20mm',
-                            right: '15mm',
-                            bottom: '20mm',
-                            left: '15mm'
-                        },
-                        printBackground: true
-                    },
-                    body_class: 'markdown-body',
-                    marked_options: {
-                        headerIds: true,
-                        mangle: false
-                    },
-                    launch_options: launchOptions
-                }
+                pdfConfig
             ).catch(error => {
                 console.error('md-to-pdf 변환 오류:', error);
                 console.error('오류 스택:', error.stack);

@@ -16,15 +16,27 @@ class GoogleTrendsService {
         try {
             console.log(`🔍 구글 트렌드 데이터 수집: ${keyword}`);
             
+            // 날짜 유효성 검사
+            if (!(startDate instanceof Date) || isNaN(startDate.getTime())) {
+                throw new Error('유효하지 않은 시작일입니다.');
+            }
+            if (!(endDate instanceof Date) || isNaN(endDate.getTime())) {
+                throw new Error('유효하지 않은 종료일입니다.');
+            }
+            
             // 날짜 형식 변환 (YYYY-MM-DD)
             const startDateStr = startDate.toISOString().split('T')[0];
             const endDateStr = endDate.toISOString().split('T')[0];
             
+            // Google Trends API는 Date 객체를 받지만, 유효한 Date 객체인지 확인
+            const startTime = new Date(startDate);
+            const endTime = new Date(endDate);
+            
             // Google Trends API 호출
             const results = await googleTrends.interestOverTime({
                 keyword: keyword,
-                startTime: startDate,
-                endTime: endDate,
+                startTime: startTime,
+                endTime: endTime,
                 geo: this.geo
             });
 
