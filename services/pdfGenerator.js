@@ -1,13 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { mdToPdf } = require('md-to-pdf');
+const PDFDocument = require('pdfkit');
 const MarkdownIt = require('markdown-it');
-
-// Puppeteer Chrome 경로 설정 (Render 서버 환경)
-if (process.env.RENDER) {
-    process.env.PUPPETEER_CACHE_DIR = '/opt/render/.cache/puppeteer';
-    process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'false';
-}
+const { parseDocument } = require('htmlparser2');
 
 class PDFGenerator {
     constructor() {
@@ -41,76 +36,46 @@ class PDFGenerator {
                 : `hot-topic-report-${timestamp}.pdf`;
             const pdfFilePath = path.join(this.reportsDir, pdfFileName);
 
-            // 마크다운을 HTML로 먼저 변환
+            // 마크다운을 HTML로 변환
             const htmlContent = this.convertToHTML(markdown);
             
-            // Puppeteer 실행 옵션 (Render 서버 환경 대응)
-            const launchOptions = {
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--disable-gpu'
-                ]
-            };
-            
-            // Render 서버 환경에서 Chrome 경로 설정
-            // md-to-pdf는 내부적으로 puppeteer-core를 사용하므로 Chrome 경로를 명시적으로 지정하지 않음
-            // postinstall 스크립트에서 설치한 Chrome을 사용하도록 함
-            if (process.env.RENDER && process.env.CHROME_BIN) {
-                launchOptions.executablePath = process.env.CHROME_BIN;
-            }
-            
-            // HTML을 PDF로 변환
-            const pdfConfig = {
-                dest: pdfFilePath,
-                pdf_options: {
-                    format: 'A4',
-                    margin: {
-                        top: '20mm',
-                        right: '15mm',
-                        bottom: '20mm',
-                        left: '15mm'
-                    },
-                    printBackground: true
-                },
-                body_class: 'markdown-body',
-                marked_options: {
-                    headerIds: true,
-                    mangle: false
+            // PDF 문서 생성
+            const doc = new PDFDocument({
+                size: 'A4',
+                margins: {
+                    top: 72,      // 20mm ≈ 72pt
+                    bottom: 72,
+                    left: 54,     // 15mm ≈ 54pt
+                    right: 54
                 }
-            };
-            
-            // launch_options는 md-to-pdf v5에서 지원하지 않을 수 있으므로
-            // 환경 변수로 Puppeteer 옵션 전달
-            if (Object.keys(launchOptions).length > 0) {
-                pdfConfig.launch_options = launchOptions;
-            }
-            
-            const pdf = await mdToPdf(
-                { content: htmlContent },
-                pdfConfig
-            ).catch(error => {
-                console.error('md-to-pdf 변환 오류:', error);
-                console.error('오류 스택:', error.stack);
-                // 더 자세한 오류 정보
-                if (error.message) {
-                    console.error('오류 메시지:', error.message);
-                }
-                throw new Error(`PDF 변환 실패: ${error.message || '알 수 없는 오류'}`);
             });
 
-            if (!pdf) {
-                throw new Error('PDF 생성 실패: 변환 결과가 없습니다');
-            }
+            // PDF 파일 스트림 생성
+            const stream = fs.createWriteStream(pdfFilePath);
+            doc.pipe(stream);
+
+            // HTML을 파싱해서 PDF로 변환
+            this.renderHTMLToPDF(doc, htmlContent);
+
+            // PDF 완료
+            doc.end();
+
+            // 스트림이 완료될 때까지 대기
+            await new Promise((resolve, reject) => {
+                stream.on('finish', () => {
+                    console.log(`✅ PDF 변환 완료: ${pdfFilePath}`);
+                    resolve();
+                });
+                stream.on('error', (error) => {
+                    console.error('PDF 스트림 오류:', error);
+                    reject(error);
+                });
+            });
 
             // 파일이 실제로 생성되었는지 확인
             if (!fs.existsSync(pdfFilePath)) {
                 throw new Error('PDF 파일이 생성되지 않았습니다');
             }
-
-            console.log(`✅ PDF 변환 완료: ${pdfFilePath}`);
 
             return {
                 success: true,
@@ -127,6 +92,137 @@ class PDFGenerator {
                 success: false,
                 error: error.message || 'PDF 변환 중 알 수 없는 오류가 발생했습니다'
             };
+        }
+    }
+
+    /**
+     * HTML을 PDF로 렌더링
+     * @param {PDFDocument} doc - PDF 문서 객체
+     * @param {string} html - HTML 텍스트
+     */
+    renderHTMLToPDF(doc, html) {
+        const dom = parseDocument(html);
+        
+        const processNode = (node) => {
+            if (!node) return;
+            
+            // 텍스트 노드 처리
+            if (node.type === 'text') {
+                const text = node.data;
+                if (text && text.trim()) {
+                    // 연속된 텍스트는 계속 이어서 출력
+                    doc.text(text, { continued: true });
+                }
+            }
+            // 태그 노드 처리
+            else if (node.type === 'tag') {
+                const tagName = node.name.toLowerCase();
+                
+                // 제목 처리
+                if (tagName.match(/^h[1-6]$/)) {
+                    const level = parseInt(tagName[1]);
+                    const fontSize = 24 - (level - 1) * 2;
+                    doc.moveDown(1)
+                       .font('Helvetica-Bold')
+                       .fontSize(fontSize);
+                    // 자식 노드 처리
+                    if (node.children) {
+                        node.children.forEach(processNode);
+                    }
+                    doc.font('Helvetica')
+                       .fontSize(12)
+                       .moveDown(0.5);
+                }
+                // 단락 처리
+                else if (tagName === 'p') {
+                    doc.moveDown(0.5);
+                    if (node.children) {
+                        node.children.forEach(processNode);
+                    }
+                    doc.moveDown(0.5);
+                }
+                // 강조 처리
+                else if (tagName === 'strong' || tagName === 'b') {
+                    doc.font('Helvetica-Bold');
+                    if (node.children) {
+                        node.children.forEach(processNode);
+                    }
+                    doc.font('Helvetica');
+                }
+                else if (tagName === 'em' || tagName === 'i') {
+                    doc.font('Helvetica-Oblique');
+                    if (node.children) {
+                        node.children.forEach(processNode);
+                    }
+                    doc.font('Helvetica');
+                }
+                // 리스트 처리
+                else if (tagName === 'ul' || tagName === 'ol') {
+                    doc.moveDown(0.3);
+                    if (node.children) {
+                        node.children.forEach(processNode);
+                    }
+                    doc.moveDown(0.5);
+                }
+                else if (tagName === 'li') {
+                    doc.text('• ', { continued: true });
+                    if (node.children) {
+                        node.children.forEach(processNode);
+                    }
+                    doc.text('', { continued: false })
+                       .moveDown(0.2);
+                }
+                // 링크 처리 (텍스트만 표시)
+                else if (tagName === 'a') {
+                    if (node.children) {
+                        node.children.forEach(processNode);
+                    }
+                }
+                // 줄바꿈
+                else if (tagName === 'br') {
+                    doc.moveDown(0.5);
+                }
+                // 코드 블록
+                else if (tagName === 'code') {
+                    doc.font('Courier')
+                       .fontSize(10);
+                    if (node.children) {
+                        node.children.forEach(processNode);
+                    }
+                    doc.font('Helvetica')
+                       .fontSize(12);
+                }
+                else if (tagName === 'pre') {
+                    doc.moveDown(0.5)
+                       .font('Courier')
+                       .fontSize(10);
+                    if (node.children) {
+                        node.children.forEach(processNode);
+                    }
+                    doc.font('Helvetica')
+                       .fontSize(12)
+                       .moveDown(0.5);
+                }
+                // 수평선
+                else if (tagName === 'hr') {
+                    doc.moveDown(0.5)
+                       .moveTo(54, doc.y)
+                       .lineTo(540, doc.y)
+                       .stroke()
+                       .moveDown(0.5);
+                }
+                // 기타 태그는 자식 노드만 처리
+                else {
+                    if (node.children) {
+                        node.children.forEach(processNode);
+                    }
+                }
+            }
+        };
+
+        // DOM 트리 순회
+        if (dom && dom.children) {
+            dom.children.forEach(processNode);
         }
     }
 

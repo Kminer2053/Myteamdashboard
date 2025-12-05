@@ -9,7 +9,6 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy:vercel": "./deploy-vercel.sh",
-    "postinstall": "npx puppeteer browsers install chrome || true"
   },
   "keywords": [],
   "author": "",
@@ -22,13 +21,14 @@
     "dotenv": "^17.2.1",
     "express": "^4.21.2",
     "google-trends-api": "^4.9.2",
+    "htmlparser2": "^10.0.0",
     "iconv-lite": "^0.7.0",
     "markdown-it": "^14.1.0",
-    "md-to-pdf": "^5.2.5",
     "mongoose": "^8.1.3",
     "node-cron": "^3.0.3",
     "nodemailer": "^7.0.3",
     "path-to-regexp": "^6.3.0",
+    "pdfkit": "^0.17.2",
     "raw-body": "2.5.2"
   },
   "devDependencies": {

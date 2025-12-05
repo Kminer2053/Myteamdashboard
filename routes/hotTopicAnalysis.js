@@ -356,10 +356,6 @@ function buildAnalysisPrompt(keyword, startDate, endDate, insights, newsData, na
         `${item.date}: ${item.value}`
     ).join('\n') || '데이터 없음';
 
-    const googleTrendData = googleTrend?.data?.map(item => 
-        `${item.date}: ${item.value}`
-    ).join('\n') || '데이터 없음';
-
     return `
 # 화제성 분석 보고서 작성 요청
 
@@ -390,13 +386,12 @@ ${naverTrendData}
 - 분석 기간: ${startDate} ~ ${endDate}
 - 총 보도건수: ${newsCount}건
 - 네이버 평균 검색량: ${naverTrend?.avgValue || 0}
-- 구글 평균 검색량: ${googleTrend?.avgValue || 0}
 
 ## 📰 언론보도 현황
 [언론보도 효과성에 대한 분석]
 
 ## 📈 검색트렌드 분석
-[네이버와 구글 검색트렌드 비교 분석]
+[네이버 검색트렌드 분석]
 
 ## 🔍 주요 발견사항
 [데이터를 바탕으로 한 주요 발견사항]
