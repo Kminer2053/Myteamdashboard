@@ -222,9 +222,12 @@ router.post('/search-info', async (req, res) => {
         // 3. 구글 검색트렌드 데이터 수집
         let googleTrend = null;
         try {
+            console.log(`🔍 구글 트렌드 데이터 수집 시작: ${keyword} (${start.toISOString().split('T')[0]} ~ ${end.toISOString().split('T')[0]})`);
             googleTrend = await googleTrendsService.getTrendData(keyword, start, end);
+            console.log(`✅ 구글 트렌드 데이터 수집 완료: ${googleTrend.data?.length || 0}개 데이터 포인트`);
         } catch (error) {
-            console.error('구글 검색트렌드 수집 오류:', error.message);
+            console.error('❌ 구글 검색트렌드 수집 오류:', error.message);
+            console.error('구글 트렌드 오류 상세:', error.stack);
             googleTrend = {
                 keyword: keyword,
                 data: [],
