@@ -35,9 +35,12 @@ class PDFGenerator {
                 : `hot-topic-report-${timestamp}.pdf`;
             const pdfFilePath = path.join(this.reportsDir, pdfFileName);
 
-            // 마크다운을 PDF로 변환
+            // 마크다운을 HTML로 먼저 변환
+            const htmlContent = this.convertToHTML(markdown);
+            
+            // HTML을 PDF로 변환
             const pdf = await mdToPdf(
-                { content: markdown },
+                { content: htmlContent },
                 {
                     dest: pdfFilePath,
                     pdf_options: {
@@ -61,7 +64,12 @@ class PDFGenerator {
                 }
             ).catch(error => {
                 console.error('md-to-pdf 변환 오류:', error);
-                throw error;
+                console.error('오류 스택:', error.stack);
+                // 더 자세한 오류 정보
+                if (error.message) {
+                    console.error('오류 메시지:', error.message);
+                }
+                throw new Error(`PDF 변환 실패: ${error.message || '알 수 없는 오류'}`);
             });
 
             if (!pdf) {

@@ -3469,8 +3469,9 @@ function renderNewsTable(news) {
         return;
     }
     
-    // 전체 뉴스 표시 (20건 제한 제거)
-    tbody.innerHTML = news.map(item => `
+    // 최대 10건만 표시 (나머지는 스크롤로 확인 가능)
+    const displayNews = news.slice(0, 10);
+    tbody.innerHTML = displayNews.map(item => `
         <tr>
             <td><a href="${item.link}" target="_blank">${item.title}</a></td>
             <td>${item.source || '알 수 없음'}</td>
@@ -3683,7 +3684,7 @@ function displayMarkdownPreview(markdown) {
     const preview = document.getElementById('markdownPreview');
     if (!preview) return;
     
-    // 간단한 마크다운 렌더링
+    // 마크다운을 HTML로 변환 (표 지원 포함)
     let html = markdown
         // 코드 블록 처리
         .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
@@ -3698,25 +3699,52 @@ function displayMarkdownPreview(markdown) {
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
         // 링크
         .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
-        // 리스트 (간단한 처리)
-        .split('\n')
-        .map(line => {
-            if (/^[-*]\s/.test(line)) {
-                return '<li>' + line.replace(/^[-*]\s/, '') + '</li>';
-            }
-            if (/^\d+\.\s/.test(line)) {
-                return '<li>' + line.replace(/^\d+\.\s/, '') + '</li>';
-            }
-            return line;
-        })
-        .join('\n')
-        .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-        // 줄바꿈
-        .replace(/\n\n/g, '</p><p>')
-        .replace(/\n/g, '<br>');
+        // 표 처리 (마크다운 표 형식)
+        .replace(/\|(.+)\|/g, (match, content) => {
+            const cells = content.split('|').map(cell => cell.trim());
+            return '<tr>' + cells.map(cell => {
+                // 헤더 행 감지 (다음 줄이 구분선인지 확인)
+                if (cell.includes('---')) return '';
+                return '<td>' + cell + '</td>';
+            }).join('') + '</tr>';
+        });
+    
+    // 표를 table 태그로 감싸기
+    html = html.replace(/(<tr>.*?<\/tr>)/gs, (match) => {
+        if (match.includes('---')) return '';
+        return match;
+    });
+    
+    // 연속된 tr을 table로 감싸기
+    html = html.replace(/(<tr>[\s\S]*?<\/tr>)/g, (match) => {
+        if (!match.includes('---')) {
+            return '<table class="table table-bordered table-striped mt-3 mb-3">' + match + '</table>';
+        }
+        return '';
+    });
+    
+    // 리스트 처리
+    html = html.split('\n').map(line => {
+        if (/^[-*]\s/.test(line)) {
+            return '<li>' + line.replace(/^[-*]\s/, '') + '</li>';
+        }
+        if (/^\d+\.\s/.test(line)) {
+            return '<li>' + line.replace(/^\d+\.\s/, '') + '</li>';
+        }
+        return line;
+    }).join('\n');
+    
+    // 연속된 li를 ul로 감싸기
+    html = html.replace(/(<li>.*?<\/li>)/gs, (match) => {
+        return '<ul class="list-unstyled">' + match + '</ul>';
+    });
+    
+    // 줄바꿈 처리
+    html = html.replace(/\n\n/g, '</p><p>');
+    html = html.replace(/\n/g, '<br>');
     
     // 문단 태그 추가
-    html = '<p>' + html + '</p>';
+    html = '<div class="markdown-content">' + html + '</div>';
     
     preview.innerHTML = html;
 }

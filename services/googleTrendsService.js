@@ -42,11 +42,27 @@ class GoogleTrendsService {
 
             // 시계열 데이터 포맷팅
             const timelineData = data.default.timelineData;
-            const formattedData = timelineData.map(item => ({
-                date: item.formattedTime || item.time,
-                value: item.value[0] || 0, // 검색량 지수 (0-100)
-                formattedValue: item.formattedValue ? item.formattedValue[0] : '0'
-            }));
+            const formattedData = timelineData.map(item => {
+                // 날짜 형식 변환 (YYYY-MM-DD)
+                let dateStr = '';
+                if (item.formattedTime) {
+                    // "2025 Jan 1" 형식을 "2025-01-01"로 변환
+                    const date = new Date(item.formattedTime);
+                    dateStr = date.toISOString().split('T')[0];
+                } else if (item.time) {
+                    // Unix timestamp를 날짜로 변환
+                    const date = new Date(parseInt(item.time) * 1000);
+                    dateStr = date.toISOString().split('T')[0];
+                } else {
+                    dateStr = new Date().toISOString().split('T')[0];
+                }
+                
+                return {
+                    date: dateStr,
+                    value: item.value && item.value.length > 0 ? item.value[0] : 0, // 검색량 지수 (0-100)
+                    formattedValue: item.formattedValue && item.formattedValue.length > 0 ? item.formattedValue[0] : '0'
+                };
+            });
 
             // 통계 계산
             const totalVolume = formattedData.reduce((sum, item) => sum + item.value, 0);

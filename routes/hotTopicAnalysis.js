@@ -465,9 +465,33 @@ function extractSourceFromLink(link) {
                     '658': '스포츠서울',
                     '660': '스포츠경향',
                     '662': '스포츠월드',
+                    // 영문 ID 매핑
                     'idsn': '아이뉴스24',
                     'n': '네이버 뉴스',
-                    'm-i': '머니투데이'
+                    'm-i': '머니투데이',
+                    'biz': '비즈워치',
+                    'edaily': '이데일리',
+                    'munhwa': '문화일보',
+                    'ikld': '아이클릭데일리',
+                    'lawissue': '법률저널',
+                    'mk': '매일경제',
+                    'chosun': '조선일보',
+                    'donga': '동아일보',
+                    'joongang': '중앙일보',
+                    'hani': '한겨레',
+                    'khan': '경향신문',
+                    'hankyung': '한국경제',
+                    'fnnews': '파이낸셜뉴스',
+                    'news1': '뉴스1',
+                    'yonhap': '연합뉴스',
+                    'newsis': '뉴시스',
+                    'etnews': '전자신문',
+                    'zdnet': 'ZDNet Korea',
+                    'kbs': 'KBS',
+                    'mbc': 'MBC',
+                    'sbs': 'SBS',
+                    'ytn': 'YTN',
+                    'jtbc': 'JTBC'
                 };
                 
                 if (naverMediaMap[mediaId]) {
