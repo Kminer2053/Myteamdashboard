@@ -179,23 +179,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // 고도화된 언론보도 효과성 분석 초기화
+    // 화제성 분석 초기화 (새로운 워크플로우)
     function initAdvancedMediaAnalysis() {
         // 기본 날짜 설정 (최근 30일)
         const endDate = new Date();
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 30);
         
-        document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
-        document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+        // 새로운 HTML 구조에 맞게 날짜 설정
+        const startDateInput = document.getElementById('hotTopicStartDate');
+        const endDateInput = document.getElementById('hotTopicEndDate');
         
-        // 키워드 관리 초기화
-        initKeywordManager();
+        if (startDateInput) {
+            startDateInput.value = startDate.toISOString().split('T')[0];
+        }
+        if (endDateInput) {
+            endDateInput.value = endDate.toISOString().split('T')[0];
+        }
         
         // 이벤트 리스너 등록
         initEventListeners();
         
-        console.log('고도화된 언론보도 효과성 분석 초기화 완료');
+        console.log('화제성 분석 초기화 완료');
     }
 
     // 키워드 관리 기능
