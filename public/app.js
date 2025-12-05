@@ -3420,12 +3420,34 @@ async function displaySearchInfoResults(data) {
     
     // 언론보도 효과성 표시
     const newsCount = data.newsData?.totalCount || 0;
+    const displayCount = data.newsData?.displayCount || newsCount;
+    const isLimited = data.newsData?.isLimited || false;
+    
     const newsCountEl = document.getElementById('newsCount');
     if (newsCountEl) {
         newsCountEl.textContent = newsCount;
+        if (isLimited) {
+            newsCountEl.innerHTML = `${newsCount}건 <small class="text-warning">(표시: ${displayCount}건)</small>`;
+        }
     }
     
-    // 뉴스 테이블 렌더링
+    // 데이터 제한 알림 표시
+    if (isLimited) {
+        const alertHtml = `
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                총 ${newsCount}건의 뉴스가 있으나, 최대 표출량(${displayCount}건)을 초과했습니다. 
+                더 많은 데이터를 보려면 분석 기간을 조정해주세요.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+        const newsCard = document.querySelector('#searchInfoResults .card:first-child .card-body');
+        if (newsCard) {
+            newsCard.insertAdjacentHTML('afterbegin', alertHtml);
+        }
+    }
+    
+    // 뉴스 테이블 렌더링 (전체 데이터 로드, 스크롤 가능)
     renderNewsTable(data.newsData?.news || []);
     
     // 뉴스 차트 렌더링
@@ -3459,7 +3481,7 @@ async function displaySearchInfoResults(data) {
     }
 }
 
-// 뉴스 테이블 렌더링
+// 뉴스 테이블 렌더링 (전체 데이터 로드, 스크롤 가능)
 function renderNewsTable(news) {
     const tbody = document.getElementById('newsTableBody');
     if (!tbody) return;
@@ -3469,9 +3491,8 @@ function renderNewsTable(news) {
         return;
     }
     
-    // 최대 10건만 표시 (나머지는 스크롤로 확인 가능)
-    const displayNews = news.slice(0, 10);
-    tbody.innerHTML = displayNews.map(item => `
+    // 전체 뉴스 표시 (스크롤로 확인 가능)
+    tbody.innerHTML = news.map(item => `
         <tr>
             <td><a href="${item.link}" target="_blank">${item.title}</a></td>
             <td>${item.source || '알 수 없음'}</td>

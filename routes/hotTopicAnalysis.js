@@ -43,34 +43,91 @@ router.post('/search-info', async (req, res) => {
 
         console.log(`🔍 정보검색 시작: ${keyword} (${startDate} ~ ${endDate})`);
 
-        // 1. 언론보도 효과성 데이터 수집 (여러 페이지에서 수집)
+        // 1. 언론보도 효과성 데이터 수집 (기간을 나눠서 수집하여 1년치 데이터 확보)
         let newsData = null;
         try {
             let allNewsItems = [];
             const maxPages = 10; // 최대 10페이지 (1000건)
+            const maxTotalItems = 5000; // 최대 5000건까지 수집
             
-            for (let page = 1; page <= maxPages; page++) {
-                const newsResponse = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-                    headers: {
-                        'X-Naver-Client-Id': NAVER_CLIENT_ID,
-                        'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-                    },
-                    params: {
-                        query: keyword,
-                        display: 100,
-                        sort: 'date',
-                        start: (page - 1) * 100 + 1
-                    }
-                });
+            // 기간이 1년 이상이면 월별로 나눠서 수집
+            const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+            const shouldSplitByMonth = daysDiff > 180; // 6개월 이상이면 월별로 나눠서 수집
+            
+            if (shouldSplitByMonth) {
+                console.log(`📅 기간이 ${daysDiff}일로 길어서 월별로 나눠서 수집합니다.`);
+                const months = [];
+                let currentDate = new Date(start);
+                
+                while (currentDate <= end) {
+                    const monthStart = new Date(currentDate);
+                    const monthEnd = new Date(currentDate);
+                    monthEnd.setMonth(monthEnd.getMonth() + 1);
+                    monthEnd.setDate(0); // 해당 월의 마지막 날
+                    
+                    if (monthEnd > end) monthEnd = new Date(end);
+                    
+                    months.push({ start: monthStart, end: monthEnd });
+                    currentDate = new Date(monthEnd);
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+                
+                // 각 월별로 수집
+                for (const month of months) {
+                    for (let page = 1; page <= maxPages && allNewsItems.length < maxTotalItems; page++) {
+                        const newsResponse = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+                            headers: {
+                                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+                            },
+                            params: {
+                                query: keyword,
+                                display: 100,
+                                sort: 'date',
+                                start: (page - 1) * 100 + 1
+                            }
+                        });
 
-                const pageItems = newsResponse.data.items || [];
-                if (pageItems.length === 0) break;
-                
-                allNewsItems = allNewsItems.concat(pageItems);
-                
-                // API 호출 간격 조절
-                if (page < maxPages) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                        const pageItems = newsResponse.data.items || [];
+                        if (pageItems.length === 0) break;
+                        
+                        // 해당 월 기간 내의 아이템만 필터링
+                        const filteredItems = pageItems.filter(item => {
+                            const pubDate = new Date(item.pubDate);
+                            return pubDate >= month.start && pubDate <= month.end;
+                        });
+                        
+                        allNewsItems = allNewsItems.concat(filteredItems);
+                        
+                        // API 호출 간격 조절
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                }
+            } else {
+                // 기간이 짧으면 기존 방식대로 수집
+                for (let page = 1; page <= maxPages && allNewsItems.length < maxTotalItems; page++) {
+                    const newsResponse = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+                        headers: {
+                            'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+                        },
+                        params: {
+                            query: keyword,
+                            display: 100,
+                            sort: 'date',
+                            start: (page - 1) * 100 + 1
+                        }
+                    });
+
+                    const pageItems = newsResponse.data.items || [];
+                    if (pageItems.length === 0) break;
+                    
+                    allNewsItems = allNewsItems.concat(pageItems);
+                    
+                    // API 호출 간격 조절
+                    if (page < maxPages) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
                 }
             }
 
@@ -99,10 +156,18 @@ router.post('/search-info', async (req, res) => {
                 aggregated[date] = (aggregated[date] || 0) + 1;
             });
 
+            // 최대 표출량 제한 (5000건)
+            const maxDisplayCount = 5000;
+            const displayNews = filteredNews.length > maxDisplayCount 
+                ? filteredNews.slice(0, maxDisplayCount)
+                : filteredNews;
+            
             newsData = {
-                news: filteredNews,
+                news: displayNews,
                 aggregated: aggregated,
-                totalCount: filteredNews.length
+                totalCount: filteredNews.length,
+                displayCount: displayNews.length,
+                isLimited: filteredNews.length > maxDisplayCount
             };
         } catch (error) {
             console.error('언론보도 효과성 데이터 수집 오류:', error.message);

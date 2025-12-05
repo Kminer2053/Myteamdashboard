@@ -3,6 +3,12 @@ const path = require('path');
 const { mdToPdf } = require('md-to-pdf');
 const MarkdownIt = require('markdown-it');
 
+// Puppeteer Chrome 경로 설정 (Render 서버 환경)
+if (process.env.RENDER) {
+    process.env.PUPPETEER_CACHE_DIR = '/opt/render/.cache/puppeteer';
+    process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = 'false';
+}
+
 class PDFGenerator {
     constructor() {
         this.md = new MarkdownIt({
@@ -38,6 +44,23 @@ class PDFGenerator {
             // 마크다운을 HTML로 먼저 변환
             const htmlContent = this.convertToHTML(markdown);
             
+            // Puppeteer 실행 옵션 (Render 서버 환경 대응)
+            const launchOptions = {
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--disable-gpu'
+                ]
+            };
+            
+            // Render 서버 환경에서 Chrome 경로 설정
+            if (process.env.RENDER) {
+                // Render 서버에서는 시스템 Chrome 사용 시도
+                launchOptions.executablePath = process.env.CHROME_BIN || '/usr/bin/google-chrome-stable';
+            }
+            
             // HTML을 PDF로 변환
             const pdf = await mdToPdf(
                 { content: htmlContent },
@@ -58,9 +81,7 @@ class PDFGenerator {
                         headerIds: true,
                         mangle: false
                     },
-                    launch_options: {
-                        args: ['--no-sandbox', '--disable-setuid-sandbox']
-                    }
+                    launch_options: launchOptions
                 }
             ).catch(error => {
                 console.error('md-to-pdf 변환 오류:', error);
