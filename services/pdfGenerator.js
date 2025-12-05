@@ -12,11 +12,23 @@ class PDFGenerator {
             typographer: true
         });
         this.reportsDir = path.join(__dirname, '../reports');
+        this.fontsDir = path.join(__dirname, '../fonts');
         
         // 보고서 디렉토리 생성
         if (!fs.existsSync(this.reportsDir)) {
             fs.mkdirSync(this.reportsDir, { recursive: true });
         }
+        
+        // 한글 폰트 경로 설정 (.ttf 또는 .otf 지원)
+        this.koreanFontPath = [
+            path.join(this.fontsDir, 'NotoSansKR-Regular.ttf'),
+            path.join(this.fontsDir, 'NotoSansKR-Regular.otf')
+        ].find(p => fs.existsSync(p));
+        
+        this.koreanFontBoldPath = [
+            path.join(this.fontsDir, 'NotoSansKR-Bold.ttf'),
+            path.join(this.fontsDir, 'NotoSansKR-Bold.otf')
+        ].find(p => fs.existsSync(p));
     }
 
     /**
@@ -47,15 +59,46 @@ class PDFGenerator {
                     bottom: 72,
                     left: 54,     // 15mm ≈ 54pt
                     right: 54
-                }
+            }
             });
+
+            // 한글 폰트 등록 (폰트 파일이 있으면 사용, 없으면 기본 폰트)
+            let koreanFont = 'Helvetica';
+            let koreanFontBold = 'Helvetica-Bold';
+            
+            if (this.koreanFontPath) {
+                try {
+                    doc.registerFont('Korean', this.koreanFontPath);
+                    koreanFont = 'Korean';
+                    console.log(`✅ 한글 폰트 등록 완료: ${this.koreanFontPath}`);
+                } catch (error) {
+                    console.error('한글 폰트 등록 실패:', error.message);
+                }
+            }
+            
+            if (this.koreanFontBoldPath) {
+                try {
+                    doc.registerFont('KoreanBold', this.koreanFontBoldPath);
+                    koreanFontBold = 'KoreanBold';
+                    console.log(`✅ 한글 볼드 폰트 등록 완료: ${this.koreanFontBoldPath}`);
+                } catch (error) {
+                    console.error('한글 볼드 폰트 등록 실패:', error.message);
+                    // Bold 폰트가 없으면 Regular 폰트를 Bold로도 사용
+                    if (koreanFont !== 'Helvetica') {
+                        koreanFontBold = koreanFont;
+                    }
+                }
+            } else if (this.koreanFontPath) {
+                // Bold 폰트가 없으면 Regular 폰트를 Bold로도 사용
+                koreanFontBold = koreanFont;
+            }
 
             // PDF 파일 스트림 생성
             const stream = fs.createWriteStream(pdfFilePath);
             doc.pipe(stream);
 
             // HTML을 파싱해서 PDF로 변환
-            this.renderHTMLToPDF(doc, htmlContent);
+            this.renderHTMLToPDF(doc, htmlContent, koreanFont, koreanFontBold);
 
             // PDF 완료
             doc.end();
@@ -99,8 +142,10 @@ class PDFGenerator {
      * HTML을 PDF로 렌더링
      * @param {PDFDocument} doc - PDF 문서 객체
      * @param {string} html - HTML 텍스트
+     * @param {string} koreanFont - 한글 폰트 이름
+     * @param {string} koreanFontBold - 한글 볼드 폰트 이름
      */
-    renderHTMLToPDF(doc, html) {
+    renderHTMLToPDF(doc, html, koreanFont = 'Helvetica', koreanFontBold = 'Helvetica-Bold') {
         const dom = parseDocument(html);
         
         const processNode = (node) => {
@@ -110,6 +155,15 @@ class PDFGenerator {
             if (node.type === 'text') {
                 const text = node.data;
                 if (text && text.trim()) {
+                    // 한글이 포함되어 있는지 확인
+                    const hasKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(text);
+                    const currentFont = doc._font ? doc._font.name : koreanFont;
+                    
+                    // 한글이 있으면 한글 폰트 사용
+                    if (hasKorean && currentFont === 'Helvetica') {
+                        doc.font(koreanFont);
+                    }
+                    
                     // 연속된 텍스트는 계속 이어서 출력
                     doc.text(text, { continued: true });
                 }
@@ -123,38 +177,39 @@ class PDFGenerator {
                     const level = parseInt(tagName[1]);
                     const fontSize = 24 - (level - 1) * 2;
                     doc.moveDown(1)
-                       .font('Helvetica-Bold')
+                       .font(koreanFontBold)
                        .fontSize(fontSize);
                     // 자식 노드 처리
                     if (node.children) {
                         node.children.forEach(processNode);
                     }
-                    doc.font('Helvetica')
+                    doc.font(koreanFont)
                        .fontSize(12)
                        .moveDown(0.5);
                 }
                 // 단락 처리
                 else if (tagName === 'p') {
                     doc.moveDown(0.5);
+                    doc.font(koreanFont); // 기본 폰트 설정
                     if (node.children) {
                         node.children.forEach(processNode);
                     }
                     doc.moveDown(0.5);
                 }
-                // 강조 처리
+                // 강조 처리 (볼드) - **텍스트** 또는 <strong>텍스트</strong>
                 else if (tagName === 'strong' || tagName === 'b') {
-                    doc.font('Helvetica-Bold');
+                    doc.font(koreanFontBold);
                     if (node.children) {
                         node.children.forEach(processNode);
                     }
-                    doc.font('Helvetica');
+                    doc.font(koreanFont); // 원래 폰트로 복원
                 }
                 else if (tagName === 'em' || tagName === 'i') {
                     doc.font('Helvetica-Oblique');
                     if (node.children) {
                         node.children.forEach(processNode);
                     }
-                    doc.font('Helvetica');
+                    doc.font(koreanFont);
                 }
                 // 리스트 처리
                 else if (tagName === 'ul' || tagName === 'ol') {
@@ -165,6 +220,7 @@ class PDFGenerator {
                     doc.moveDown(0.5);
                 }
                 else if (tagName === 'li') {
+                    doc.font(koreanFont); // 리스트 항목도 한글 폰트 사용
                     doc.text('• ', { continued: true });
                     if (node.children) {
                         node.children.forEach(processNode);
@@ -189,7 +245,7 @@ class PDFGenerator {
                     if (node.children) {
                         node.children.forEach(processNode);
                     }
-                    doc.font('Helvetica')
+                    doc.font(koreanFont)
                        .fontSize(12);
                 }
                 else if (tagName === 'pre') {
@@ -199,7 +255,7 @@ class PDFGenerator {
                     if (node.children) {
                         node.children.forEach(processNode);
                     }
-                    doc.font('Helvetica')
+                    doc.font(koreanFont)
                        .fontSize(12)
                        .moveDown(0.5);
                 }
