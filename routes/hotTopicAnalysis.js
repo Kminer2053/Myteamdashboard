@@ -284,6 +284,17 @@ router.post('/generate-report', async (req, res) => {
                 timeout: timeout
             });
         } catch (apiError) {
+            // 401 인증 오류 처리
+            if (apiError.response && apiError.response.status === 401) {
+                console.error('🔐 Perplexity AI 인증 오류 (401): API 키가 유효하지 않거나 만료되었습니다.');
+                return res.status(401).json({
+                    success: false,
+                    message: 'Perplexity AI 인증에 실패했습니다.',
+                    error: '인증 오류',
+                    details: 'API 키가 유효하지 않거나 만료되었습니다. 환경 변수 PERPLEXITY_API_KEY를 확인하고 올바른 API 키로 업데이트해주세요.'
+                });
+            }
+            
             // 타임아웃 에러 구체적으로 처리
             if (apiError.code === 'ECONNABORTED' || apiError.message.includes('timeout')) {
                 const timeoutSeconds = Math.floor(timeout / 1000);
@@ -297,6 +308,7 @@ router.post('/generate-report', async (req, res) => {
                     details: `Perplexity AI 응답이 설정된 시간(${timeoutDisplay}) 내에 완료되지 않아 요청이 취소되었습니다. 관리자 페이지에서 타임아웃 시간을 늘리거나 잠시 후 다시 시도해주세요.`
                 });
             }
+            
             // 기타 API 에러
             console.error('❌ Perplexity AI API 오류:', apiError.message);
             throw apiError; // 상위 catch로 전달
@@ -310,7 +322,7 @@ router.post('/generate-report', async (req, res) => {
         console.log('\n📝 전체 응답 길이:', markdownReport.length, '자');
         console.log('📝 **볼드 패턴 확인:', (markdownReport.match(/\*\*[^*]+\*\*/g) || []).length, '개');
         console.log('📝 <strong> 태그 확인:', (markdownReport.match(/<strong>/gi) || []).length, '개');
-        
+
         res.json({
             success: true,
             data: {
@@ -323,21 +335,35 @@ router.post('/generate-report', async (req, res) => {
     } catch (error) {
         console.error('화제성 분석 보고서 생성 오류:', error);
         
+        // 이미 처리된 에러는 그대로 반환 (401, 504 등)
+        if (error.response && error.response.status) {
+            // 이미 상위에서 처리된 에러는 여기서 다시 처리하지 않음
+            return;
+        }
+        
         // 에러 타입에 따른 메시지 구분
         let errorMessage = '보고서 생성 중 오류가 발생했습니다.';
         let errorDetails = error.message;
+        let statusCode = 500;
         
         if (error.response) {
             // API 응답 에러
-            errorMessage = 'Perplexity AI 서버 오류가 발생했습니다.';
-            errorDetails = `상태 코드: ${error.response.status}, 메시지: ${error.response.data?.message || error.message}`;
+            if (error.response.status === 401) {
+                errorMessage = 'Perplexity AI 인증에 실패했습니다.';
+                errorDetails = 'API 키가 유효하지 않거나 만료되었습니다. 환경 변수를 확인해주세요.';
+                statusCode = 401;
+            } else {
+                errorMessage = 'Perplexity AI 서버 오류가 발생했습니다.';
+                errorDetails = `상태 코드: ${error.response.status}, 메시지: ${error.response.data?.message || error.message}`;
+                statusCode = error.response.status || 500;
+            }
         } else if (error.request) {
             // 요청은 보냈지만 응답이 없음
             errorMessage = 'Perplexity AI 서버에 연결할 수 없습니다.';
             errorDetails = '네트워크 연결을 확인해주세요.';
         }
         
-        res.status(500).json({
+        res.status(statusCode).json({
             success: false,
             message: errorMessage,
             error: errorDetails
@@ -358,9 +384,9 @@ router.post('/convert-pdf', async (req, res) => {
         }
 
         console.log('📄 PDF 변환 시작...');
-
+        
         const result = await pdfGenerator.convertToPDF(markdown, filename);
-
+            
         if (result.success) {
             res.json({
                 success: true,
