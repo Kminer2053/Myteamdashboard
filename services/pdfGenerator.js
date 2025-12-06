@@ -121,8 +121,6 @@ class PDFGenerator {
                     doc.registerFont('Korean', this.koreanFontPath);
                     koreanFont = 'Korean';
                     console.log(`✅ 한글 폰트 등록 완료: ${this.koreanFontPath}`);
-                    console.log(`   → 폰트 크기: ${(fontBuffer.length / 1024).toFixed(2)} KB`);
-                    console.log('   → 텍스트 복사/붙여넣기 지원: 자동 활성화됨 (ToUnicode 맵)');
                 } catch (error) {
                     console.error('한글 폰트 등록 실패:', error.message);
                     console.warn('⚠️ 한글 폰트 없이 기본 폰트로 진행합니다.');
@@ -142,8 +140,6 @@ class PDFGenerator {
                     doc.registerFont('KoreanBold', this.koreanFontBoldPath);
                     koreanFontBold = 'KoreanBold';
                     console.log(`✅ 한글 볼드 폰트 등록 완료: ${this.koreanFontBoldPath}`);
-                    console.log(`   → 폰트 크기: ${(fontBuffer.length / 1024).toFixed(2)} KB`);
-                    console.log('   → 텍스트 복사/붙여넣기 지원: 자동 활성화됨 (ToUnicode 맵)');
                 } catch (error) {
                     console.error('한글 볼드 폰트 등록 실패:', error.message);
                     // Bold 폰트가 없으면 Regular 폰트를 Bold로도 사용

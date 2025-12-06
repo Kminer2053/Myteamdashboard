@@ -391,21 +391,6 @@ router.post('/generate-report', async (req, res) => {
             });
         }
         
-        // Perplexity AI 응답 로그 (디버깅용)
-        console.log('📝 Perplexity AI 원본 응답 (처음 1000자):');
-        console.log(markdownReport.substring(0, 1000));
-        console.log('\n📝 전체 응답 길이:', markdownReport.length, '자');
-        console.log('📝 **볼드 패턴 확인:', (markdownReport.match(/\*\*[^*]+\*\*/g) || []).length, '개');
-        console.log('📝 <strong> 태그 확인:', (markdownReport.match(/<strong>/gi) || []).length, '개');
-        console.log(`📚 참조 번호 개수: ${citationNumbers.length}개`);
-        console.log(`📚 참고문헌 개수: ${references.length}개`);
-        
-        // 참고문헌 데이터 확인 (디버깅용)
-        if (references.length > 0) {
-            console.log('📚 참고문헌 데이터 샘플 (첫 번째):');
-            console.log(JSON.stringify(references[0], null, 2));
-        }
-
         res.json({
             success: true,
             data: {

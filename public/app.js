@@ -3420,6 +3420,14 @@ async function searchHotTopicInfo() {
             // 화제성 분석 버튼 활성화
             document.getElementById('generateReportBtn').disabled = false;
             
+            // 이용 통계 기록
+            await logUserAction('화제성분석_정보검색', {
+                keyword: keyword,
+                startDate: startDate,
+                endDate: endDate,
+                newsCount: result.data.newsData?.totalCount || 0
+            });
+            
             showToast('정보검색이 완료되었습니다.');
         } else {
             throw new Error(result.message || '정보검색 실패');
@@ -3739,6 +3747,15 @@ async function generateHotTopicReport() {
             displayMarkdownPreview(result.data.report);
             
             reportPreview.style.display = 'block';
+            
+            // 이용 통계 기록
+            await logUserAction('화제성분석_보고서생성', {
+                keyword: hotTopicData.keyword,
+                startDate: hotTopicData.startDate,
+                endDate: hotTopicData.endDate,
+                hasInsights: insights.length > 0
+            });
+            
             showToast('보고서가 생성되었습니다.');
         } else {
             throw new Error(result.message || '보고서 생성 실패');
@@ -3953,6 +3970,11 @@ function downloadMarkdown() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
+        // 이용 통계 기록
+        logUserAction('화제성분석_MD다운로드', {
+            keyword: hotTopicData.keyword
+        });
+        
         showToast('마크다운 원문이 다운로드되었습니다.');
     } catch (error) {
         console.error('마크다운 다운로드 오류:', error);
@@ -3999,6 +4021,11 @@ async function downloadPDF() {
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+            
+            // 이용 통계 기록
+            await logUserAction('화제성분석_PDF다운로드', {
+                keyword: hotTopicData.keyword
+            });
             
             showToast('PDF가 다운로드되었습니다.');
         } else {
