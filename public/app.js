@@ -3864,13 +3864,25 @@ function displayMarkdownPreview(markdown) {
                 html += '<h1 class="mt-4 mb-3">' + processBold(line.substring(2)) + '</h1>';
             } else if (line.startsWith('- ') || line.startsWith('* ')) {
                 // 순서 없는 리스트 아이템
-                html += '<ul class="ms-3 mb-3"><li class="mb-1">' + processBold(line.substring(2)) + '</li></ul>';
+                let content = line.substring(2);
+                // 링크 처리 먼저
+                content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-primary text-decoration-underline">$1</a>');
+                // 그 다음 볼드 처리
+                content = processBold(content);
+                html += '<ul class="ms-3 mb-3"><li class="mb-1">' + content + '</li></ul>';
             } else if (line.match(/^\d+\.\s/)) {
                 // 순서 있는 리스트 아이템 - 원문의 넘버를 그대로 사용
                 const match = line.match(/^(\d+)\.\s+(.+)$/);
                 if (match) {
                     const number = match[1]; // 원문의 넘버 그대로 사용
-                    const content = match[2];
+                    let content = match[2];
+                    
+                    // 링크 처리 먼저 (볼드 처리 전에 수행하여 패턴이 깨지지 않도록)
+                    content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-primary text-decoration-underline">$1</a>');
+                    
+                    // 그 다음 볼드 처리
+                    content = processBold(content);
+                    
                     if (!inOrderedList) {
                         inOrderedList = true;
                     }
@@ -3879,7 +3891,7 @@ function displayMarkdownPreview(markdown) {
                     if (orderedListItems.length === 0) {
                         orderedListItems.push('<ol start="' + number + '" class="ms-3 mb-3">');
                     }
-                    orderedListItems.push('<li class="mb-1">' + processBold(content) + '</li>');
+                    orderedListItems.push('<li class="mb-1">' + content + '</li>');
                 }
             } else if (line) {
                 // 링크 처리 먼저 (볼드 처리 전에 수행하여 패턴이 깨지지 않도록)

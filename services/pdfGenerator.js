@@ -84,6 +84,7 @@ class PDFGenerator {
             const htmlContent = this.convertToHTML(markdown);
             
             // PDF 문서 생성
+            // pdfkit은 폰트 등록 시 자동으로 ToUnicode 맵을 생성하여 텍스트 복사/붙여넣기를 지원합니다.
             const doc = new PDFDocument({
                 size: 'A4',
                 margins: {
@@ -92,18 +93,28 @@ class PDFGenerator {
                     left: 54,     // 15mm ≈ 54pt
                     right: 54
                 },
-                lineGap: 2       // 줄 간격 추가
+                lineGap: 2,       // 줄 간격 추가
+                // PDF 메타데이터 (텍스트 복사 지원과 직접 관련 없지만 문서 정보 제공)
+                info: {
+                    Title: '화제성 분석 보고서',
+                    Author: '화제성 분석 시스템',
+                    Subject: '화제성 분석 보고서',
+                    Creator: '화제성 분석 시스템',
+                    Producer: 'PDFKit'
+                }
             });
 
             // 한글 폰트 등록 (폰트 파일이 있으면 사용, 없으면 기본 폰트)
             let koreanFont = 'Helvetica';
             let koreanFontBold = 'Helvetica-Bold';
             
+            // 한글 폰트 등록 (pdfkit은 폰트 등록 시 자동으로 ToUnicode 맵을 생성하여 텍스트 복사 지원)
             if (this.koreanFontPath) {
                 try {
                     doc.registerFont('Korean', this.koreanFontPath);
                     koreanFont = 'Korean';
                     console.log(`✅ 한글 폰트 등록 완료: ${this.koreanFontPath}`);
+                    console.log('   → 텍스트 복사/붙여넣기 지원: 자동 활성화됨 (ToUnicode 맵)');
                 } catch (error) {
                     console.error('한글 폰트 등록 실패:', error.message);
                     console.warn('⚠️ 한글 폰트 없이 기본 폰트로 진행합니다.');
@@ -117,6 +128,7 @@ class PDFGenerator {
                     doc.registerFont('KoreanBold', this.koreanFontBoldPath);
                     koreanFontBold = 'KoreanBold';
                     console.log(`✅ 한글 볼드 폰트 등록 완료: ${this.koreanFontBoldPath}`);
+                    console.log('   → 텍스트 복사/붙여넣기 지원: 자동 활성화됨 (ToUnicode 맵)');
                 } catch (error) {
                     console.error('한글 볼드 폰트 등록 실패:', error.message);
                     // Bold 폰트가 없으면 Regular 폰트를 Bold로도 사용
@@ -565,8 +577,13 @@ class PDFGenerator {
                     
                     doc.text(totalIndent + marker, { continued: true });
                     
-                    // 항목 내용
-                    this.renderTextWithBoldAndEmoji(doc, item.text, koreanFont, koreanFontBold, emojiFont);
+                    // 항목 내용 - 링크가 있으면 renderParagraphWithLinks 사용
+                    const hasLink = /\[([^\]]+)\]\(([^)]+)\)/.test(item.text);
+                    if (hasLink) {
+                        this.renderParagraphWithLinks(doc, item.text, koreanFont, koreanFontBold, emojiFont);
+                    } else {
+                        this.renderTextWithBoldAndEmoji(doc, item.text, koreanFont, koreanFontBold, emojiFont);
+                    }
                     
                     doc.text('', { continued: false });
                     doc.moveDown(1.0);
