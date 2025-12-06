@@ -536,7 +536,8 @@ class PDFGenerator {
                         doc.text(indentText, { continued: true });
                     }
                     
-                    this.renderTextWithBoldAndEmoji(doc, block.text, koreanFont, koreanFontBold, emojiFont);
+                    // 링크 처리: 마크다운 링크 [텍스트](URL) 파싱
+                    this.renderParagraphWithLinks(doc, block.text, koreanFont, koreanFontBold, emojiFont);
                     
                     doc.text('', { continued: false });
                     doc.moveDown(1.0);
@@ -757,7 +758,7 @@ class PDFGenerator {
      * @param {string} koreanFontBold - 한글 볼드 폰트 이름
      * @param {string} emojiFont - 이모지 폰트 이름 (null 가능)
      */
-    renderTextWithBoldAndEmoji(doc, text, koreanFont, koreanFontBold, emojiFont = null, align = 'left') {
+    renderTextWithBoldAndEmoji(doc, text, koreanFont, koreanFontBold, emojiFont = null, align = 'left', options = {}) {
         // 1. 볼드 패턴으로 분리
         const boldParts = this.processBold(text);
         
@@ -814,6 +815,82 @@ class PDFGenerator {
      */
     renderTextWithBold(doc, text, koreanFont, koreanFontBold) {
         this.renderTextWithBoldAndEmoji(doc, text, koreanFont, koreanFontBold, null);
+    }
+
+    /**
+     * 링크가 포함된 paragraph 렌더링
+     * @param {PDFDocument} doc - PDF 문서 객체
+     * @param {string} text - 텍스트
+     * @param {string} koreanFont - 한글 폰트 이름
+     * @param {string} koreanFontBold - 한글 볼드 폰트 이름
+     * @param {string} emojiFont - 이모지 폰트 이름
+     */
+    renderParagraphWithLinks(doc, text, koreanFont, koreanFontBold, emojiFont = null) {
+        // 마크다운 링크 패턴: [텍스트](URL)
+        const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+        let lastIndex = 0;
+        let match;
+        let hasLinks = false;
+        
+        // 링크 파싱 및 렌더링
+        while ((match = linkPattern.exec(text)) !== null) {
+            hasLinks = true;
+            
+            // 링크 이전 텍스트
+            if (match.index > lastIndex) {
+                const beforeText = text.substring(lastIndex, match.index);
+                // 볼드 처리된 텍스트를 링크 없이 렌더링
+                const boldParts = this.processBold(beforeText);
+                boldParts.forEach(part => {
+                    const font = part.type === 'bold' ? koreanFontBold : koreanFont;
+                    doc.font(font);
+                    doc.text(part.text, { continued: true });
+                });
+            }
+            
+            // 링크 텍스트와 URL
+            const linkText = match[1];
+            const linkUrl = match[2];
+            
+            // 링크 텍스트 렌더링 (파란색)
+            const startX = doc.x;
+            const startY = doc.y;
+            
+            doc.fillColor('#0066cc'); // 파란색
+            const boldParts = this.processBold(linkText);
+            boldParts.forEach(part => {
+                const font = part.type === 'bold' ? koreanFontBold : koreanFont;
+                doc.font(font);
+                doc.text(part.text, { continued: true });
+            });
+            
+            // 링크 URL 추가 (pdfkit의 link 기능)
+            const textWidth = doc.widthOfString(linkText);
+            const textHeight = 12; // 기본 폰트 크기 기준
+            
+            doc.link(startX, startY - textHeight, textWidth, textHeight, linkUrl);
+            
+            // 색상 복원
+            doc.fillColor('#000000');
+            
+            lastIndex = match.index + match[0].length;
+        }
+        
+        // 링크 이후 텍스트
+        if (lastIndex < text.length) {
+            const afterText = text.substring(lastIndex);
+            const boldParts = this.processBold(afterText);
+            boldParts.forEach(part => {
+                const font = part.type === 'bold' ? koreanFontBold : koreanFont;
+                doc.font(font);
+                doc.text(part.text, { continued: true });
+            });
+        }
+        
+        // 링크가 없는 경우 일반 렌더링
+        if (!hasLinks) {
+            this.renderTextWithBoldAndEmoji(doc, text, koreanFont, koreanFontBold, emojiFont);
+        }
     }
 
     /**
@@ -917,9 +994,16 @@ class PDFGenerator {
             
             // 표 처리 (|로 시작하고 끝나는 줄)
             if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-                // 구분선 제거 (|---|---|, |:---|, |---:| 등)
-                // 하이픈, 콜론, 공백만 포함된 줄은 구분선으로 간주
-                if (trimmed.match(/^\|[\s\-:]+\|$/)) {
+                // 구분선 제거: 셀 내용이 모두 하이픈, 콜론, 공백만 포함하는지 확인
+                const cells = trimmed.split('|').slice(1, -1).map(cell => cell.trim());
+                // 구분선 체크: 모든 셀이 하이픈, 콜론, 공백만 포함하거나 빈 문자열인 경우
+                const isSeparator = cells.length > 0 && cells.every(cell => {
+                    // 각 셀이 하이픈(-), 콜론(:), 공백만 포함하거나 완전히 비어있는지 확인
+                    // 예: "------", "---", ":", " ", "" 등
+                    return cell === '' || /^[\s\-:]+$/.test(cell);
+                });
+                
+                if (isSeparator) {
                     // 구분선은 완전히 무시
                     return;
                 }
@@ -934,7 +1018,6 @@ class PDFGenerator {
                 }
                 
                 // 셀 분리
-                const cells = trimmed.split('|').slice(1, -1).map(cell => cell.trim());
                 currentBlock.rows.push(cells);
                 return;
             }

@@ -277,6 +277,27 @@ document.addEventListener('DOMContentLoaded', function() {
         if (downloadPDFBtn) {
             downloadPDFBtn.addEventListener('click', downloadPDF);
         }
+        
+        // 원문 보기 토글 버튼
+        const toggleOriginalMarkdownBtn = document.getElementById('toggleOriginalMarkdownBtn');
+        if (toggleOriginalMarkdownBtn) {
+            toggleOriginalMarkdownBtn.addEventListener('click', function() {
+                const originalPreview = document.getElementById('originalMarkdownPreview');
+                if (originalPreview) {
+                    const isVisible = originalPreview.style.display !== 'none';
+                    originalPreview.style.display = isVisible ? 'none' : 'block';
+                    toggleOriginalMarkdownBtn.innerHTML = isVisible 
+                        ? '<i class="fas fa-code me-1"></i>원문 보기'
+                        : '<i class="fas fa-eye-slash me-1"></i>원문 숨기기';
+                }
+            });
+        }
+        
+        // 마크다운 원문 다운로드 버튼
+        const downloadMarkdownBtn = document.getElementById('downloadMarkdownBtn');
+        if (downloadMarkdownBtn) {
+            downloadMarkdownBtn.addEventListener('click', downloadMarkdown);
+        }
         if (downloadNewsCSV) {
             downloadNewsCSV.addEventListener('click', downloadNewsCSVFile);
         }
@@ -3341,6 +3362,7 @@ let hotTopicData = {
     naverTrend: null,
     googleTrend: null,
     markdownReport: null,
+    originalMarkdown: null, // 원본 마크다운 (디버깅용)
     pdfUrl: null
 };
 
@@ -3704,9 +3726,18 @@ async function generateHotTopicReport() {
         
         if (result.success) {
             hotTopicData.markdownReport = result.data.report;
+            hotTopicData.originalMarkdown = result.data.originalMarkdown || result.data.report; // 원본 마크다운 저장
             
             // 마크다운 미리보기 표시
             displayMarkdownPreview(result.data.report);
+            
+            // 원문 표시
+            if (hotTopicData.originalMarkdown) {
+                const originalContent = document.getElementById('originalMarkdownContent');
+                if (originalContent) {
+                    originalContent.textContent = hotTopicData.originalMarkdown;
+                }
+            }
             
             reportPreview.style.display = 'block';
             showToast('보고서가 생성되었습니다.');
@@ -3835,6 +3866,39 @@ function displayMarkdownPreview(markdown) {
     });
     
     preview.innerHTML = '<div class="markdown-content" style="line-height: 1.8; font-size: 14px;">' + html + '</div>';
+}
+
+// 마크다운 원문 다운로드
+function downloadMarkdown() {
+    if (!hotTopicData.originalMarkdown) {
+        showToast('다운로드할 마크다운 원문이 없습니다.');
+        return;
+    }
+    
+    try {
+        // 파일명 생성
+        const keyword = hotTopicData.keyword || '화제성분석';
+        const date = hotTopicData.startDate || new Date().toISOString().split('T')[0];
+        const filename = `화제성분석_${keyword}_${date}_원문.md`;
+        
+        // Blob 생성
+        const blob = new Blob([hotTopicData.originalMarkdown], { type: 'text/markdown;charset=utf-8' });
+        
+        // 다운로드 링크 생성
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showToast('마크다운 원문이 다운로드되었습니다.');
+    } catch (error) {
+        console.error('마크다운 다운로드 오류:', error);
+        showToast('다운로드 중 오류가 발생했습니다.');
+    }
 }
 
 // PDF 다운로드

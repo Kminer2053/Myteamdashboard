@@ -315,6 +315,7 @@ router.post('/generate-report', async (req, res) => {
         }
 
         let markdownReport = response.data.choices[0].message.content;
+        const originalMarkdown = markdownReport; // 원본 마크다운 저장 (참고문헌 추가 전)
         
         // Perplexity AI 응답에서 citations 추출 시도
         const citations = response.data.citations || [];
@@ -406,6 +407,7 @@ router.post('/generate-report', async (req, res) => {
             data: {
                 keyword: keyword,
                 report: markdownReport,
+                originalMarkdown: originalMarkdown, // 원본 마크다운 (디버깅용)
                 generatedAt: new Date().toISOString()
             }
         });

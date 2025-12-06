@@ -304,12 +304,24 @@
                                         <div class="card">
                                             <div class="card-header d-flex justify-content-between align-items-center">
                                                 <h6 class="mb-0">보고서 미리보기</h6>
-                                                <button class="btn btn-sm btn-primary" id="downloadPDFBtn">
-                                                    <i class="fas fa-download me-1"></i>PDF 다운로드
-                                                </button>
+                                                <div>
+                                                    <button class="btn btn-sm btn-outline-secondary me-2" id="toggleOriginalMarkdownBtn">
+                                                        <i class="fas fa-code me-1"></i>원문 보기
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-info me-2" id="downloadMarkdownBtn">
+                                                        <i class="fas fa-file-code me-1"></i>MD 다운로드
+                                                    </button>
+                                                    <button class="btn btn-sm btn-primary" id="downloadPDFBtn">
+                                                        <i class="fas fa-download me-1"></i>PDF 다운로드
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div class="card-body">
                                                 <div id="markdownPreview" class="markdown-body" style="max-height: 600px; overflow-y: auto;"></div>
+                                                <div id="originalMarkdownPreview" style="display: none; max-height: 600px; overflow-y: auto; margin-top: 20px; padding: 15px; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+                                                    <h6 class="mb-2">마크다운 원문 (디버깅용)</h6>
+                                                    <pre id="originalMarkdownContent" style="white-space: pre-wrap; word-wrap: break-word; font-size: 12px; font-family: 'Courier New', monospace; margin: 0;"></pre>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
