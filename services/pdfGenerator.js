@@ -998,8 +998,9 @@ class PDFGenerator {
             const linkUrl = match[2];
             
             // 링크 텍스트 렌더링 전 위치 저장
+            // pdfkit의 좌표계: 페이지 상단이 y=0, 아래로 갈수록 y 증가
             const startX = doc.x;
-            const startY = doc.y;
+            const startY = doc.y; // 현재 텍스트 베이스라인 위치 (페이지 상단에서의 거리)
             const savedFontSize = doc._fontSize || 12;
             
             // 링크 텍스트 렌더링 (파란색)
@@ -1024,12 +1025,14 @@ class PDFGenerator {
             });
             
             // 링크 영역 계산
-            const linkHeight = savedFontSize + 2; // 폰트 크기 + 여유 공간
+            // pdfkit의 link 함수는 (x, y, width, height, url) 형식
+            // x, y는 링크 영역의 왼쪽 상단 모서리 좌표 (페이지 좌표계)
+            const linkHeight = savedFontSize + 4; // 폰트 크기 + 여유 공간
+            const linkY = startY - savedFontSize; // 텍스트 상단 위치
             
-            // 링크 URL 추가 (pdfkit의 link 기능)
-            // pdfkit의 link는 페이지 상단 기준 좌표계를 사용합니다 (y는 위에서 아래로)
-            // startY는 현재 텍스트 베이스라인 위치
-            doc.link(startX, startY - savedFontSize, totalLinkWidth, linkHeight, linkUrl);
+            // 링크 URL 추가
+            // startY는 텍스트 베이스라인이므로, 링크 영역의 상단은 startY - savedFontSize
+            doc.link(startX, linkY, totalLinkWidth, linkHeight, linkUrl);
             
             // 색상 복원
             doc.fillColor('#000000');

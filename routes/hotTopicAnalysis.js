@@ -381,32 +381,15 @@ router.post('/generate-report', async (req, res) => {
             
             markdownReport += '\n\n---\n\n## 📚 참고 문헌\n\n';
             references.forEach(ref => {
-                // 형식: 번호. 언론사명, 일자, 기사제목 [링크]
-                markdownReport += `${ref.number}. `;
+                // 형식: 번호. [타이틀](url)
+                // 넘버는 자동으로 생성되므로 타이틀 전체를 링크로 만듦
+                const linkTitle = ref.title || `출처 ${ref.number}`;
                 
-                // 언론사명
-                if (ref.source) {
-                    markdownReport += `**${ref.source}**`;
-                }
-                
-                // 일자
-                if (ref.pubDate) {
-                    if (ref.source) markdownReport += ', ';
-                    markdownReport += ref.pubDate;
-                }
-                
-                // 기사제목
-                if (ref.title) {
-                    if (ref.source || ref.pubDate) markdownReport += ', ';
-                    markdownReport += ref.title;
-                }
-                
-                // 링크
                 if (ref.url && ref.url !== '#') {
-                    markdownReport += ` [링크](${ref.url})`;
+                    markdownReport += `${ref.number}. [${linkTitle}](${ref.url})\n`;
+                } else {
+                    markdownReport += `${ref.number}. ${linkTitle}\n`;
                 }
-                
-                markdownReport += '\n';
             });
         }
         
