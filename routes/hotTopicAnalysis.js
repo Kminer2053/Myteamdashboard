@@ -381,14 +381,12 @@ router.post('/generate-report', async (req, res) => {
             
             markdownReport += '\n\n---\n\n## 📚 참고 문헌\n\n';
             references.forEach(ref => {
-                // 형식: 번호. [타이틀](url)
-                // 넘버는 자동으로 생성되므로 타이틀 전체를 링크로 만듦
-                const linkTitle = ref.title || `출처 ${ref.number}`;
-                
+                // 형식: 번호. [url](url) - URL 자체를 표기하고 링크 적용
                 if (ref.url && ref.url !== '#') {
-                    markdownReport += `${ref.number}. [${linkTitle}](${ref.url})\n`;
+                    markdownReport += `${ref.number}. [${ref.url}](${ref.url})\n`;
                 } else {
-                    markdownReport += `${ref.number}. ${linkTitle}\n`;
+                    const fallbackText = ref.title || `출처 ${ref.number}`;
+                    markdownReport += `${ref.number}. ${fallbackText}\n`;
                 }
             });
         }

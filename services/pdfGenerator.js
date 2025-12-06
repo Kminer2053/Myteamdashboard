@@ -779,13 +779,15 @@ class PDFGenerator {
                    .fillColor('#000000');
                 
                 let currentPageStartY = tableStartY;
-                let rowsOnCurrentPage = 0;
-                const maxRowsPerPage = Math.floor((doc.page.height - doc.page.margins.bottom - currentY) / rowHeight);
                 
                 dataRows.forEach((row, rowIndex) => {
-                    // 현재 행이 페이지를 넘어가는지 체크
-                    if (rowsOnCurrentPage >= maxRowsPerPage || 
-                        (currentY + rowHeight > doc.page.height - doc.page.margins.bottom && rowIndex > 0)) {
+                    // 다음 행을 렌더링했을 때 페이지를 넘어가는지 체크
+                    // 현재 위치 + 행 높이 + 여유 공간이 페이지 하단을 넘는지 확인
+                    const nextRowY = currentY + rowHeight;
+                    const availableHeight = doc.page.height - doc.page.margins.bottom;
+                    
+                    // 첫 행이 아니고, 다음 행이 페이지 하단을 넘어갈 경우 새 페이지로 이동
+                    if (rowIndex > 0 && nextRowY > availableHeight) {
                         // 현재 페이지의 표 종료
                         const currentPageEndY = currentY;
                         
@@ -819,7 +821,6 @@ class PDFGenerator {
                     // 행 렌더링
                     renderRow(row, currentY);
                     currentY += rowHeight;
-                    rowsOnCurrentPage++;
                     
                     // 행 구분선
                     if (rowIndex < dataRows.length - 1) {
