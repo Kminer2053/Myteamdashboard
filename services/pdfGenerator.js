@@ -679,6 +679,8 @@ class PDFGenerator {
                 
                 // 표 외곽선
                 const tableHeight = rowHeight + (dataRows.length * rowHeight);
+                const tableEndY = tableStartY + tableHeight;
+                
                 doc.rect(pageMargins.left, tableStartY, tableWidth, tableHeight)
                    .lineWidth(1)
                    .strokeColor('#cccccc')
@@ -688,14 +690,23 @@ class PDFGenerator {
                 for (let i = 1; i < columnCount; i++) {
                     const lineX = pageMargins.left + (i * columnWidth);
                     doc.moveTo(lineX, tableStartY)
-                       .lineTo(lineX, tableStartY + tableHeight)
+                       .lineTo(lineX, tableEndY)
                        .lineWidth(0.5)
                        .strokeColor('#e0e0e0')
                        .stroke();
                 }
                 
-                // Y 위치 업데이트
-                doc.y = tableStartY + tableHeight + 10;
+                // 표 종료 후 위치 명확히 설정
+                // doc.y를 직접 설정하여 표 이후 본문이 올바른 위치에서 시작하도록
+                doc.y = tableEndY + 15; // 표 아래 여백 추가
+                doc.x = pageMargins.left; // 왼쪽 여백으로 복원
+                
+                // 표가 페이지를 넘어가는 경우 새 페이지 체크
+                if (doc.y > doc.page.height - doc.page.margins.bottom) {
+                    doc.addPage();
+                    doc.y = doc.page.margins.top;
+                }
+                
                 doc.moveDown(0.6);
             }
         });
@@ -906,13 +917,10 @@ class PDFGenerator {
             
             // 표 처리 (|로 시작하고 끝나는 줄)
             if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-                // 구분선 제거 (|---|---|)
+                // 구분선 제거 (|---|---|, |:---|, |---:| 등)
+                // 하이픈, 콜론, 공백만 포함된 줄은 구분선으로 간주
                 if (trimmed.match(/^\|[\s\-:]+\|$/)) {
-                    // 구분선은 무시하고 헤더 플래그만 변경
-                    if (currentBlock && currentBlock.type === 'table') {
-                        // 헤더 처리 완료 표시
-                        return;
-                    }
+                    // 구분선은 완전히 무시
                     return;
                 }
                 

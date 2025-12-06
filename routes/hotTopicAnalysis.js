@@ -359,42 +359,36 @@ router.post('/generate-report', async (req, res) => {
         
         // 참고문헌 섹션 추가 (참조 번호가 있을 때만)
         if (references.length > 0) {
-            // 마크다운 내의 참조 번호를 하이퍼링크로 변환
-            // [1][2]처럼 붙어있는 경우도 처리
-            references.forEach(ref => {
-                // [1], [2] 같은 패턴을 하이퍼링크로 변환
-                const citationPattern = new RegExp(`\\[${ref.number}\\]`, 'g');
-                if (ref.url && ref.url !== '#') {
-                    // HTML 미리보기와 PDF 모두에서 작동하도록 앵커 링크 사용
-                    const linkText = `[${ref.number}](#참고-문헌-${ref.number})`;
-                    markdownReport = markdownReport.replace(citationPattern, linkText);
-                }
-            });
+            // 참조 번호는 그냥 텍스트로만 유지 (하이퍼링크 변환 안 함)
             
             markdownReport += '\n\n---\n\n## 📚 참고 문헌\n\n';
             references.forEach(ref => {
-                // 앵커 ID 추가
-                const anchorId = `참고-문헌-${ref.number}`;
+                // 형식: 번호. 언론사명, 일자, 기사제목 [링크]
+                markdownReport += `${ref.number}. `;
                 
-                if (ref.url && ref.url !== '#') {
-                    markdownReport += `<a id="${anchorId}"></a>${ref.number}. [${ref.title || ref.source || `출처 ${ref.number}`}](${ref.url})`;
-                    if (ref.source) {
-                        markdownReport += ` - ${ref.source}`;
-                    }
-                    if (ref.pubDate) {
-                        markdownReport += ` (${ref.pubDate})`;
-                    }
-                    markdownReport += '\n';
-                } else {
-                    markdownReport += `<a id="${anchorId}"></a>${ref.number}. ${ref.title || ref.source || `출처 ${ref.number}`}`;
-                    if (ref.source) {
-                        markdownReport += ` - ${ref.source}`;
-                    }
-                    if (ref.pubDate) {
-                        markdownReport += ` (${ref.pubDate})`;
-                    }
-                    markdownReport += '\n';
+                // 언론사명
+                if (ref.source) {
+                    markdownReport += `**${ref.source}**`;
                 }
+                
+                // 일자
+                if (ref.pubDate) {
+                    if (ref.source) markdownReport += ', ';
+                    markdownReport += ref.pubDate;
+                }
+                
+                // 기사제목
+                if (ref.title) {
+                    if (ref.source || ref.pubDate) markdownReport += ', ';
+                    markdownReport += ref.title;
+                }
+                
+                // 링크
+                if (ref.url && ref.url !== '#') {
+                    markdownReport += ` [링크](${ref.url})`;
+                }
+                
+                markdownReport += '\n';
             });
         }
         

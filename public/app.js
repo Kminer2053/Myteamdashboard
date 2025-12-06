@@ -3754,9 +3754,15 @@ function displayMarkdownPreview(markdown) {
         // 표 감지 (|로 시작하고 끝나는 줄)
         if (line.startsWith('|') && line.endsWith('|')) {
             // 구분선 제거 (|---|---|, |:---|, |---:| 등 모든 구분선 패턴)
-            // 하이픈, 콜론, 공백만 포함된 줄은 구분선으로 간주
-            const separatorPattern = /^\|[\s\-:]+\|$/;
-            if (separatorPattern.test(line)) {
+            // 하이픈(-), 콜론(:), 공백, 파이프(|)만 포함된 줄은 구분선으로 간주
+            // 셀 내부에 하이픈만 있는 경우도 구분선으로 처리
+            const cells = line.split('|').slice(1, -1).map(cell => cell.trim());
+            const isSeparator = cells.every(cell => {
+                // 각 셀이 하이픈, 콜론, 공백만 포함하는지 확인
+                return /^[\s\-:]+$/.test(cell);
+            });
+            
+            if (isSeparator) {
                 // 구분선은 완전히 무시하고 다음 줄로
                 continue;
             }
@@ -3767,15 +3773,15 @@ function displayMarkdownPreview(markdown) {
                 isHeaderRow = true;
             }
             
-            const cells = line.split('|').slice(1, -1).map(cell => processBold(cell.trim()));
+            const processedCells = cells.map(cell => processBold(cell));
             
             if (isHeaderRow) {
                 // 헤더 행
-                tableRows.push('<thead><tr>' + cells.map(cell => `<th style="background-color: #f8f9fa; font-weight: bold;">${cell}</th>`).join('') + '</tr></thead><tbody>');
+                tableRows.push('<thead><tr>' + processedCells.map(cell => `<th style="background-color: #f8f9fa; font-weight: bold;">${cell}</th>`).join('') + '</tr></thead><tbody>');
                 isHeaderRow = false;
             } else {
                 // 데이터 행
-                tableRows.push('<tr>' + cells.map(cell => `<td>${cell}</td>`).join('') + '</tr>');
+                tableRows.push('<tr>' + processedCells.map(cell => `<td>${cell}</td>`).join('') + '</tr>');
             }
         } else {
             // 표 종료
