@@ -3708,6 +3708,27 @@ async function generateHotTopicReport() {
             })
         });
         
+        // 응답 상태 확인
+        if (!response.ok) {
+            if (response.status === 502) {
+                const errorMsg = 'Render 서버가 일시적으로 응답하지 못했습니다. 잠시 후 다시 시도해주세요.';
+                console.error('❌ 서버 오류 (502 Bad Gateway):', errorMsg);
+                console.error('서버 상태를 확인하거나 잠시 후 다시 시도해주세요.');
+                showToast(errorMsg);
+                throw new Error(errorMsg);
+            } else if (response.status === 504) {
+                const errorMsg = '서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.';
+                console.error('❌ 서버 타임아웃 (504 Gateway Timeout):', errorMsg);
+                showToast(errorMsg);
+                throw new Error(errorMsg);
+            } else {
+                const errorMsg = `서버 오류가 발생했습니다. (상태 코드: ${response.status})`;
+                console.error(`❌ 서버 오류 (${response.status}):`, errorMsg);
+                showToast(errorMsg);
+                throw new Error(errorMsg);
+            }
+        }
+        
         const result = await response.json();
         
         if (result.success) {
@@ -3723,8 +3744,23 @@ async function generateHotTopicReport() {
             throw new Error(result.message || '보고서 생성 실패');
         }
     } catch (error) {
-        console.error('보고서 생성 오류:', error);
-        showToast('보고서 생성 중 오류가 발생했습니다: ' + error.message);
+        // 네트워크 오류 감지
+        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+            const errorMsg = '서버에 연결할 수 없습니다. Render 서버가 일시적으로 응답하지 못했을 수 있습니다.';
+            console.error('❌ 네트워크 오류:', errorMsg);
+            console.error('원인:', error.message);
+            console.error('해결 방법: 잠시 후 다시 시도하거나 Render 서버 상태를 확인해주세요.');
+            showToast(errorMsg);
+        } else if (error.message.includes('CORS')) {
+            const errorMsg = 'CORS 정책 오류가 발생했습니다. 서버 설정을 확인해주세요.';
+            console.error('❌ CORS 오류:', errorMsg);
+            console.error('원인:', error.message);
+            showToast(errorMsg);
+        } else {
+            console.error('❌ 보고서 생성 오류:', error);
+            console.error('오류 상세:', error.message);
+            showToast('보고서 생성 중 오류가 발생했습니다: ' + error.message);
+        }
     } finally {
         startAnalysisBtn.disabled = false;
         analysisLoading.style.display = 'none';
@@ -3784,7 +3820,14 @@ function displayMarkdownPreview(markdown) {
                 isHeaderRow = true;
             }
             
-            const processedCells = cells.map(cell => processBold(cell));
+            // 셀 내부 링크 처리
+            const processedCells = cells.map(cell => {
+                // 링크 처리 먼저
+                let processed = cell.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-primary text-decoration-underline">$1</a>');
+                // 볼드 처리
+                processed = processBold(processed);
+                return processed;
+            });
             
             if (isHeaderRow) {
                 // 헤더 행

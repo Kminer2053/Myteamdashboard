@@ -596,46 +596,57 @@ class PDFGenerator {
                 const headerRow = block.rows[0];
                 const dataRows = block.rows.slice(1);
                 
-                let startY = doc.y;
-                const tableStartY = startY;
-                
-                // 헤더 렌더링
-                doc.font(koreanFontBold)
-                   .fontSize(11)
-                   .fillColor('#333333');
-                
-                let currentX = pageMargins.left;
-                headerRow.forEach((cell, index) => {
-                    const cellText = cell || '';
-                    doc.text(cellText, currentX + cellPadding, startY, {
-                        width: columnWidth - cellPadding * 2,
-                        height: rowHeight,
-                        align: 'left'
-                    });
-                    currentX += columnWidth;
-                });
-                
-                // 헤더 밑줄
-                startY += rowHeight;
-                doc.moveTo(pageMargins.left, startY)
-                   .lineTo(pageMargins.left + tableWidth, startY)
-                   .lineWidth(1)
-                   .strokeColor('#cccccc')
-                   .stroke();
-                
-                // 데이터 행 렌더링
-                doc.font(koreanFont)
-                   .fontSize(10)
-                   .fillColor('#000000');
-                
-                dataRows.forEach((row, rowIndex) => {
-                    const rowY = startY + (rowIndex * rowHeight);
-                    currentX = pageMargins.left;
+                // 헤더 렌더링 함수
+                const renderHeader = (y) => {
+                    doc.font(koreanFontBold)
+                       .fontSize(11)
+                       .fillColor('#333333');
                     
+                    let currentX = pageMargins.left;
+                    headerRow.forEach((cell, index) => {
+                        const cellText = cell || '';
+                        doc.text(cellText, currentX + cellPadding, y, {
+                            width: columnWidth - cellPadding * 2,
+                            height: rowHeight,
+                            align: 'left'
+                        });
+                        currentX += columnWidth;
+                    });
+                    
+                    // 헤더 밑줄
+                    const headerBottomY = y + rowHeight;
+                    doc.moveTo(pageMargins.left, headerBottomY)
+                       .lineTo(pageMargins.left + tableWidth, headerBottomY)
+                       .lineWidth(1)
+                       .strokeColor('#cccccc')
+                       .stroke();
+                    
+                    return headerBottomY;
+                };
+                
+                // 행 렌더링 함수 (링크 포함)
+                const renderRow = (row, rowY) => {
+                    let currentX = pageMargins.left;
                     row.forEach((cell, colIndex) => {
                         const cellText = cell || '';
                         const cellX = currentX + cellPadding;
-                        const cellY = rowY + 5; // 셀 상단에서 약간 아래
+                        const cellY = rowY + 5;
+                        
+                        // 셀 내부 링크 처리
+                        const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
+                        let processedText = cellText;
+                        const links = [];
+                        let match;
+                        
+                        // 링크 찾기
+                        while ((match = linkPattern.exec(cellText)) !== null) {
+                            links.push({
+                                text: match[1],
+                                url: match[2],
+                                index: match.index,
+                                length: match[0].length
+                            });
+                        }
                         
                         // 좌표 저장
                         const savedX = doc.x;
@@ -645,20 +656,75 @@ class PDFGenerator {
                         doc.x = cellX;
                         doc.y = cellY;
                         
-                        // 셀 내부 볼드 처리
-                        const boldParts = this.processBold(cellText);
-                        boldParts.forEach((part, partIndex) => {
-                            const font = part.type === 'bold' ? koreanFontBold : koreanFont;
-                            doc.font(font);
-                            
-                            // 마지막 파트가 아니면 continued 사용
-                            const isContinued = partIndex < boldParts.length - 1;
-                            doc.text(part.text, {
-                                width: columnWidth - cellPadding * 2,
-                                align: 'left',
-                                continued: isContinued
+                        // 링크가 있으면 링크 처리, 없으면 일반 처리
+                        if (links.length > 0) {
+                            let lastIndex = 0;
+                            links.forEach(link => {
+                                // 링크 이전 텍스트
+                                if (link.index > lastIndex) {
+                                    const beforeText = processedText.substring(lastIndex, link.index);
+                                    const boldParts = this.processBold(beforeText);
+                                    boldParts.forEach(part => {
+                                        const font = part.type === 'bold' ? koreanFontBold : koreanFont;
+                                        doc.font(font);
+                                        doc.text(part.text, {
+                                            width: columnWidth - cellPadding * 2,
+                                            align: 'left',
+                                            continued: true
+                                        });
+                                    });
+                                }
+                                
+                                // 링크 텍스트 렌더링
+                                const linkStartX = doc.x;
+                                const linkStartY = doc.y;
+                                doc.fillColor('#0066cc');
+                                const linkBoldParts = this.processBold(link.text);
+                                linkBoldParts.forEach(part => {
+                                    const font = part.type === 'bold' ? koreanFontBold : koreanFont;
+                                    doc.font(font);
+                                    doc.text(part.text, {
+                                        width: columnWidth - cellPadding * 2,
+                                        align: 'left',
+                                        continued: true
+                                    });
+                                });
+                                const linkWidth = doc.x - linkStartX;
+                                const linkHeight = savedFontSize || 10;
+                                doc.link(linkStartX, linkStartY, linkWidth, linkHeight, link.url);
+                                doc.fillColor('#000000');
+                                
+                                lastIndex = link.index + link.length;
                             });
-                        });
+                            
+                            // 링크 이후 텍스트
+                            if (lastIndex < processedText.length) {
+                                const afterText = processedText.substring(lastIndex);
+                                const boldParts = this.processBold(afterText);
+                                boldParts.forEach(part => {
+                                    const font = part.type === 'bold' ? koreanFontBold : koreanFont;
+                                    doc.font(font);
+                                    doc.text(part.text, {
+                                        width: columnWidth - cellPadding * 2,
+                                        align: 'left',
+                                        continued: true
+                                    });
+                                });
+                            }
+                        } else {
+                            // 링크 없으면 일반 볼드 처리
+                            const boldParts = this.processBold(cellText);
+                            boldParts.forEach((part, partIndex) => {
+                                const font = part.type === 'bold' ? koreanFontBold : koreanFont;
+                                doc.font(font);
+                                const isContinued = partIndex < boldParts.length - 1;
+                                doc.text(part.text, {
+                                    width: columnWidth - cellPadding * 2,
+                                    align: 'left',
+                                    continued: isContinued
+                                });
+                            });
+                        }
                         
                         // 위치 복원
                         doc.x = savedX;
@@ -666,23 +732,76 @@ class PDFGenerator {
                         
                         currentX += columnWidth;
                     });
+                };
+                
+                let currentY = doc.y;
+                let tableStartY = currentY;
+                const savedFontSize = 10; // 셀 내부 기본 폰트 크기
+                
+                // 첫 헤더 렌더링
+                currentY = renderHeader(currentY);
+                
+                // 데이터 행 렌더링 (페이지 넘김 처리)
+                doc.font(koreanFont)
+                   .fontSize(10)
+                   .fillColor('#000000');
+                
+                let currentPageStartY = tableStartY;
+                let rowsOnCurrentPage = 0;
+                const maxRowsPerPage = Math.floor((doc.page.height - doc.page.margins.bottom - currentY) / rowHeight);
+                
+                dataRows.forEach((row, rowIndex) => {
+                    // 현재 행이 페이지를 넘어가는지 체크
+                    if (rowsOnCurrentPage >= maxRowsPerPage || 
+                        (currentY + rowHeight > doc.page.height - doc.page.margins.bottom && rowIndex > 0)) {
+                        // 현재 페이지의 표 종료
+                        const currentPageEndY = currentY;
+                        
+                        // 현재 페이지 표 외곽선
+                        doc.rect(pageMargins.left, currentPageStartY, tableWidth, currentPageEndY - currentPageStartY)
+                           .lineWidth(1)
+                           .strokeColor('#cccccc')
+                           .stroke();
+                        
+                        // 세로 구분선
+                        for (let i = 1; i < columnCount; i++) {
+                            const lineX = pageMargins.left + (i * columnWidth);
+                            doc.moveTo(lineX, currentPageStartY)
+                               .lineTo(lineX, currentPageEndY)
+                               .lineWidth(0.5)
+                               .strokeColor('#e0e0e0')
+                               .stroke();
+                        }
+                        
+                        // 새 페이지 추가
+                        doc.addPage();
+                        currentY = doc.page.margins.top;
+                        currentPageStartY = currentY;
+                        rowsOnCurrentPage = 0;
+                        
+                        // 새 페이지에 헤더 다시 렌더링
+                        currentY = renderHeader(currentY);
+                        doc.font(koreanFont).fontSize(10);
+                    }
+                    
+                    // 행 렌더링
+                    renderRow(row, currentY);
+                    currentY += rowHeight;
+                    rowsOnCurrentPage++;
                     
                     // 행 구분선
                     if (rowIndex < dataRows.length - 1) {
-                        const lineY = startY + ((rowIndex + 1) * rowHeight);
-                        doc.moveTo(pageMargins.left, lineY)
-                           .lineTo(pageMargins.left + tableWidth, lineY)
+                        doc.moveTo(pageMargins.left, currentY)
+                           .lineTo(pageMargins.left + tableWidth, currentY)
                            .lineWidth(0.5)
                            .strokeColor('#e0e0e0')
                            .stroke();
                     }
                 });
                 
-                // 표 외곽선
-                const tableHeight = rowHeight + (dataRows.length * rowHeight);
-                const tableEndY = tableStartY + tableHeight;
-                
-                doc.rect(pageMargins.left, tableStartY, tableWidth, tableHeight)
+                // 마지막 페이지의 표 종료
+                const finalTableEndY = currentY;
+                doc.rect(pageMargins.left, currentPageStartY, tableWidth, finalTableEndY - currentPageStartY)
                    .lineWidth(1)
                    .strokeColor('#cccccc')
                    .stroke();
@@ -690,23 +809,17 @@ class PDFGenerator {
                 // 세로 구분선
                 for (let i = 1; i < columnCount; i++) {
                     const lineX = pageMargins.left + (i * columnWidth);
-                    doc.moveTo(lineX, tableStartY)
-                       .lineTo(lineX, tableEndY)
+                    doc.moveTo(lineX, currentPageStartY)
+                       .lineTo(lineX, finalTableEndY)
                        .lineWidth(0.5)
                        .strokeColor('#e0e0e0')
                        .stroke();
                 }
                 
                 // 표 종료 후 위치 명확히 설정
-                // doc.y를 직접 설정하여 표 이후 본문이 올바른 위치에서 시작하도록
-                doc.y = tableEndY + 15; // 표 아래 여백 추가
-                doc.x = pageMargins.left; // 왼쪽 여백으로 복원
-                
-                // 표가 페이지를 넘어가는 경우 새 페이지 체크
-                if (doc.y > doc.page.height - doc.page.margins.bottom) {
-                    doc.addPage();
-                    doc.y = doc.page.margins.top;
-                }
+                doc.y = finalTableEndY + 15;
+                doc.x = pageMargins.left;
+                doc.fontSize(12);
                 
                 doc.moveDown(0.6);
             }
@@ -880,13 +993,12 @@ class PDFGenerator {
             
             // 링크 영역 계산 (렌더링 후 위치)
             const endY = doc.y;
-            const linkHeight = Math.max(savedFontSize, endY - startY + 2); // 텍스트 높이 + 여유 공간
+            const linkHeight = Math.max(savedFontSize, Math.abs(endY - startY) + 2); // 텍스트 높이 + 여유 공간
             
             // 링크 URL 추가 (pdfkit의 link 기능)
-            // pdfkit의 link는 좌표계가 페이지 하단 기준
-            // startY는 텍스트 baseline이므로 약간 위로 올려야 함
-            const linkY = doc.page.height - startY - linkHeight;
-            doc.link(startX, linkY, totalLinkWidth, linkHeight, linkUrl);
+            // pdfkit의 link는 페이지 상단 기준 좌표계를 사용합니다 (y는 위에서 아래로)
+            // startY는 현재 커서 위치이므로 직접 사용 가능
+            doc.link(startX, startY, totalLinkWidth, linkHeight, linkUrl);
             
             // 색상 복원
             doc.fillColor('#000000');
