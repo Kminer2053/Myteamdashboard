@@ -317,6 +317,23 @@ router.post('/generate-report', async (req, res) => {
         let markdownReport = response.data.choices[0].message.content;
         const originalMarkdown = markdownReport; // 원본 마크다운 저장 (참고문헌 추가 전)
         
+        // Perplexity AI가 생성한 참고문헌 섹션 제거 (우리가 새로 만들 예정)
+        // "참고 문헌", "참고문헌", "Reference", "References" 등의 섹션 찾아서 제거
+        const referenceSectionPatterns = [
+            /\n\n##\s*📚\s*참고\s*문헌.*$/s,
+            /\n\n##\s*참고\s*문헌.*$/s,
+            /\n\n##\s*참고문헌.*$/s,
+            /\n\n---\n\n##\s*📚\s*참고\s*문헌.*$/s,
+            /\n\n---\n\n##\s*참고\s*문헌.*$/s,
+            /\n\n###\s*참고\s*문헌.*$/s,
+            /\n\n##\s*Reference.*$/s,
+            /\n\n##\s*References.*$/s
+        ];
+        
+        referenceSectionPatterns.forEach(pattern => {
+            markdownReport = markdownReport.replace(pattern, '');
+        });
+        
         // Perplexity AI 응답에서 citations 추출 시도
         const citations = response.data.citations || [];
         
@@ -401,6 +418,12 @@ router.post('/generate-report', async (req, res) => {
         console.log('📝 <strong> 태그 확인:', (markdownReport.match(/<strong>/gi) || []).length, '개');
         console.log(`📚 참조 번호 개수: ${citationNumbers.length}개`);
         console.log(`📚 참고문헌 개수: ${references.length}개`);
+        
+        // 참고문헌 데이터 확인 (디버깅용)
+        if (references.length > 0) {
+            console.log('📚 참고문헌 데이터 샘플 (첫 번째):');
+            console.log(JSON.stringify(references[0], null, 2));
+        }
 
         res.json({
             success: true,

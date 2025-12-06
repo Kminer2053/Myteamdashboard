@@ -109,11 +109,19 @@ class PDFGenerator {
             let koreanFontBold = 'Helvetica-Bold';
             
             // 한글 폰트 등록 (pdfkit은 폰트 등록 시 자동으로 ToUnicode 맵을 생성하여 텍스트 복사 지원)
+            // 폰트 서브셋팅은 pdfkit이 자동으로 처리하며, ToUnicode 맵도 자동 생성됩니다.
             if (this.koreanFontPath) {
                 try {
+                    // 폰트 파일이 유효한지 다시 한번 확인
+                    const fontBuffer = fs.readFileSync(this.koreanFontPath);
+                    if (fontBuffer.length < 1024) {
+                        throw new Error('폰트 파일 크기가 너무 작습니다');
+                    }
+                    
                     doc.registerFont('Korean', this.koreanFontPath);
                     koreanFont = 'Korean';
                     console.log(`✅ 한글 폰트 등록 완료: ${this.koreanFontPath}`);
+                    console.log(`   → 폰트 크기: ${(fontBuffer.length / 1024).toFixed(2)} KB`);
                     console.log('   → 텍스트 복사/붙여넣기 지원: 자동 활성화됨 (ToUnicode 맵)');
                 } catch (error) {
                     console.error('한글 폰트 등록 실패:', error.message);
@@ -125,9 +133,16 @@ class PDFGenerator {
             
             if (this.koreanFontBoldPath) {
                 try {
+                    // 폰트 파일이 유효한지 다시 한번 확인
+                    const fontBuffer = fs.readFileSync(this.koreanFontBoldPath);
+                    if (fontBuffer.length < 1024) {
+                        throw new Error('폰트 파일 크기가 너무 작습니다');
+                    }
+                    
                     doc.registerFont('KoreanBold', this.koreanFontBoldPath);
                     koreanFontBold = 'KoreanBold';
                     console.log(`✅ 한글 볼드 폰트 등록 완료: ${this.koreanFontBoldPath}`);
+                    console.log(`   → 폰트 크기: ${(fontBuffer.length / 1024).toFixed(2)} KB`);
                     console.log('   → 텍스트 복사/붙여넣기 지원: 자동 활성화됨 (ToUnicode 맵)');
                 } catch (error) {
                     console.error('한글 볼드 폰트 등록 실패:', error.message);
@@ -991,7 +1006,7 @@ class PDFGenerator {
             doc.fillColor('#0066cc'); // 파란색
             const boldParts = this.processBold(linkText);
             
-            // 전체 링크 텍스트의 너비 계산
+            // 전체 링크 텍스트의 너비 계산 (실제 렌더링 전에 계산)
             let totalLinkWidth = 0;
             boldParts.forEach(part => {
                 const font = part.type === 'bold' ? koreanFontBold : koreanFont;
@@ -1008,14 +1023,13 @@ class PDFGenerator {
                 doc.text(part.text, { continued: true });
             });
             
-            // 링크 영역 계산 (렌더링 후 위치)
-            const endY = doc.y;
-            const linkHeight = Math.max(savedFontSize, Math.abs(endY - startY) + 2); // 텍스트 높이 + 여유 공간
+            // 링크 영역 계산
+            const linkHeight = savedFontSize + 2; // 폰트 크기 + 여유 공간
             
             // 링크 URL 추가 (pdfkit의 link 기능)
             // pdfkit의 link는 페이지 상단 기준 좌표계를 사용합니다 (y는 위에서 아래로)
-            // startY는 현재 커서 위치이므로 직접 사용 가능
-            doc.link(startX, startY, totalLinkWidth, linkHeight, linkUrl);
+            // startY는 현재 텍스트 베이스라인 위치
+            doc.link(startX, startY - savedFontSize, totalLinkWidth, linkHeight, linkUrl);
             
             // 색상 복원
             doc.fillColor('#000000');
