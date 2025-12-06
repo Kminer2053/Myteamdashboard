@@ -425,6 +425,10 @@ class PDFGenerator {
         // 1. **"텍스트"** 패턴: 큰따옴표 제거 (큰따옴표가 변환을 방해함)
         processed = processed.replace(/\*\*"([^"]+)"\*\*/g, '**$1**');
         
+        // 2. **텍스트(내용)** 패턴: 괄호가 있는 볼드 패턴 처리
+        // 이미 <strong> 태그로 변환되지 않은 경우만 처리
+        // 이 단계에서는 markdown-it이 처리하도록 그대로 둠
+        
         return processed;
     }
 
@@ -436,11 +440,16 @@ class PDFGenerator {
     postprocessHTML(html) {
         let processed = html;
         
-        // 1. **텍스트(내용)** 패턴: HTML 변환 후에도 남아있는 경우 처리
-        // 문장 내부의 **텍스트(내용)** 패턴을 <strong> 태그로 변환
+        // 1. HTML로 변환되지 않은 **텍스트(내용)** 패턴 처리 (괄호가 있는 경우 우선)
         processed = processed.replace(/\*\*([^*]+?\([^)]+?\)[^*]*?)\*\*/g, '<strong>$1</strong>');
         
-        // 2. 일반 **텍스트** 패턴도 처리 (위에서 처리되지 않은 경우)
+        // 2. HTML로 변환되지 않은 **"텍스트"** 패턴 처리 (큰따옴표 포함)
+        processed = processed.replace(/\*\*"([^"]+)"\*\*/g, '<strong>"$1"</strong>');
+        
+        // 3. HTML로 변환되지 않은 **'텍스트'** 패턴 처리 (작은따옴표 포함)
+        processed = processed.replace(/\*\*'([^']+)'\*\*/g, "<strong>'$1'</strong>");
+        
+        // 4. 일반 **텍스트** 패턴 처리 (위에서 처리되지 않은 경우)
         processed = processed.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
         
         return processed;

@@ -3817,6 +3817,15 @@ async function downloadPDF() {
         return;
     }
     
+    const downloadPDFBtn = document.getElementById('downloadPDFBtn');
+    const originalText = downloadPDFBtn ? downloadPDFBtn.innerHTML : '';
+    
+    // 로딩 상태로 변경
+    if (downloadPDFBtn) {
+        downloadPDFBtn.disabled = true;
+        downloadPDFBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>PDF 생성 중...';
+    }
+    
     try {
         const response = await fetch(`${API_BASE_URL}/api/hot-topic-analysis/convert-pdf`, {
             method: 'POST',
@@ -3848,6 +3857,12 @@ async function downloadPDF() {
     } catch (error) {
         console.error('PDF 다운로드 오류:', error);
         showToast('PDF 다운로드 중 오류가 발생했습니다: ' + error.message);
+    } finally {
+        // 버튼 원래 상태로 복원
+        if (downloadPDFBtn) {
+            downloadPDFBtn.disabled = false;
+            downloadPDFBtn.innerHTML = originalText;
+        }
     }
 }
 
