@@ -3839,14 +3839,16 @@ function displayMarkdownPreview(markdown) {
                     orderedListItems.push('<li class="mb-1">' + processBold(content) + '</li>');
                 }
             } else if (line) {
-                // 강조 처리 - 백엔드 postprocessHTML과 동일한 로직 적용
-                let processedLine = processBold(line);
+                // 링크 처리 먼저 (볼드 처리 전에 수행하여 패턴이 깨지지 않도록)
+                let processedLine = line.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-primary text-decoration-underline">$1</a>');
                 
-                // 기타 처리 (이탤릭, 코드, 링크)
+                // 그 다음 볼드 처리
+                processedLine = processBold(processedLine);
+                
+                // 기타 처리 (이탤릭, 코드)
                 processedLine = processedLine
                     .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                    .replace(/`([^`]+)`/g, '<code class="bg-light px-1 rounded">$1</code>')
-                    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-primary">$1</a>');
+                    .replace(/`([^`]+)`/g, '<code class="bg-light px-1 rounded">$1</code>');
                 
                 html += '<p class="mb-2">' + processedLine + '</p>';
             } else {

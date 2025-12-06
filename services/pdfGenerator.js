@@ -857,7 +857,7 @@ class PDFGenerator {
             const startY = doc.y;
             const savedFontSize = doc._fontSize || 12;
             
-            // 링크 텍스트 렌더링 (파란색, 밑줄)
+            // 링크 텍스트 렌더링 (파란색)
             doc.fillColor('#0066cc'); // 파란색
             const boldParts = this.processBold(linkText);
             
@@ -878,11 +878,13 @@ class PDFGenerator {
                 doc.text(part.text, { continued: true });
             });
             
-            // 링크 영역 계산
-            const linkHeight = savedFontSize; // 폰트 크기와 동일한 높이
+            // 링크 영역 계산 (렌더링 후 위치)
+            const endY = doc.y;
+            const linkHeight = Math.max(savedFontSize, endY - startY + 2); // 텍스트 높이 + 여유 공간
             
             // 링크 URL 추가 (pdfkit의 link 기능)
-            // pdfkit의 link는 좌표계가 페이지 하단 기준이므로 변환 필요
+            // pdfkit의 link는 좌표계가 페이지 하단 기준
+            // startY는 텍스트 baseline이므로 약간 위로 올려야 함
             const linkY = doc.page.height - startY - linkHeight;
             doc.link(startX, linkY, totalLinkWidth, linkHeight, linkUrl);
             
