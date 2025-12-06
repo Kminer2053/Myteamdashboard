@@ -852,23 +852,39 @@ class PDFGenerator {
             const linkText = match[1];
             const linkUrl = match[2];
             
-            // 링크 텍스트 렌더링 (파란색)
+            // 링크 텍스트 렌더링 전 위치 저장
             const startX = doc.x;
             const startY = doc.y;
+            const savedFontSize = doc._fontSize || 12;
             
+            // 링크 텍스트 렌더링 (파란색, 밑줄)
             doc.fillColor('#0066cc'); // 파란색
             const boldParts = this.processBold(linkText);
+            
+            // 전체 링크 텍스트의 너비 계산
+            let totalLinkWidth = 0;
             boldParts.forEach(part => {
                 const font = part.type === 'bold' ? koreanFontBold : koreanFont;
                 doc.font(font);
+                doc.fontSize(savedFontSize);
+                totalLinkWidth += doc.widthOfString(part.text);
+            });
+            
+            // 링크 텍스트 렌더링
+            boldParts.forEach(part => {
+                const font = part.type === 'bold' ? koreanFontBold : koreanFont;
+                doc.font(font);
+                doc.fontSize(savedFontSize);
                 doc.text(part.text, { continued: true });
             });
             
-            // 링크 URL 추가 (pdfkit의 link 기능)
-            const textWidth = doc.widthOfString(linkText);
-            const textHeight = 12; // 기본 폰트 크기 기준
+            // 링크 영역 계산
+            const linkHeight = savedFontSize; // 폰트 크기와 동일한 높이
             
-            doc.link(startX, startY - textHeight, textWidth, textHeight, linkUrl);
+            // 링크 URL 추가 (pdfkit의 link 기능)
+            // pdfkit의 link는 좌표계가 페이지 하단 기준이므로 변환 필요
+            const linkY = doc.page.height - startY - linkHeight;
+            doc.link(startX, linkY, totalLinkWidth, linkHeight, linkUrl);
             
             // 색상 복원
             doc.fillColor('#000000');
@@ -969,7 +985,7 @@ class PDFGenerator {
             }
             
             // 순서 있는 리스트
-            const olMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+            const olMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
             if (olMatch) {
                 if (currentBlock && currentBlock.type !== 'list' && currentBlock.type !== 'table') {
                     blocks.push(currentBlock);
@@ -987,8 +1003,9 @@ class PDFGenerator {
                         items: []
                     };
                 }
-                const itemNumber = currentBlock.items.length + 1;
-                currentBlock.items.push({ text: olMatch[1], number: itemNumber });
+                // 원문의 넘버를 그대로 사용 (자동 카운팅 하지 않음)
+                const itemNumber = parseInt(olMatch[1], 10);
+                currentBlock.items.push({ text: olMatch[2], number: itemNumber });
                 return;
             }
             

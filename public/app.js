@@ -278,20 +278,6 @@ document.addEventListener('DOMContentLoaded', function() {
             downloadPDFBtn.addEventListener('click', downloadPDF);
         }
         
-        // 원문 보기 토글 버튼
-        const toggleOriginalMarkdownBtn = document.getElementById('toggleOriginalMarkdownBtn');
-        if (toggleOriginalMarkdownBtn) {
-            toggleOriginalMarkdownBtn.addEventListener('click', function() {
-                const originalPreview = document.getElementById('originalMarkdownPreview');
-                if (originalPreview) {
-                    const isVisible = originalPreview.style.display !== 'none';
-                    originalPreview.style.display = isVisible ? 'none' : 'block';
-                    toggleOriginalMarkdownBtn.innerHTML = isVisible 
-                        ? '<i class="fas fa-code me-1"></i>원문 보기'
-                        : '<i class="fas fa-eye-slash me-1"></i>원문 숨기기';
-                }
-            });
-        }
         
         // 마크다운 원문 다운로드 버튼
         const downloadMarkdownBtn = document.getElementById('downloadMarkdownBtn');
@@ -3731,14 +3717,6 @@ async function generateHotTopicReport() {
             // 마크다운 미리보기 표시
             displayMarkdownPreview(result.data.report);
             
-            // 원문 표시
-            if (hotTopicData.originalMarkdown) {
-                const originalContent = document.getElementById('originalMarkdownContent');
-                if (originalContent) {
-                    originalContent.textContent = hotTopicData.originalMarkdown;
-                }
-            }
-            
             reportPreview.style.display = 'block';
             showToast('보고서가 생성되었습니다.');
         } else {
@@ -3778,6 +3756,8 @@ function displayMarkdownPreview(markdown) {
     let inTable = false;
     let tableRows = [];
     let isHeaderRow = false;
+    let inOrderedList = false;
+    let orderedListItems = [];
     
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -3824,6 +3804,14 @@ function displayMarkdownPreview(markdown) {
                 isHeaderRow = false;
             }
             
+            // 순서 있는 리스트 종료 체크
+            if (inOrderedList && orderedListItems.length > 0 && !line.match(/^\d+\.\s/)) {
+                orderedListItems.push('</ol>');
+                html += orderedListItems.join('');
+                orderedListItems = [];
+                inOrderedList = false;
+            }
+            
             // 일반 마크다운 처리
             if (line.startsWith('### ')) {
                 html += '<h3 class="mt-4 mb-3">' + processBold(line.substring(4)) + '</h3>';
@@ -3832,11 +3820,24 @@ function displayMarkdownPreview(markdown) {
             } else if (line.startsWith('# ')) {
                 html += '<h1 class="mt-4 mb-3">' + processBold(line.substring(2)) + '</h1>';
             } else if (line.startsWith('- ') || line.startsWith('* ')) {
-                // 리스트 아이템 내 볼드 처리
-                html += '<li class="mb-1">' + processBold(line.substring(2)) + '</li>';
+                // 순서 없는 리스트 아이템
+                html += '<ul class="ms-3 mb-3"><li class="mb-1">' + processBold(line.substring(2)) + '</li></ul>';
             } else if (line.match(/^\d+\.\s/)) {
-                // 번호가 있는 리스트 아이템 내 볼드 처리
-                html += '<li class="mb-1">' + processBold(line.replace(/^\d+\.\s/, '')) + '</li>';
+                // 순서 있는 리스트 아이템 - 원문의 넘버를 그대로 사용
+                const match = line.match(/^(\d+)\.\s+(.+)$/);
+                if (match) {
+                    const number = match[1]; // 원문의 넘버 그대로 사용
+                    const content = match[2];
+                    if (!inOrderedList) {
+                        inOrderedList = true;
+                    }
+                    // 원문의 넘버를 텍스트로 포함하여 표시 (순서 있는 리스트로 렌더링)
+                    // 첫 번째 항목의 넘버를 start 속성으로 설정
+                    if (orderedListItems.length === 0) {
+                        orderedListItems.push('<ol start="' + number + '" class="ms-3 mb-3">');
+                    }
+                    orderedListItems.push('<li class="mb-1">' + processBold(content) + '</li>');
+                }
             } else if (line) {
                 // 강조 처리 - 백엔드 postprocessHTML과 동일한 로직 적용
                 let processedLine = processBold(line);
@@ -3860,10 +3861,11 @@ function displayMarkdownPreview(markdown) {
                 tableRows.join('') + '</tbody></table>';
     }
     
-    // 리스트를 ul로 감싸기
-    html = html.replace(/(<li[^>]*>.*?<\/li>)/gs, (match) => {
-        return '<ul class="list-unstyled ms-3">' + match + '</ul>';
-    });
+    // 마지막 순서 있는 리스트 처리
+    if (inOrderedList && orderedListItems.length > 0) {
+        orderedListItems.push('</ol>');
+        html += orderedListItems.join('');
+    }
     
     preview.innerHTML = '<div class="markdown-content" style="line-height: 1.8; font-size: 14px;">' + html + '</div>';
 }
