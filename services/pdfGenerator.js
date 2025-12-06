@@ -9,7 +9,7 @@ class PDFGenerator {
         this.md = new MarkdownIt({
             html: true,
             linkify: true,
-            typographer: true
+            typographer: false // 큰따옴표 특수 문자 변환 방지
         });
         this.reportsDir = path.join(__dirname, '../reports');
         this.fontsDir = path.join(__dirname, '../fonts');
@@ -53,6 +53,14 @@ class PDFGenerator {
             path.join(this.fontsDir, 'NotoSansKR-Bold.otf')
         ];
         this.koreanFontBoldPath = boldFontPaths.find(p => isValidFontFile(p));
+        
+        // 이모지 폰트 경로 설정
+        const emojiFontPaths = [
+            path.join(this.fontsDir, 'NotoEmoji-VariableFont_wght.ttf'),
+            path.join(this.fontsDir, 'NotoColorEmoji.ttf'),
+            path.join(this.fontsDir, 'NotoEmoji.ttf')
+        ];
+        this.emojiFontPath = emojiFontPaths.find(p => isValidFontFile(p));
     }
 
     /**
@@ -83,7 +91,8 @@ class PDFGenerator {
                     bottom: 72,
                     left: 54,     // 15mm ≈ 54pt
                     right: 54
-            }
+                },
+                lineGap: 2       // 줄 간격 추가
             });
 
             // 한글 폰트 등록 (폰트 파일이 있으면 사용, 없으면 기본 폰트)
@@ -119,13 +128,40 @@ class PDFGenerator {
                 // Bold 폰트가 없으면 Regular 폰트를 Bold로도 사용
                 koreanFontBold = koreanFont;
             }
+            
+            // 이모지 폰트 등록
+            let emojiFont = null;
+            if (this.emojiFontPath) {
+                try {
+                    // 폰트 파일 유효성 확인
+                    const fontBuffer = fs.readFileSync(this.emojiFontPath);
+                    const isHTML = fontBuffer.toString('utf8', 0, Math.min(100, fontBuffer.length)).trim().toLowerCase().startsWith('<!');
+                    
+                    if (!isHTML && fontBuffer.length > 1024) {
+                        doc.registerFont('Emoji', this.emojiFontPath);
+                        emojiFont = 'Emoji';
+                        console.log(`✅ 이모지 폰트 등록 완료: ${this.emojiFontPath}`);
+                    } else {
+                        console.warn('⚠️ 이모지 폰트 파일이 유효하지 않습니다 (HTML 파일 또는 크기 부족).');
+                    }
+                } catch (error) {
+                    console.error('이모지 폰트 등록 실패:', error.message);
+                    console.warn('⚠️ 이모지 폰트 없이 진행합니다.');
+                }
+            } else {
+                console.warn('⚠️ 이모지 폰트 파일을 찾을 수 없습니다. 이모지는 기본 폰트로 렌더링됩니다.');
+            }
 
             // PDF 파일 스트림 생성
             const stream = fs.createWriteStream(pdfFilePath);
             doc.pipe(stream);
 
-            // HTML을 파싱해서 PDF로 변환
-            this.renderHTMLToPDF(doc, htmlContent, koreanFont, koreanFontBold);
+            // 마크다운을 직접 PDF로 변환 (HTML 변환 단계 없이)
+            // 1. 마크다운 전처리 (큰따옴표 문제 해결)
+            const preprocessed = this.preprocessMarkdown(markdown);
+            
+            // 2. 마크다운을 직접 PDF로 렌더링
+            this.renderMarkdownToPDF(doc, preprocessed, koreanFont, koreanFontBold, emojiFont);
 
             // PDF 완료
             doc.end();
@@ -175,6 +211,24 @@ class PDFGenerator {
     renderHTMLToPDF(doc, html, koreanFont = 'Helvetica', koreanFontBold = 'Helvetica-Bold') {
         const dom = parseDocument(html);
         
+        // 각 ol 태그별 카운터 저장
+        const olCounters = new WeakMap();
+        
+        // 부모 노드를 찾아서 리스트 타입 확인하는 헬퍼 함수
+        const findListParent = (node) => {
+            let parent = node.parent;
+            while (parent) {
+                if (parent.type === 'tag') {
+                    const tagName = parent.name.toLowerCase();
+                    if (tagName === 'ul' || tagName === 'ol') {
+                        return { type: tagName, node: parent };
+                    }
+                }
+                parent = parent.parent;
+            }
+            return null;
+        };
+        
         const processNode = (node) => {
             if (!node) return;
             
@@ -187,6 +241,7 @@ class PDFGenerator {
                     const currentFont = doc._font ? doc._font.name : koreanFont;
                     
                     // 한글이 있고 현재 폰트가 Helvetica 계열이면 한글 폰트 사용
+                    // 단, 이미 한글 폰트(koreanFont 또는 koreanFontBold)가 설정되어 있으면 변경하지 않음
                     if (hasKorean && (currentFont === 'Helvetica' || currentFont === 'Helvetica-Bold')) {
                         // 현재가 볼드면 볼드 폰트, 아니면 일반 폰트
                         const targetFont = currentFont === 'Helvetica-Bold' ? koreanFontBold : koreanFont;
@@ -194,6 +249,7 @@ class PDFGenerator {
                             doc.font(targetFont);
                         }
                     }
+                    // 이미 한글 폰트가 설정되어 있는 경우 그대로 유지 (볼드 포함)
                     
                     // 연속된 텍스트는 계속 이어서 출력
                     doc.text(text, { continued: true });
@@ -207,7 +263,7 @@ class PDFGenerator {
                 if (tagName.match(/^h[1-6]$/)) {
                     const level = parseInt(tagName[1]);
                     const fontSize = 24 - (level - 1) * 2;
-                    doc.moveDown(1)
+                    doc.moveDown(0.8)
                        .font(koreanFontBold)
                        .fontSize(fontSize);
                     // 자식 노드 처리
@@ -216,29 +272,37 @@ class PDFGenerator {
                     }
                     doc.font(koreanFont)
                        .fontSize(12)
-                       .moveDown(0.5);
+                       .moveDown(0.4);
                 }
                 // 단락 처리
                 else if (tagName === 'p') {
-                    doc.moveDown(0.5);
-                    doc.font(koreanFont); // 기본 폰트 설정
+                    doc.moveDown(0.4);
+                    // 기본 폰트 설정 (단, 이미 설정된 폰트가 있으면 유지)
+                    if (!doc._font || doc._font.name === 'Helvetica' || doc._font.name === 'Helvetica-Bold') {
+                        doc.font(koreanFont);
+                    }
+                    doc.fontSize(12); // 폰트 크기 명시적 설정
                     if (node.children) {
                         node.children.forEach(processNode);
                     }
-                    doc.moveDown(0.5);
+                    doc.moveDown(0.4);
                 }
                 // 강조 처리 (볼드) - **텍스트** 또는 <strong>텍스트</strong>
                 else if (tagName === 'strong' || tagName === 'b') {
                     // 현재 폰트 저장
                     const prevFont = doc._font ? doc._font.name : koreanFont;
-                    // 볼드 폰트로 변경
+                    // 볼드 폰트로 변경 (반드시 변경)
                     doc.font(koreanFontBold);
                     // 자식 노드 처리
                     if (node.children) {
                         node.children.forEach(processNode);
                     }
-                    // 원래 폰트로 복원
-                    doc.font(prevFont);
+                    // 원래 폰트로 복원 (이전 폰트가 한글 폰트였으면 그것으로, 아니면 일반 한글 폰트로)
+                    if (prevFont === koreanFont || prevFont === koreanFontBold || prevFont === 'Korean' || prevFont === 'KoreanBold') {
+                        doc.font(prevFont === koreanFontBold || prevFont === 'KoreanBold' ? koreanFontBold : koreanFont);
+                    } else {
+                        doc.font(koreanFont);
+                    }
                 }
                 else if (tagName === 'em' || tagName === 'i') {
                     doc.font('Helvetica-Oblique');
@@ -248,21 +312,53 @@ class PDFGenerator {
                     doc.font(koreanFont);
                 }
                 // 리스트 처리
-                else if (tagName === 'ul' || tagName === 'ol') {
-                    doc.moveDown(0.3);
+                else if (tagName === 'ul') {
+                    doc.moveDown(0.6);
                     if (node.children) {
                         node.children.forEach(processNode);
                     }
-                    doc.moveDown(0.5);
+                    doc.moveDown(0.6);
+                }
+                else if (tagName === 'ol') {
+                    // ol 카운터 초기화
+                    olCounters.set(node, 0);
+                    doc.moveDown(0.6);
+                    if (node.children) {
+                        node.children.forEach(processNode);
+                    }
+                    doc.moveDown(0.6);
                 }
                 else if (tagName === 'li') {
-                    doc.font(koreanFont); // 리스트 항목도 한글 폰트 사용
-                    doc.text('• ', { continued: true });
+                    doc.font(koreanFont);
+                    doc.fontSize(12);
+                    
+                    // 부모 리스트 타입 확인
+                    const listParent = findListParent(node);
+                    
+                    // 리스트 마커 결정
+                    let marker = '';
+                    if (listParent && listParent.type === 'ol') {
+                        // ol인 경우: 번호
+                        const olNode = listParent.node;
+                        const currentCount = olCounters.get(olNode) || 0;
+                        olCounters.set(olNode, currentCount + 1);
+                        marker = `${currentCount + 1}. `;
+                    } else {
+                        // ul인 경우: 원형 글머리 기호
+                        marker = '• ';
+                    }
+                    
+                    // 들여쓰기: 공백 3칸 + 마커
+                    doc.text('   ' + marker, { continued: true });
+                    
+                    // 리스트 항목 내용 처리
                     if (node.children) {
                         node.children.forEach(processNode);
                     }
-                    doc.text('', { continued: false })
-                       .moveDown(0.2);
+                    
+                    // 줄 끝 처리 및 간격
+                    doc.text('', { continued: false });
+                    doc.moveDown(0.5);
                 }
                 // 링크 처리 (텍스트만 표시)
                 else if (tagName === 'a') {
@@ -319,13 +415,417 @@ class PDFGenerator {
     }
 
     /**
+     * 마크다운 전처리 (볼드 패턴 문제 해결)
+     * @param {string} markdown - 원본 마크다운 텍스트
+     * @returns {string} 전처리된 마크다운 텍스트
+     */
+    preprocessMarkdown(markdown) {
+        let processed = markdown;
+        
+        // 1. **"텍스트"** 패턴: 큰따옴표 제거 (큰따옴표가 변환을 방해함)
+        processed = processed.replace(/\*\*"([^"]+)"\*\*/g, '**$1**');
+        
+        return processed;
+    }
+
+    /**
+     * HTML 후처리 (볼드 패턴 문제 해결)
+     * @param {string} html - 원본 HTML 텍스트
+     * @returns {string} 후처리된 HTML 텍스트
+     */
+    postprocessHTML(html) {
+        let processed = html;
+        
+        // 1. **텍스트(내용)** 패턴: HTML 변환 후에도 남아있는 경우 처리
+        // 문장 내부의 **텍스트(내용)** 패턴을 <strong> 태그로 변환
+        processed = processed.replace(/\*\*([^*]+?\([^)]+?\)[^*]*?)\*\*/g, '<strong>$1</strong>');
+        
+        // 2. 일반 **텍스트** 패턴도 처리 (위에서 처리되지 않은 경우)
+        processed = processed.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+        
+        return processed;
+    }
+
+    /**
+     * 마크다운을 직접 PDF로 렌더링
+     * @param {PDFDocument} doc - PDF 문서 객체
+     * @param {string} markdown - 마크다운 텍스트
+     * @param {string} koreanFont - 한글 폰트 이름
+     * @param {string} koreanFontBold - 한글 볼드 폰트 이름
+     */
+    renderMarkdownToPDF(doc, markdown, koreanFont = 'Helvetica', koreanFontBold = 'Helvetica-Bold', emojiFont = null) {
+        // 마크다운 파싱
+        const blocks = this.parseMarkdown(markdown);
+        
+        // 이전 heading 레벨 추적 (들여쓰기용)
+        let lastHeadingLevel = 0;
+        let lastWasSubHeading = false;
+        
+        // 블록 렌더링
+        blocks.forEach((block, index) => {
+            if (block.type === 'heading') {
+                // 이전 heading 레벨 업데이트
+                lastHeadingLevel = block.level;
+                lastWasSubHeading = false;
+                
+                // 제목 위계에 따른 폰트 크기 설정 (더 명확한 차이)
+                let fontSize;
+                switch (block.level) {
+                    case 1: fontSize = 28; break; // h1: 가장 큰 제목
+                    case 2: fontSize = 20; break; // h2: 섹션 제목
+                    case 3: fontSize = 16; break; // h3: 소제목
+                    case 4: fontSize = 14; break; // h4
+                    case 5: fontSize = 13; break; // h5
+                    case 6: fontSize = 12; break; // h6
+                    default: fontSize = 20;
+                }
+                
+                // h1, h2는 특별 간격, h3~h6는 앞뒤 0.8
+                const spacingBefore = block.level === 1 ? 1.5 : (block.level === 2 ? 1.2 : 0.8);
+                const spacingAfter = block.level === 1 ? 1.5 : (block.level === 2 ? 1.2 : 0.8);
+                
+                doc.moveDown(spacingBefore)
+                   .font(koreanFontBold)
+                   .fontSize(fontSize);
+                
+                // h1은 가운데 정렬, 나머지는 왼쪽 정렬
+                const textAlign = block.level === 1 ? 'center' : 'left';
+                this.renderTextWithBoldAndEmoji(doc, block.text, koreanFont, koreanFontBold, emojiFont, textAlign);
+                
+                doc.font(koreanFont)
+                   .fontSize(12)
+                   .moveDown(spacingAfter);
+            }
+            else if (block.type === 'paragraph') {
+                // "핵심 성과:" 같은 강조 문구는 작은 제목처럼 처리
+                const isSubHeading = block.text.match(/^(\*\*)?[가-힣\s]+:(\*\*)?$/);
+                if (isSubHeading) {
+                    lastWasSubHeading = true;
+                    doc.moveDown(0.6);
+                    doc.font(koreanFontBold);
+                    doc.fontSize(14); // h3보다 작지만 일반 텍스트보다 큼
+                    
+                    this.renderTextWithBoldAndEmoji(doc, block.text, koreanFont, koreanFontBold, emojiFont);
+                    
+                    doc.font(koreanFont)
+                       .fontSize(12)
+                       .moveDown(0.6);
+                } else {
+                    lastWasSubHeading = false;
+                    
+                    // h3 이상의 heading이거나 sub-heading 다음에 오는 paragraph만 들여쓰기
+                    // h1, h2 다음에는 들여쓰기 안 함
+                    const needsIndent = (lastHeadingLevel >= 3) || lastWasSubHeading;
+                    
+                    doc.moveDown(1.0);
+                    doc.font(koreanFont);
+                    doc.fontSize(12);
+                    
+                    if (needsIndent) {
+                        // 들여쓰기 적용 (약 20pt)
+                        const indentText = '    '; // 약 20pt 정도의 공백
+                        doc.text(indentText, { continued: true });
+                    }
+                    
+                    this.renderTextWithBoldAndEmoji(doc, block.text, koreanFont, koreanFontBold, emojiFont);
+                    
+                    doc.text('', { continued: false });
+                    doc.moveDown(1.0);
+                }
+            }
+            else if (block.type === 'list') {
+                // h3 이상의 heading이거나 sub-heading 다음에 오는 리스트만 추가 들여쓰기
+                // h1, h2 다음에는 기본 들여쓰기만
+                const baseIndent = '   '; // 기본 들여쓰기
+                const extraIndent = ((lastHeadingLevel >= 3) || lastWasSubHeading) ? '    ' : ''; // 추가 들여쓰기
+                const totalIndent = extraIndent + baseIndent;
+                
+                doc.moveDown(0.6);
+                doc.font(koreanFont);
+                doc.fontSize(12);
+                
+                block.items.forEach((item, index) => {
+                    // 마커
+                    let marker = '';
+                    if (block.ordered) {
+                        marker = `${item.number}. `;
+                    } else {
+                        marker = '• ';
+                    }
+                    
+                    doc.text(totalIndent + marker, { continued: true });
+                    
+                    // 항목 내용
+                    this.renderTextWithBoldAndEmoji(doc, item.text, koreanFont, koreanFontBold, emojiFont);
+                    
+                    doc.text('', { continued: false });
+                    doc.moveDown(1.0);
+                });
+                
+                doc.moveDown(0.6);
+            }
+        });
+    }
+
+    /**
+     * 이모지 감지 함수
+     * @param {string} text - 텍스트
+     * @returns {boolean} 이모지 포함 여부
+     */
+    hasEmoji(text) {
+        // 이모지 유니코드 범위 체크
+        const emojiRegex = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{FE00}-\u{FE0F}]|[\u{200D}]/gu;
+        return emojiRegex.test(text);
+    }
+
+    /**
+     * 텍스트를 이모지와 일반 텍스트로 분리
+     * @param {string} text - 텍스트
+     * @returns {Array} 분리된 텍스트 부분 배열
+     */
+    splitByEmoji(text) {
+        const parts = [];
+        const emojiRegex = /([\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{FE00}-\u{FE0F}]|[\u{200D}]+)/gu;
+        let lastIndex = 0;
+        let match;
+        
+        while ((match = emojiRegex.exec(text)) !== null) {
+            if (match.index > lastIndex) {
+                parts.push({ type: 'text', text: text.substring(lastIndex, match.index) });
+            }
+            parts.push({ type: 'emoji', text: match[0] });
+            lastIndex = match.index + match[0].length;
+        }
+        
+        if (lastIndex < text.length) {
+            parts.push({ type: 'text', text: text.substring(lastIndex) });
+        }
+        
+        return parts.length > 0 ? parts : [{ type: 'text', text: text }];
+    }
+
+    /**
+     * 볼드 처리된 텍스트 렌더링 (이모지 지원)
+     * @param {PDFDocument} doc - PDF 문서 객체
+     * @param {string} text - 텍스트
+     * @param {string} koreanFont - 한글 폰트 이름
+     * @param {string} koreanFontBold - 한글 볼드 폰트 이름
+     * @param {string} emojiFont - 이모지 폰트 이름 (null 가능)
+     */
+    renderTextWithBoldAndEmoji(doc, text, koreanFont, koreanFontBold, emojiFont = null, align = 'left') {
+        // 1. 볼드 패턴으로 분리
+        const boldParts = this.processBold(text);
+        
+        // 2. 각 부분을 이모지와 텍스트로 분리하여 렌더링
+        let isFirstPart = true;
+        boldParts.forEach(boldPart => {
+            const currentFont = boldPart.type === 'bold' ? koreanFontBold : koreanFont;
+            
+            if (emojiFont && this.hasEmoji(boldPart.text)) {
+                // 이모지가 있는 경우 분리하여 렌더링
+                const emojiParts = this.splitByEmoji(boldPart.text);
+                emojiParts.forEach(emojiPart => {
+                    if (emojiPart.type === 'emoji' && emojiFont) {
+                        try {
+                            doc.font(emojiFont);
+                        } catch (error) {
+                            // 이모지 폰트 실패 시 기본 폰트 사용
+                            doc.font(currentFont);
+                        }
+                    } else {
+                        doc.font(currentFont);
+                    }
+                    // 첫 번째 부분에만 align 옵션 적용
+                    if (isFirstPart) {
+                        doc.text(emojiPart.text, { continued: true, align: align });
+                        isFirstPart = false;
+                    } else {
+                        doc.text(emojiPart.text, { continued: true });
+                    }
+                });
+            } else {
+                // 이모지가 없는 경우 일반 렌더링
+                doc.font(currentFont);
+                // 첫 번째 부분에만 align 옵션 적용
+                if (isFirstPart) {
+                    doc.text(boldPart.text, { continued: true, align: align });
+                    isFirstPart = false;
+                } else {
+                    doc.text(boldPart.text, { continued: true });
+                }
+            }
+        });
+        
+        // continued 상태 명시적 종료 (다음 블록이 새 줄 첫 열에서 시작하도록)
+        doc.text('', { continued: false });
+    }
+
+    /**
+     * 볼드 처리된 텍스트 렌더링 (이전 버전 - 호환성 유지)
+     * @param {PDFDocument} doc - PDF 문서 객체
+     * @param {string} text - 텍스트
+     * @param {string} koreanFont - 한글 폰트 이름
+     * @param {string} koreanFontBold - 한글 볼드 폰트 이름
+     */
+    renderTextWithBold(doc, text, koreanFont, koreanFontBold) {
+        this.renderTextWithBoldAndEmoji(doc, text, koreanFont, koreanFontBold, null);
+    }
+
+    /**
+     * 볼드 패턴 처리
+     * @param {string} text - 텍스트
+     * @returns {Array} 파싱된 텍스트 부분 배열
+     */
+    processBold(text) {
+        const parts = [];
+        let lastIndex = 0;
+        const regex = /\*\*([^*]+)\*\*/g;
+        let match;
+        
+        while ((match = regex.exec(text)) !== null) {
+            if (match.index > lastIndex) {
+                parts.push({ type: 'normal', text: text.substring(lastIndex, match.index) });
+            }
+            parts.push({ type: 'bold', text: match[1] });
+            lastIndex = match.index + match[0].length;
+        }
+        
+        if (lastIndex < text.length) {
+            parts.push({ type: 'normal', text: text.substring(lastIndex) });
+        }
+        
+        return parts.length > 0 ? parts : [{ type: 'normal', text: text }];
+    }
+
+    /**
+     * 마크다운 파싱
+     * @param {string} markdown - 마크다운 텍스트
+     * @returns {Array} 파싱된 블록 배열
+     */
+    parseMarkdown(markdown) {
+        const lines = markdown.split('\n');
+        const blocks = [];
+        let currentBlock = null;
+        
+        lines.forEach((line) => {
+            const trimmed = line.trim();
+            
+            // 제목 처리 (h1-h6) - 이모지 제거 및 텍스트만 추출
+            const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+            if (headingMatch) {
+                if (currentBlock) blocks.push(currentBlock);
+                const level = headingMatch[1].length;
+                // 이모지 유지 (원본 텍스트 그대로 사용)
+                let headingText = headingMatch[2].trim();
+                
+                currentBlock = {
+                    type: 'heading',
+                    level: level,
+                    text: headingText
+                };
+                return;
+            }
+            
+            // 순서 없는 리스트
+            const ulMatch = trimmed.match(/^[-*]\s+(.+)$/);
+            if (ulMatch) {
+                if (currentBlock && currentBlock.type !== 'list') {
+                    blocks.push(currentBlock);
+                }
+                if (!currentBlock || currentBlock.type !== 'list' || currentBlock.ordered) {
+                    if (currentBlock && currentBlock.type === 'list') {
+                        blocks.push(currentBlock);
+                    }
+                    currentBlock = {
+                        type: 'list',
+                        ordered: false,
+                        items: []
+                    };
+                }
+                currentBlock.items.push({ text: ulMatch[1] });
+                return;
+            }
+            
+            // 순서 있는 리스트
+            const olMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+            if (olMatch) {
+                if (currentBlock && currentBlock.type !== 'list') {
+                    blocks.push(currentBlock);
+                }
+                if (!currentBlock || currentBlock.type !== 'list' || !currentBlock.ordered) {
+                    if (currentBlock && currentBlock.type === 'list') {
+                        blocks.push(currentBlock);
+                    }
+                    currentBlock = {
+                        type: 'list',
+                        ordered: true,
+                        items: []
+                    };
+                }
+                const itemNumber = currentBlock.items.length + 1;
+                currentBlock.items.push({ text: olMatch[1], number: itemNumber });
+                return;
+            }
+            
+            // 빈 줄 처리
+            if (!trimmed) {
+                // heading은 빈 줄과 관계없이 유지
+                if (currentBlock && currentBlock.type === 'list') {
+                    blocks.push(currentBlock);
+                    currentBlock = null;
+                } else if (currentBlock && currentBlock.type === 'paragraph') {
+                    blocks.push(currentBlock);
+                    currentBlock = null;
+                }
+                // heading은 유지 (빈 줄에서도 저장하지 않음)
+                return;
+            }
+            
+            // 일반 단락
+            if (currentBlock && currentBlock.type === 'list') {
+                blocks.push(currentBlock);
+                currentBlock = {
+                    type: 'paragraph',
+                    text: trimmed
+                };
+            } else if (currentBlock && currentBlock.type === 'paragraph') {
+                currentBlock.text += ' ' + trimmed;
+            } else if (!currentBlock || currentBlock.type === 'heading') {
+                // heading 다음에 오는 텍스트는 새 paragraph로 시작
+                if (currentBlock && currentBlock.type === 'heading') {
+                    blocks.push(currentBlock);
+                }
+                currentBlock = {
+                    type: 'paragraph',
+                    text: trimmed
+                };
+            }
+        });
+        
+        if (currentBlock) {
+            blocks.push(currentBlock);
+        }
+        
+        return blocks;
+    }
+
+    /**
      * 마크다운을 HTML로 변환 (미리보기용)
      * @param {string} markdown - 마크다운 텍스트
      * @returns {string} HTML 텍스트
      */
     convertToHTML(markdown) {
         try {
-            return this.md.render(markdown);
+            // 1. 마크다운 전처리
+            const preprocessed = this.preprocessMarkdown(markdown);
+            
+            // 2. HTML 변환
+            const html = this.md.render(preprocessed);
+            
+            // 3. HTML 후처리
+            const postprocessed = this.postprocessHTML(html);
+            
+            return postprocessed;
         } catch (error) {
             console.error('마크다운 HTML 변환 오류:', error);
             return `<div class="error">마크다운 변환 중 오류가 발생했습니다: ${error.message}</div>`;
