@@ -3727,6 +3727,20 @@ function displayMarkdownPreview(markdown) {
     const preview = document.getElementById('markdownPreview');
     if (!preview) return;
     
+    // 볼드 처리 함수 (공통 사용)
+    const processBold = (text) => {
+        let processed = text;
+        // 1. 괄호가 있는 볼드 패턴 우선 처리
+        processed = processed.replace(/\*\*([^*]+?\([^)]+?\)[^*]*?)\*\*/g, '<strong>$1</strong>');
+        // 2. 큰따옴표가 있는 볼드 패턴 처리
+        processed = processed.replace(/\*\*"([^"]+)"\*\*/g, '<strong>"$1"</strong>');
+        // 3. 작은따옴표가 있는 볼드 패턴 처리
+        processed = processed.replace(/\*\*'([^']+)'\*\*/g, "<strong>'$1'</strong>");
+        // 4. 일반 볼드 패턴 처리 (위에서 처리되지 않은 경우)
+        processed = processed.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+        return processed;
+    };
+    
     // 마크다운을 줄 단위로 분리
     const lines = markdown.split('\n');
     let html = '';
@@ -3739,19 +3753,21 @@ function displayMarkdownPreview(markdown) {
         
         // 표 감지 (|로 시작하고 끝나는 줄)
         if (line.startsWith('|') && line.endsWith('|')) {
+            // 구분선 제거 (|---|---|, |:---|, |---:| 등 모든 구분선 패턴)
+            // 하이픈, 콜론, 공백만 포함된 줄은 구분선으로 간주
+            const separatorPattern = /^\|[\s\-:]+\|$/;
+            if (separatorPattern.test(line)) {
+                // 구분선은 완전히 무시하고 다음 줄로
+                continue;
+            }
+            
             if (!inTable) {
                 inTable = true;
                 tableRows = [];
                 isHeaderRow = true;
             }
             
-            // 구분선 제거 (|---|---|)
-            if (line.match(/^\|[\s\-:]+\|$/)) {
-                isHeaderRow = false;
-                continue;
-            }
-            
-            const cells = line.split('|').slice(1, -1).map(cell => cell.trim());
+            const cells = line.split('|').slice(1, -1).map(cell => processBold(cell.trim()));
             
             if (isHeaderRow) {
                 // 헤더 행
@@ -3773,22 +3789,27 @@ function displayMarkdownPreview(markdown) {
             
             // 일반 마크다운 처리
             if (line.startsWith('### ')) {
-                html += '<h3 class="mt-4 mb-3">' + line.substring(4) + '</h3>';
+                html += '<h3 class="mt-4 mb-3">' + processBold(line.substring(4)) + '</h3>';
             } else if (line.startsWith('## ')) {
-                html += '<h2 class="mt-4 mb-3">' + line.substring(3) + '</h2>';
+                html += '<h2 class="mt-4 mb-3">' + processBold(line.substring(3)) + '</h2>';
             } else if (line.startsWith('# ')) {
-                html += '<h1 class="mt-4 mb-3">' + line.substring(2) + '</h1>';
+                html += '<h1 class="mt-4 mb-3">' + processBold(line.substring(2)) + '</h1>';
             } else if (line.startsWith('- ') || line.startsWith('* ')) {
-                html += '<li class="mb-1">' + line.substring(2) + '</li>';
+                // 리스트 아이템 내 볼드 처리
+                html += '<li class="mb-1">' + processBold(line.substring(2)) + '</li>';
             } else if (line.match(/^\d+\.\s/)) {
-                html += '<li class="mb-1">' + line.replace(/^\d+\.\s/, '') + '</li>';
+                // 번호가 있는 리스트 아이템 내 볼드 처리
+                html += '<li class="mb-1">' + processBold(line.replace(/^\d+\.\s/, '')) + '</li>';
             } else if (line) {
-                // 강조 처리
-                let processedLine = line
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                // 강조 처리 - 백엔드 postprocessHTML과 동일한 로직 적용
+                let processedLine = processBold(line);
+                
+                // 기타 처리 (이탤릭, 코드, 링크)
+                processedLine = processedLine
                     .replace(/\*(.*?)\*/g, '<em>$1</em>')
                     .replace(/`([^`]+)`/g, '<code class="bg-light px-1 rounded">$1</code>')
                     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-primary">$1</a>');
+                
                 html += '<p class="mb-2">' + processedLine + '</p>';
             } else {
                 html += '<br>';

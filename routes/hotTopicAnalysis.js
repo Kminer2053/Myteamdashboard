@@ -314,7 +314,89 @@ router.post('/generate-report', async (req, res) => {
             throw apiError; // 상위 catch로 전달
         }
 
-        const markdownReport = response.data.choices[0].message.content;
+        let markdownReport = response.data.choices[0].message.content;
+        
+        // Perplexity AI 응답에서 citations 추출 시도
+        const citations = response.data.citations || [];
+        
+        // 마크다운에서 참조 번호 추출 ([1], [2] 등)
+        const citationMatches = markdownReport.match(/\[(\d+)\]/g) || [];
+        const citationNumbers = [...new Set(citationMatches.map(m => parseInt(m.replace(/[\[\]]/g, ''))))].sort((a, b) => a - b);
+        
+        // 수집된 뉴스 데이터의 링크를 참조 번호와 매핑
+        const newsLinks = (newsData?.news || []).slice(0, 10).map((item, idx) => ({
+            number: idx + 1,
+            title: item.title,
+            link: item.link || item.originallink || '#',
+            source: item.source || '알 수 없음',
+            pubDate: item.pubDate || ''
+        }));
+        
+        // citations가 있으면 사용, 없으면 뉴스 데이터 링크 사용
+        let references = [];
+        if (citations && citations.length > 0) {
+            references = citations.map((citation, idx) => ({
+                number: idx + 1,
+                url: citation.url || citation,
+                title: citation.title || `출처 ${idx + 1}`
+            }));
+        } else if (citationNumbers.length > 0 && newsLinks.length > 0) {
+            // 뉴스 데이터와 참조 번호 매핑
+            references = citationNumbers.map(num => {
+                const newsItem = newsLinks[num - 1]; // [1] = index 0
+                if (newsItem) {
+                    return {
+                        number: num,
+                        url: newsItem.link,
+                        title: newsItem.title || `뉴스 ${num}`,
+                        source: newsItem.source,
+                        pubDate: newsItem.pubDate
+                    };
+                }
+                return null;
+            }).filter(ref => ref !== null);
+        }
+        
+        // 참고문헌 섹션 추가 (참조 번호가 있을 때만)
+        if (references.length > 0) {
+            // 마크다운 내의 참조 번호를 하이퍼링크로 변환
+            // [1][2]처럼 붙어있는 경우도 처리
+            references.forEach(ref => {
+                // [1], [2] 같은 패턴을 하이퍼링크로 변환
+                const citationPattern = new RegExp(`\\[${ref.number}\\]`, 'g');
+                if (ref.url && ref.url !== '#') {
+                    // HTML 미리보기와 PDF 모두에서 작동하도록 앵커 링크 사용
+                    const linkText = `[${ref.number}](#참고-문헌-${ref.number})`;
+                    markdownReport = markdownReport.replace(citationPattern, linkText);
+                }
+            });
+            
+            markdownReport += '\n\n---\n\n## 📚 참고 문헌\n\n';
+            references.forEach(ref => {
+                // 앵커 ID 추가
+                const anchorId = `참고-문헌-${ref.number}`;
+                
+                if (ref.url && ref.url !== '#') {
+                    markdownReport += `<a id="${anchorId}"></a>${ref.number}. [${ref.title || ref.source || `출처 ${ref.number}`}](${ref.url})`;
+                    if (ref.source) {
+                        markdownReport += ` - ${ref.source}`;
+                    }
+                    if (ref.pubDate) {
+                        markdownReport += ` (${ref.pubDate})`;
+                    }
+                    markdownReport += '\n';
+                } else {
+                    markdownReport += `<a id="${anchorId}"></a>${ref.number}. ${ref.title || ref.source || `출처 ${ref.number}`}`;
+                    if (ref.source) {
+                        markdownReport += ` - ${ref.source}`;
+                    }
+                    if (ref.pubDate) {
+                        markdownReport += ` (${ref.pubDate})`;
+                    }
+                    markdownReport += '\n';
+                }
+            });
+        }
         
         // Perplexity AI 응답 로그 (디버깅용)
         console.log('📝 Perplexity AI 원본 응답 (처음 1000자):');
@@ -322,6 +404,8 @@ router.post('/generate-report', async (req, res) => {
         console.log('\n📝 전체 응답 길이:', markdownReport.length, '자');
         console.log('📝 **볼드 패턴 확인:', (markdownReport.match(/\*\*[^*]+\*\*/g) || []).length, '개');
         console.log('📝 <strong> 태그 확인:', (markdownReport.match(/<strong>/gi) || []).length, '개');
+        console.log(`📚 참조 번호 개수: ${citationNumbers.length}개`);
+        console.log(`📚 참고문헌 개수: ${references.length}개`);
 
         res.json({
             success: true,

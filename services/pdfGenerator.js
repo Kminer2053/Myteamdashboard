@@ -573,6 +573,131 @@ class PDFGenerator {
                 
                 doc.moveDown(0.6);
             }
+            else if (block.type === 'table') {
+                // 표 렌더링
+                doc.moveDown(0.6);
+                
+                if (!block.rows || block.rows.length === 0) {
+                    doc.moveDown(0.6);
+                    return;
+                }
+                
+                // 표 크기 계산
+                const pageWidth = doc.page.width;
+                const pageMargins = doc.page.margins;
+                const tableWidth = pageWidth - pageMargins.left - pageMargins.right;
+                const columnCount = block.rows[0] ? block.rows[0].length : 2;
+                const columnWidth = tableWidth / columnCount;
+                const cellPadding = 8;
+                const rowHeight = 20;
+                
+                // 첫 번째 행을 헤더로 간주
+                const headerRow = block.rows[0];
+                const dataRows = block.rows.slice(1);
+                
+                let startY = doc.y;
+                const tableStartY = startY;
+                
+                // 헤더 렌더링
+                doc.font(koreanFontBold)
+                   .fontSize(11)
+                   .fillColor('#333333');
+                
+                let currentX = pageMargins.left;
+                headerRow.forEach((cell, index) => {
+                    const cellText = cell || '';
+                    doc.text(cellText, currentX + cellPadding, startY, {
+                        width: columnWidth - cellPadding * 2,
+                        height: rowHeight,
+                        align: 'left'
+                    });
+                    currentX += columnWidth;
+                });
+                
+                // 헤더 밑줄
+                startY += rowHeight;
+                doc.moveTo(pageMargins.left, startY)
+                   .lineTo(pageMargins.left + tableWidth, startY)
+                   .lineWidth(1)
+                   .strokeColor('#cccccc')
+                   .stroke();
+                
+                // 데이터 행 렌더링
+                doc.font(koreanFont)
+                   .fontSize(10)
+                   .fillColor('#000000');
+                
+                dataRows.forEach((row, rowIndex) => {
+                    const rowY = startY + (rowIndex * rowHeight);
+                    currentX = pageMargins.left;
+                    
+                    row.forEach((cell, colIndex) => {
+                        const cellText = cell || '';
+                        const cellX = currentX + cellPadding;
+                        const cellY = rowY + 5; // 셀 상단에서 약간 아래
+                        
+                        // 좌표 저장
+                        const savedX = doc.x;
+                        const savedY = doc.y;
+                        
+                        // 셀 위치로 이동
+                        doc.x = cellX;
+                        doc.y = cellY;
+                        
+                        // 셀 내부 볼드 처리
+                        const boldParts = this.processBold(cellText);
+                        boldParts.forEach((part, partIndex) => {
+                            const font = part.type === 'bold' ? koreanFontBold : koreanFont;
+                            doc.font(font);
+                            
+                            // 마지막 파트가 아니면 continued 사용
+                            const isContinued = partIndex < boldParts.length - 1;
+                            doc.text(part.text, {
+                                width: columnWidth - cellPadding * 2,
+                                align: 'left',
+                                continued: isContinued
+                            });
+                        });
+                        
+                        // 위치 복원
+                        doc.x = savedX;
+                        doc.y = savedY;
+                        
+                        currentX += columnWidth;
+                    });
+                    
+                    // 행 구분선
+                    if (rowIndex < dataRows.length - 1) {
+                        const lineY = startY + ((rowIndex + 1) * rowHeight);
+                        doc.moveTo(pageMargins.left, lineY)
+                           .lineTo(pageMargins.left + tableWidth, lineY)
+                           .lineWidth(0.5)
+                           .strokeColor('#e0e0e0')
+                           .stroke();
+                    }
+                });
+                
+                // 표 외곽선
+                const tableHeight = rowHeight + (dataRows.length * rowHeight);
+                doc.rect(pageMargins.left, tableStartY, tableWidth, tableHeight)
+                   .lineWidth(1)
+                   .strokeColor('#cccccc')
+                   .stroke();
+                
+                // 세로 구분선
+                for (let i = 1; i < columnCount; i++) {
+                    const lineX = pageMargins.left + (i * columnWidth);
+                    doc.moveTo(lineX, tableStartY)
+                       .lineTo(lineX, tableStartY + tableHeight)
+                       .lineWidth(0.5)
+                       .strokeColor('#e0e0e0')
+                       .stroke();
+                }
+                
+                // Y 위치 업데이트
+                doc.y = tableStartY + tableHeight + 10;
+                doc.moveDown(0.6);
+            }
         });
     }
 
@@ -758,7 +883,10 @@ class PDFGenerator {
             // 순서 있는 리스트
             const olMatch = trimmed.match(/^\d+\.\s+(.+)$/);
             if (olMatch) {
-                if (currentBlock && currentBlock.type !== 'list') {
+                if (currentBlock && currentBlock.type !== 'list' && currentBlock.type !== 'table') {
+                    blocks.push(currentBlock);
+                }
+                if (currentBlock && currentBlock.type === 'table') {
                     blocks.push(currentBlock);
                 }
                 if (!currentBlock || currentBlock.type !== 'list' || !currentBlock.ordered) {
@@ -776,6 +904,33 @@ class PDFGenerator {
                 return;
             }
             
+            // 표 처리 (|로 시작하고 끝나는 줄)
+            if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+                // 구분선 제거 (|---|---|)
+                if (trimmed.match(/^\|[\s\-:]+\|$/)) {
+                    // 구분선은 무시하고 헤더 플래그만 변경
+                    if (currentBlock && currentBlock.type === 'table') {
+                        // 헤더 처리 완료 표시
+                        return;
+                    }
+                    return;
+                }
+                
+                // 표 블록 시작 또는 기존 표에 행 추가
+                if (!currentBlock || currentBlock.type !== 'table') {
+                    if (currentBlock) blocks.push(currentBlock);
+                    currentBlock = {
+                        type: 'table',
+                        rows: []
+                    };
+                }
+                
+                // 셀 분리
+                const cells = trimmed.split('|').slice(1, -1).map(cell => cell.trim());
+                currentBlock.rows.push(cells);
+                return;
+            }
+            
             // 빈 줄 처리
             if (!trimmed) {
                 // heading은 빈 줄과 관계없이 유지
@@ -785,6 +940,10 @@ class PDFGenerator {
                 } else if (currentBlock && currentBlock.type === 'paragraph') {
                     blocks.push(currentBlock);
                     currentBlock = null;
+                } else if (currentBlock && currentBlock.type === 'table') {
+                    // 표 종료
+                    blocks.push(currentBlock);
+                    currentBlock = null;
                 }
                 // heading은 유지 (빈 줄에서도 저장하지 않음)
                 return;
@@ -792,6 +951,13 @@ class PDFGenerator {
             
             // 일반 단락
             if (currentBlock && currentBlock.type === 'list') {
+                blocks.push(currentBlock);
+                currentBlock = {
+                    type: 'paragraph',
+                    text: trimmed
+                };
+            } else if (currentBlock && currentBlock.type === 'table') {
+                // 표 다음에 다른 내용이 오면 표 종료
                 blocks.push(currentBlock);
                 currentBlock = {
                     type: 'paragraph',
