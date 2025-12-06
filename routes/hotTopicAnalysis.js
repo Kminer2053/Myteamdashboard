@@ -102,11 +102,32 @@ router.post('/search-info', async (req, res) => {
                     };
                 });
 
-            // 날짜별 집계
+            // 날짜별 집계 (전체 기간 포함, 뉴스 없는 날은 0으로 표시)
             const aggregated = {};
+            
+            // 전체 기간의 날짜 배열 생성
+            const dates = [];
+            let current = new Date(start);
+            while (current <= end) {
+                const dateKey = current.toISOString().split('T')[0];
+                dates.push(dateKey);
+                // 다음 날로 이동
+                const nextDate = new Date(current);
+                nextDate.setDate(nextDate.getDate() + 1);
+                current = nextDate;
+            }
+            
+            // 모든 날짜를 0으로 초기화
+            dates.forEach(date => {
+                aggregated[date] = 0;
+            });
+            
+            // 뉴스가 있는 날짜만 카운트
             filteredNews.forEach(item => {
-                const date = item.pubDate;
-                aggregated[date] = (aggregated[date] || 0) + 1;
+                const dateKey = item.pubDate; // YYYY-MM-DD 형식
+                if (aggregated.hasOwnProperty(dateKey)) {
+                    aggregated[dateKey]++;
+                }
             });
 
             // 네이버뉴스 API 제한 확인 (950건 이상 시 경고)
@@ -244,6 +265,13 @@ router.post('/generate-report', async (req, res) => {
         });
 
         const markdownReport = response.data.choices[0].message.content;
+        
+        // Perplexity AI 응답 로그 (디버깅용)
+        console.log('📝 Perplexity AI 원본 응답 (처음 1000자):');
+        console.log(markdownReport.substring(0, 1000));
+        console.log('\n📝 전체 응답 길이:', markdownReport.length, '자');
+        console.log('📝 **볼드 패턴 확인:', (markdownReport.match(/\*\*[^*]+\*\*/g) || []).length, '개');
+        console.log('📝 <strong> 태그 확인:', (markdownReport.match(/<strong>/gi) || []).length, '개');
         
         res.json({
             success: true,
