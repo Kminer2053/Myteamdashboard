@@ -807,7 +807,6 @@ class PDFGenerator {
                         doc.addPage();
                         currentY = doc.page.margins.top;
                         currentPageStartY = currentY;
-                        rowsOnCurrentPage = 0;
                         
                         // 새 페이지에 헤더 다시 렌더링
                         currentY = renderHeader(currentY);
