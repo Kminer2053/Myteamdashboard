@@ -261,7 +261,7 @@ router.post('/generate-report', async (req, res) => {
                 'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
                 'Content-Type': 'application/json'
             },
-            timeout: 60000
+            timeout: 180000 // 3분으로 증가 (Perplexity AI 응답 시간 여유 확보)
         });
 
         const markdownReport = response.data.choices[0].message.content;
