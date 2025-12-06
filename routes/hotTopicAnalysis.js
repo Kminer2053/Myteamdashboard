@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const PDFGenerator = require('../services/pdfGenerator');
+const Setting = require('../models/Setting');
 
 const NAVER_CLIENT_ID = process.env.NAVER_CLIENT_ID || 'e037eF7sxB3VuJHBpay5';
 const NAVER_CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET || 'qkPfGHxNkN';
@@ -241,28 +242,65 @@ router.post('/generate-report', async (req, res) => {
         // 프롬프트 구성 (구글 트렌드 제거)
         const prompt = buildAnalysisPrompt(keyword, startDate, endDate, insights, newsData, naverTrend, null);
 
-        // Perplexity AI 호출
-            const response = await axios.post(PERPLEXITY_API_URL, {
-            model: 'sonar-pro',
-            messages: [
-                {
-                    role: 'system',
-                    content: '당신은 화제성 분석 전문가입니다. 주어진 데이터를 바탕으로 구조화된 마크다운 형식의 종합 분석 보고서를 작성해주세요.'
-                },
-                {
-                    role: 'user',
-                    content: prompt
+        // 타임아웃 설정 조회 (기본값: 5분 = 300000ms)
+        let timeout = 300000;
+        try {
+            const timeoutSetting = await Setting.findOne({ key: 'perplexityTimeout' });
+            if (timeoutSetting && timeoutSetting.value) {
+                timeout = parseInt(timeoutSetting.value);
+                // 최소값 검증
+                if (timeout < 60000) {
+                    timeout = 60000; // 최소 1분
                 }
-            ],
-            max_tokens: 4000,
-            temperature: 0.7
-        }, {
-            headers: {
-                'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            timeout: 180000 // 3분으로 증가 (Perplexity AI 응답 시간 여유 확보)
-        });
+            }
+        } catch (err) {
+            console.warn('타임아웃 설정 조회 실패, 기본값 사용:', err.message);
+        }
+
+        console.log(`⏱️ Perplexity AI 타임아웃: ${timeout}ms (${timeout / 1000}초)`);
+
+        // Perplexity AI 호출
+        let response;
+        try {
+            response = await axios.post(PERPLEXITY_API_URL, {
+                model: 'sonar-pro',
+                messages: [
+                    {
+                        role: 'system',
+                        content: '당신은 화제성 분석 전문가입니다. 주어진 데이터를 바탕으로 구조화된 마크다운 형식의 종합 분석 보고서를 작성해주세요.'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                max_tokens: 4000,
+                temperature: 0.7
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                timeout: timeout
+            });
+        } catch (apiError) {
+            // 타임아웃 에러 구체적으로 처리
+            if (apiError.code === 'ECONNABORTED' || apiError.message.includes('timeout')) {
+                const timeoutSeconds = Math.floor(timeout / 1000);
+                const timeoutMinutes = Math.floor(timeoutSeconds / 60);
+                const timeoutDisplay = timeoutMinutes > 0 ? `${timeoutMinutes}분` : `${timeoutSeconds}초`;
+                console.error('⏱️ Perplexity AI 타임아웃 오류:', apiError.message);
+                return res.status(504).json({
+                    success: false,
+                    message: `AI 보고서 생성 시간이 초과되었습니다. (${timeoutDisplay})`,
+                    error: '타임아웃',
+                    details: `Perplexity AI 응답이 설정된 시간(${timeoutDisplay}) 내에 완료되지 않아 요청이 취소되었습니다. 관리자 페이지에서 타임아웃 시간을 늘리거나 잠시 후 다시 시도해주세요.`
+                });
+            }
+            // 기타 API 에러
+            console.error('❌ Perplexity AI API 오류:', apiError.message);
+            throw apiError; // 상위 catch로 전달
+        }
 
         const markdownReport = response.data.choices[0].message.content;
         
@@ -284,10 +322,25 @@ router.post('/generate-report', async (req, res) => {
 
     } catch (error) {
         console.error('화제성 분석 보고서 생성 오류:', error);
+        
+        // 에러 타입에 따른 메시지 구분
+        let errorMessage = '보고서 생성 중 오류가 발생했습니다.';
+        let errorDetails = error.message;
+        
+        if (error.response) {
+            // API 응답 에러
+            errorMessage = 'Perplexity AI 서버 오류가 발생했습니다.';
+            errorDetails = `상태 코드: ${error.response.status}, 메시지: ${error.response.data?.message || error.message}`;
+        } else if (error.request) {
+            // 요청은 보냈지만 응답이 없음
+            errorMessage = 'Perplexity AI 서버에 연결할 수 없습니다.';
+            errorDetails = '네트워크 연결을 확인해주세요.';
+        }
+        
         res.status(500).json({
             success: false,
-            message: '보고서 생성 중 오류가 발생했습니다.',
-            error: error.message
+            message: errorMessage,
+            error: errorDetails
         });
     }
 });

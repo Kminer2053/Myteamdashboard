@@ -2450,6 +2450,42 @@ app.post('/api/token-limits', async (req, res) => {
   }
 });
 
+// ===== Perplexity 타임아웃 설정 API =====
+app.get('/api/perplexity-timeout', async (req, res) => {
+  try {
+    let setting = await Setting.findOne({ key: 'perplexityTimeout' });
+    const defaultTimeout = 300000; // 5분 (기본값)
+    const timeout = setting && setting.value ? parseInt(setting.value) : defaultTimeout;
+    res.json({ timeout });
+  } catch (err) {
+    console.error('타임아웃 설정 조회 실패:', err);
+    res.status(500).json({ error: '타임아웃 설정 조회 실패' });
+  }
+});
+
+app.post('/api/perplexity-timeout', async (req, res) => {
+  try {
+    const { timeout } = req.body;
+    if (!timeout || timeout < 60000) {
+      return res.status(400).json({ error: '타임아웃은 최소 60000ms (1분) 이상이어야 합니다.' });
+    }
+    
+    let setting = await Setting.findOne({ key: 'perplexityTimeout' });
+    
+    if (setting) {
+      setting.value = timeout.toString();
+      await setting.save();
+    } else {
+      await Setting.create({ key: 'perplexityTimeout', value: timeout.toString() });
+    }
+    
+    res.json({ success: true, timeout: parseInt(timeout) });
+  } catch (err) {
+    console.error('타임아웃 설정 저장 실패:', err);
+    res.status(500).json({ error: '타임아웃 설정 저장 실패' });
+  }
+});
+
 // ===== 이메일 리스트 API =====
 app.get('/api/emails', async (req, res) => {
   try {

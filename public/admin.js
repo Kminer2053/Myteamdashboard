@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
             updateList('partnerConditions', partnerConditionsList);
             updateList('techTopics', techTopicsList);
             loadTokenLimits();
+            loadPerplexityTimeout();
         } else {
             alert('비밀번호가 일치하지 않습니다.');
             passwordInput.value = '';
@@ -211,6 +212,65 @@ document.addEventListener('DOMContentLoaded', function() {
             showToast('토큰 제한 설정 저장 중 오류가 발생했습니다.');
         }
     });
+
+    // ===== 화제성 분석 타임아웃 설정 =====
+    const perplexityTimeoutInput = document.getElementById('perplexityTimeout');
+    const savePerplexityTimeoutBtn = document.getElementById('savePerplexityTimeout');
+    const perplexityTimeoutSpinner = document.getElementById('perplexityTimeoutSpinner');
+
+    // 타임아웃 설정 로드
+    async function loadPerplexityTimeout() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/perplexity-timeout`);
+            if (response.ok) {
+                const data = await response.json();
+                perplexityTimeoutInput.value = data.timeout || 300000;
+            }
+        } catch (error) {
+            console.error('타임아웃 설정 로드 실패:', error);
+        }
+    }
+
+    // 타임아웃 설정 저장
+    if (savePerplexityTimeoutBtn) {
+        savePerplexityTimeoutBtn.addEventListener('click', async function() {
+            if (!isAuthenticated) return;
+            
+            const timeout = parseInt(perplexityTimeoutInput.value);
+            
+            // 유효성 검사
+            if (!timeout || timeout < 60000) {
+                showToast('타임아웃은 최소 60000ms (1분) 이상이어야 합니다.');
+                return;
+            }
+            
+            perplexityTimeoutSpinner.style.display = 'block';
+            savePerplexityTimeoutBtn.disabled = true;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/perplexity-timeout`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ timeout })
+                });
+                
+                if (response.ok) {
+                    showToast('타임아웃 설정이 저장되었습니다.');
+                    logUserAction('Perplexity타임아웃설정', { timeout });
+                } else {
+                    showToast('타임아웃 설정 저장에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('타임아웃 설정 저장 실패:', error);
+                showToast('타임아웃 설정 저장 중 오류가 발생했습니다.');
+            } finally {
+                perplexityTimeoutSpinner.style.display = 'none';
+                savePerplexityTimeoutBtn.disabled = false;
+            }
+        });
+    }
 
     // ===== 이메일 수신자 관리 =====
     const emailNameInput = document.getElementById('emailNameInput');

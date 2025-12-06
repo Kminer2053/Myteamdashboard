@@ -128,6 +128,23 @@
                             <small class="form-text text-muted">토큰 제한이 부족하면 자동으로 2배로 늘려서 재시도합니다.</small>
                         </div>
 
+                        <!-- 화제성 분석 타임아웃 설정 -->
+                        <div class="mb-4">
+                            <h6 class="mb-3">화제성 분석 AI 타임아웃 설정</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="perplexityTimeout" class="form-label">타임아웃 시간 (밀리초)</label>
+                                    <input type="number" class="form-control" id="perplexityTimeout" placeholder="300000" min="60000" step="10000">
+                                    <small class="form-text text-muted">기본값: 300000ms (5분). 최소: 60000ms (1분)</small>
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-primary mt-2" id="savePerplexityTimeout">타임아웃 설정 저장</button>
+                            <div id="perplexityTimeoutSpinner" style="display:none; margin-top:10px;">
+                                <div class="spinner-border text-primary spinner-border-sm" role="status" aria-label="로딩 중"></div>
+                                <span class="ms-2">저장 중...</span>
+                            </div>
+                        </div>
+
                         <!-- 뉴스 갱신 시간 설정 -->
                         <div class="mb-4">
                             <h6 class="mb-3">뉴스 갱신 시간 설정</h6>
