@@ -190,20 +190,20 @@ class NewsClippingPdfGenerator {
             const currentFont = isBold ? koreanFontBold : font;
             doc.font(currentFont).fontSize(fontSize);
             
-            const splitText = doc.splitTextToSize(text, maxWidth);
-            const textHeight = splitText.length * fontSize * 1.2;
+            // PDFKit의 text 메서드는 자동으로 줄바꿈을 처리합니다
+            checkPageBreak(fontSize * 2);
             
-            checkPageBreak(textHeight);
-            
-            splitText.forEach((line, index) => {
-                if (index > 0) {
-                    y += fontSize * 1.2;
-                    checkPageBreak();
-                }
-                doc.text(line, margin, y, { align, width: maxWidth });
+            const savedY = y;
+            doc.text(text, margin, y, { 
+                align: align,
+                width: maxWidth,
+                lineGap: fontSize * 0.2
             });
             
-            y += textHeight;
+            // 실제로 사용된 높이 계산
+            const textHeight = doc.y - savedY;
+            y = doc.y;
+            
             return textHeight;
         };
 
@@ -288,15 +288,15 @@ class NewsClippingPdfGenerator {
                     if (currentArticle.source && currentArticle.title) {
                         if (currentArticle.url) {
                             y += lineHeight;
-                            checkPageBreak();
+                            checkPageBreak(15);
                             doc.font(koreanFont).fontSize(9);
                             doc.fillColor('blue');
-                            const urlText = doc.splitTextToSize(currentArticle.url, maxWidth);
-                            urlText.forEach((urlLine) => {
-                                checkPageBreak();
-                                doc.text(urlLine, margin, y, { width: maxWidth });
-                                y += 12;
+                            const savedY = y;
+                            doc.text(currentArticle.url, margin, y, { 
+                                width: maxWidth,
+                                lineGap: 2
                             });
+                            y = doc.y;
                             doc.fillColor('black');
                         }
                         doc.addPage();
@@ -347,15 +347,15 @@ class NewsClippingPdfGenerator {
         // 마지막 기사 URL 추가
         if (currentArticle.source && currentArticle.title && currentArticle.url) {
             y += lineHeight;
-            checkPageBreak();
+            checkPageBreak(15);
             doc.font(koreanFont).fontSize(9);
             doc.fillColor('blue');
-            const urlText = doc.splitTextToSize(currentArticle.url, maxWidth);
-            urlText.forEach((urlLine) => {
-                checkPageBreak();
-                doc.text(urlLine, margin, y, { width: maxWidth });
-                y += 12;
+            const savedY = y;
+            doc.text(currentArticle.url, margin, y, { 
+                width: maxWidth,
+                lineGap: 2
             });
+            y = doc.y;
             doc.fillColor('black');
         }
     }
