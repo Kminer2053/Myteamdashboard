@@ -574,12 +574,12 @@ async function generatePDF() {
         const result = await response.json();
 
         if (result.success) {
-            // 서버에서 생성된 PDF 파일을 직접 다운로드
-            const downloadUrl = result.url || `${API_BASE_URL}${result.downloadUrl}`;
+            // 대시보드와 동일한 방식: 두 단계로 처리
+            // 1단계: PDF 생성 완료 → 2단계: 다운로드
+            const downloadUrl = `${API_BASE_URL}/api/news-clipping/download-pdf/${result.data.fileName}`;
             const a = document.createElement('a');
             a.href = downloadUrl;
-            a.download = result.fileName;
-            a.target = '_blank'; // 새 탭에서 열기 (필요시)
+            a.download = result.data.fileName;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

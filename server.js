@@ -2694,6 +2694,45 @@ cron.schedule('50 23 28-31 * *', async () => {
   }
 });
 
+// === 오래된 PDF 파일 자동 삭제 크론 (매일 새벽 3시) ===
+cron.schedule('0 3 * * *', async () => {
+  try {
+    const reportsDir = path.join(__dirname, 'reports');
+    if (!fs.existsSync(reportsDir)) {
+      return;
+    }
+
+    const files = fs.readdirSync(reportsDir);
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000; // 24시간 (밀리초)
+    let deletedCount = 0;
+
+    files.forEach(file => {
+      if (file.endsWith('.pdf')) {
+        const filePath = path.join(reportsDir, file);
+        try {
+          const stats = fs.statSync(filePath);
+          const fileAge = now - stats.mtime.getTime();
+          
+          if (fileAge > maxAge) {
+            fs.unlinkSync(filePath);
+            deletedCount++;
+            console.log(`[PDF 자동삭제] 오래된 파일 삭제: ${file}`);
+          }
+        } catch (error) {
+          console.error(`[PDF 자동삭제] 파일 삭제 실패: ${file}`, error.message);
+        }
+      }
+    });
+
+    if (deletedCount > 0) {
+      console.log(`[PDF 자동삭제] 완료: ${deletedCount}개 파일 삭제됨`);
+    }
+  } catch (error) {
+    console.error('[PDF 자동삭제] 크론 작업 오류:', error.message);
+  }
+});
+
 // === 대시보드 방문자수 기록 API ===
 app.post('/api/visit', async (req, res) => {
   try {
@@ -3253,6 +3292,7 @@ app.post('/api/perplexity-chat', cors(), async (req, res) => {
 // === 뉴스 클리핑용 PDF 생성 API ===
 // OPTIONS 요청 처리 (CORS preflight)
 app.options('/api/news-clipping/generate-pdf', cors());
+app.options('/api/news-clipping/download-pdf/:filename', cors());
 
 app.post('/api/news-clipping/generate-pdf', cors(), async (req, res) => {
     try {
@@ -3297,17 +3337,15 @@ app.post('/api/news-clipping/generate-pdf', cors(), async (req, res) => {
             });
         } catch (logError) {
             console.error('[뉴스 클리핑] 통계 기록 실패:', logError.message);
-            // 통계 기록 실패해도 PDF 생성은 성공으로 처리
         }
 
-        // 메모리 절약: base64 인코딩 대신 파일을 직접 스트리밍으로 전송
-        // 또는 파일 URL만 반환하고 클라이언트에서 직접 다운로드
+        // 대시보드와 동일한 형식으로 fileName만 반환
         res.json({
             success: true,
-            fileName: result.fileName,
-            fileSize: result.fileSize,
-            url: `https://myteamdashboard.onrender.com/reports/${result.fileName}`, // 전체 URL
-            downloadUrl: `/reports/${result.fileName}` // 상대 경로
+            data: {
+                fileName: result.fileName,
+                fileSize: result.fileSize
+            }
         });
 
     } catch (error) {
@@ -3316,6 +3354,45 @@ app.post('/api/news-clipping/generate-pdf', cors(), async (req, res) => {
             success: false,
             error: 'PDF 생성 중 오류가 발생했습니다.',
             message: error.message
+        });
+    }
+});
+
+// PDF 다운로드 API (대시보드와 동일한 방식)
+app.get('/api/news-clipping/download-pdf/:filename', cors(), async (req, res) => {
+    try {
+        const { filename } = req.params;
+        const path = require('path');
+        const fs = require('fs');
+        
+        const reportsDir = path.join(__dirname, 'reports');
+        const filePath = path.join(reportsDir, filename);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({
+                success: false,
+                message: '파일을 찾을 수 없습니다.'
+            });
+        }
+
+        res.download(filePath, filename, (err) => {
+            if (err) {
+                console.error('[뉴스 클리핑] PDF 다운로드 오류:', err);
+                if (!res.headersSent) {
+                    res.status(500).json({
+                        success: false,
+                        message: '파일 다운로드 중 오류가 발생했습니다.'
+                    });
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('[뉴스 클리핑] PDF 다운로드 오류:', error);
+        res.status(500).json({
+            success: false,
+            message: 'PDF 다운로드 중 오류가 발생했습니다.',
+            error: error.message
         });
     }
 });
