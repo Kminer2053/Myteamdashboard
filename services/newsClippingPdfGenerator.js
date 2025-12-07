@@ -230,9 +230,11 @@ class NewsClippingPdfGenerator {
             
             // 상세 페이지 자동 감지: 요약 페이지에서 언론사명이 나오면 상세 페이지로 전환
             if (inSummaryPage) {
-                const isPublisherName = line.match(/^[가-힣\s]+$/) && !line.includes('주요') && !line.includes('뉴스') && 
-                    !line.includes('브리핑') && line.length < 20 && !line.startsWith('☐') && !line.startsWith('○') &&
-                    !line.startsWith('**') && line !== '---' && !line.match(/^\(URL/);
+                const isPublisherName = line.match(/^[가-힣][가-힣\s\d\w]*$/) && 
+                    !line.includes('주요') && !line.includes('브리핑') && 
+                    line.length < 20 && !line.startsWith('☐') && !line.startsWith('○') &&
+                    !line.startsWith('**') && line !== '---' && !line.match(/^\(URL/) &&
+                    !line.match(/^https?:\/\//) && !line.match(/^\(URL 생략/);
                 
                 if (isPublisherName && !isEmpty) {
                     inSummaryPage = false;
@@ -299,6 +301,7 @@ class NewsClippingPdfGenerator {
                 if (categoryMatch1) {
                     // 형식: ☐ **카테고리명** (전체 볼드)
                     doc.moveDown(0.8);
+                    // ☐ 문자를 그대로 사용 (UTF-8 지원)
                     renderText(`☐ ${categoryMatch1[1]}`, 14, true, 'left', 0.5);
                     continue;
                 } else if (categoryMatch2) {
@@ -328,11 +331,14 @@ class NewsClippingPdfGenerator {
             }
             // 상세 페이지 처리
             else {
-                // 언론사명 (새 기사 시작) - 짧은 한글 텍스트만 - 넘버링 추가
-                if (line.match(/^[가-힣\s]+$/) && !line.includes('주요') && !line.includes('뉴스') && 
-                    !line.includes('브리핑') && line.length < 20 && !line.startsWith('☐') && !line.startsWith('○') &&
-                    !line.startsWith('**') && line !== '---' && !line.match(/^\(URL/)) {
-                    
+                // 언론사명 (새 기사 시작) - 한글, 숫자, 영문 포함 가능 - 넘버링 추가
+                const isPublisherName = line.match(/^[가-힣][가-힣\s\d\w]*$/) && 
+                    !line.includes('주요') && !line.includes('브리핑') && 
+                    line.length < 20 && !line.startsWith('☐') && !line.startsWith('○') &&
+                    !line.startsWith('**') && line !== '---' && !line.match(/^\(URL/) &&
+                    !line.match(/^https?:\/\//) && !line.match(/^\(URL 생략/);
+                
+                if (isPublisherName) {
                     // 이전 기사 URL 출력 (새 기사 시작 전)
                     if (currentArticleUrl) {
                         doc.moveDown(0.5);
@@ -348,10 +354,18 @@ class NewsClippingPdfGenerator {
                         currentArticleUrl = null;
                     }
                     
-                    // 새 페이지에서 새 기사 시작
-                    doc.addPage();
-                    publisherNumber++;
+                    // 페이지 여백 확인 후 새 페이지 추가 (빈 페이지 방지)
+                    const pageHeight = doc.page.height;
+                    const bottomMargin = doc.page.margins.bottom;
+                    // 현재 위치가 페이지 하단 근처가 아니면 새 페이지 추가
+                    if (doc.y < pageHeight - bottomMargin - 100) {
+                        doc.addPage();
+                    } else {
+                        // 이미 페이지 하단이면 여백만 추가
+                        doc.moveDown(2.0);
+                    }
                     
+                    publisherNumber++;
                     renderText(`${publisherNumber}. ${line}`, 12, false, 'left', 1.0);
                     continue;
                 }
