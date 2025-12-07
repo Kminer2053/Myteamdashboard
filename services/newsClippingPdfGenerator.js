@@ -341,7 +341,8 @@ class NewsClippingPdfGenerator {
                     !publisherNameOnly.includes('주요') && !publisherNameOnly.includes('브리핑') && 
                     publisherNameOnly.length < 20 && !publisherNameOnly.startsWith('☐') && !publisherNameOnly.startsWith('○') &&
                     !publisherNameOnly.startsWith('**') && publisherNameOnly !== '---' && !publisherNameOnly.match(/^\(URL/) &&
-                    !publisherNameOnly.match(/^https?:\/\//) && !publisherNameOnly.match(/^\(URL 생략/);
+                    !publisherNameOnly.match(/^https?:\/\//) && !publisherNameOnly.match(/^\(URL 생략/) &&
+                    !publisherNameOnly.match(/^URL:/i);
                 
                 if (isPublisherName) {
                     // 이전 기사 URL 출력 (새 기사 시작 전)
@@ -381,6 +382,24 @@ class NewsClippingPdfGenerator {
                 }
 
                 // URL 추출 및 출력 (http:// 또는 https://로 시작)
+                // "URL: https://..." 형식도 처리
+                const urlMatch = line.match(/^URL:\s*(https?:\/\/.+)$/i);
+                if (urlMatch) {
+                    // 기사 내용 다음에 URL 출력
+                    doc.moveDown(0.5);
+                    doc.font(koreanFont).fontSize(9);
+                    doc.fillColor('blue');
+                    doc.text(urlMatch[1], {
+                        width: maxWidth,
+                        lineGap: 2,
+                        link: urlMatch[1]
+                    });
+                    doc.fillColor('black');
+                    doc.moveDown(1.0);
+                    currentArticleUrl = null;
+                    continue;
+                }
+                
                 if (line.match(/^https?:\/\//)) {
                     // 기사 내용 다음에 URL 출력
                     doc.moveDown(0.5);
