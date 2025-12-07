@@ -169,6 +169,7 @@ class NewsClippingPdfGenerator {
         const maxWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
         let inSummaryPage = true;
         let currentArticleUrl = null;
+        let publisherNumber = 0; // 언론사명 넘버링용
 
         // 페이지 넘김 체크 (기존 대시보드 방식)
         const checkPageBreak = () => {
@@ -182,16 +183,22 @@ class NewsClippingPdfGenerator {
         };
 
         // 텍스트 렌더링 (기존 대시보드 방식)
-        const renderText = (text, fontSize, isBold = false, align = 'left', spacing = 1.0) => {
+        const renderText = (text, fontSize, isBold = false, align = 'left', spacing = 1.0, color = 'black') => {
             if (!text || text.trim().length === 0) return;
             
             checkPageBreak();
             doc.font(isBold ? koreanFontBold : koreanFont)
-               .fontSize(fontSize);
+               .fontSize(fontSize)
+               .fillColor(color);
             
             if (align === 'center') {
                 doc.text(text, {
                     align: 'center',
+                    width: maxWidth
+                });
+            } else if (align === 'right') {
+                doc.text(text, {
+                    align: 'right',
                     width: maxWidth
                 });
             } else {
@@ -202,6 +209,7 @@ class NewsClippingPdfGenerator {
             }
             
             doc.moveDown(spacing);
+            doc.fillColor('black'); // 색상 초기화
         };
 
         // 스트리밍 처리: split 대신 라인 단위로 처리하여 메모리 효율성 향상
@@ -229,7 +237,8 @@ class NewsClippingPdfGenerator {
             }
 
             // 1페이지 요약 페이지와 상세 페이지 구분
-            if (line.startsWith('* 각 뉴스 상세 페이지')) {
+            // --- 구분선 또는 "* 각 뉴스 상세 페이지" 마커
+            if (line === '---' || line.startsWith('* 각 뉴스 상세 페이지')) {
                 inSummaryPage = false;
                 doc.addPage(); // 상세 페이지 시작
                 continue;
@@ -238,39 +247,65 @@ class NewsClippingPdfGenerator {
             // 1페이지 요약 페이지 처리
             if (inSummaryPage) {
                 // "주요 뉴스 브리핑" 제목
-                if (line === '주요 뉴스 브리핑') {
+                if (line === '주요 뉴스 브리핑' || line.trim() === '주요 뉴스 브리핑') {
                     doc.moveDown(1.5);
-                    renderText(line, 24, true, 'center', 1.5);
+                    renderText('주요 뉴스 브리핑', 24, true, 'center', 1.5);
                     continue;
                 }
 
-                // 헤더 문자열 (날짜 정보)
-                if (line.match(/^\[.*\]$/)) {
-                    renderText(line, 11, false, 'center', 1.0);
+                // 헤더 문자열 (날짜 정보) - [ ] 형식 또는 일반 날짜 형식 - 오른쪽 정렬
+                if (line.match(/^\[.*\]$/) || line.match(/^\d{2}\.\d{2}\.\d{2}\./)) {
+                    renderText(line, 11, false, 'right', 1.0);
                     continue;
                 }
 
-                // 카테고리 제목 (☐로 시작)
-                if (line.startsWith('☐ ')) {
+                // 카테고리 제목 (☐로 시작하거나 ☐ **...** 형식) - 전체 볼드 처리
+                const categoryMatch1 = line.match(/^☐\s*\*\*(.+?)\*\*/);
+                const categoryMatch2 = line.match(/^\*\*☐\s*(.+?)\*\*/);
+                if (categoryMatch1) {
+                    // 형식: ☐ **카테고리명** (전체 볼드)
                     doc.moveDown(0.8);
-                    renderText(line, 14, true, 'left', 0.5);
+                    renderText(`☐ ${categoryMatch1[1]}`, 14, true, 'left', 0.5);
+                    continue;
+                } else if (categoryMatch2) {
+                    // 형식: **☐ 카테고리명** (전체 볼드)
+                    doc.moveDown(0.8);
+                    renderText(`☐ ${categoryMatch2[1]}`, 14, true, 'left', 0.5);
+                    continue;
+                } else if (line.startsWith('☐ ')) {
+                    // 일반 형식: ☐ 카테고리명 (마크다운 제거 후 전체 볼드)
+                    const cleanCategory = line.replace(/\*\*(.*?)\*\*/g, '$1');
+                    doc.moveDown(0.8);
+                    renderText(cleanCategory, 14, true, 'left', 0.5);
                     continue;
                 }
 
-                // 기사 항목 (○로 시작)
+                // 기사 항목 (○로 시작) - 주석 표기 제거
                 if (line.startsWith('○')) {
-                    renderText(line, 11, false, 'left', 0.4);
+                    // [1], [2] 같은 주석 표기 제거
+                    const cleanedLine = line.replace(/\[\d+\]/g, '');
+                    renderText(cleanedLine, 11, false, 'left', 0.4);
                     continue;
                 }
 
-                // 일반 텍스트
-                renderText(line, 11, false, 'left', 0.4);
+                // 일반 텍스트 (마크다운 제거)
+                const cleanLine = line.replace(/\*\*(.*?)\*\*/g, '$1');
+                renderText(cleanLine, 11, false, 'left', 0.4);
             }
             // 상세 페이지 처리
             else {
-                // 언론사명 (새 기사 시작) - 짧은 한글 텍스트만
+                // 언론사명 (새 기사 시작) - 짧은 한글 텍스트만 - 넘버링 추가
+                // 요약 페이지에서 상세 페이지로 전환도 여기서 처리
                 if (line.match(/^[가-힣\s]+$/) && !line.includes('주요') && !line.includes('뉴스') && 
-                    !line.includes('브리핑') && line.length < 20 && !line.startsWith('☐') && !line.startsWith('○')) {
+                    !line.includes('브리핑') && line.length < 20 && !line.startsWith('☐') && !line.startsWith('○') &&
+                    !line.startsWith('**') && line !== '---' && !line.match(/^\(URL/)) {
+                    
+                    // 요약 페이지에서 상세 페이지로 전환
+                    if (inSummaryPage) {
+                        inSummaryPage = false;
+                        publisherNumber = 0; // 상세 페이지 진입 시 넘버링 초기화
+                        doc.addPage();
+                    }
                     
                     // 이전 기사 URL 추가
                     if (currentArticleUrl) {
@@ -288,8 +323,9 @@ class NewsClippingPdfGenerator {
                     // 새 페이지에서 새 기사 시작
                     doc.addPage();
                     currentArticleUrl = null;
+                    publisherNumber++;
                     
-                    renderText(line, 12, false, 'left', 1.0);
+                    renderText(`${publisherNumber}. ${line}`, 12, false, 'left', 1.0);
                     continue;
                 }
 
@@ -299,15 +335,38 @@ class NewsClippingPdfGenerator {
                     continue;
                 }
 
-                // 기사 제목 (볼드체로 크게) - 첫 번째 긴 줄
-                if (!currentArticleUrl && line.length > 5 && !line.match(/^https?:\/\//)) {
-                    renderText(line, 16, true, 'left', 1.0);
+                // URL 생략 메시지
+                if (line.match(/^\(URL 생략/)) {
+                    doc.moveDown(0.5);
+                    doc.font(koreanFont).fontSize(9);
+                    doc.fillColor('#666');
+                    doc.font('Helvetica-Italic');
+                    doc.text(line, {
+                        width: maxWidth,
+                        lineGap: 2
+                    });
+                    doc.font(koreanFont);
+                    doc.fillColor('black');
+                    doc.moveDown(1.0);
                     continue;
                 }
 
-                // 기사 내용
-                if (line.length > 0) {
-                    renderText(line, 11, false, 'left', 0.5);
+                // 기사 제목 (**...** 형식) - 주석 표기 제거
+                const titleMatch = line.match(/\*\*(.+?)\*\*/);
+                if (titleMatch) {
+                    // 제목에서 주석 표기 제거
+                    const cleanedTitle = titleMatch[1].replace(/\[\d+\]/g, '');
+                    renderText(cleanedTitle, 16, true, 'left', 1.0);
+                    continue;
+                }
+
+                // 기사 내용 - 주석 표기 제거
+                if (line.length > 0 && line !== '---') {
+                    // [1], [2] 같은 주석 표기 제거
+                    let cleanLine = line.replace(/\[\d+\]/g, '');
+                    // 마크다운 볼드체 제거
+                    cleanLine = cleanLine.replace(/\*\*(.*?)\*\*/g, '$1');
+                    renderText(cleanLine, 11, false, 'left', 0.5);
                 }
             }
         }

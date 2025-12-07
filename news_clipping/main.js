@@ -431,13 +431,110 @@ async function generateContent() {
 // 결과 표시
 function displayResult(result) {
     const preview = document.getElementById('previewContent');
-    // 마크다운 형식으로 변환 (간단한 처리)
-    let html = result
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\n/g, '<br>')
-        .replace(/^주요 뉴스 브리핑$/gm, '<h1>주요 뉴스 브리핑</h1>')
-        .replace(/^(코레일유통|철도|지역본부\/계열사|공공기관|유통)$/gm, '<h2 class="category-title">$1</h2>')
-        .replace(/^○(.*)$/gm, '<div class="article-item">○$1</div>');
+    const lines = result.split('\n');
+    let html = '';
+    let inSummaryPage = true;
+    let publisherNumber = 0; // 언론사명 넘버링용
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        
+        // 상세 페이지 구분 (--- 구분선 또는 "* 각 뉴스 상세 페이지" 마커)
+        if (line === '---' || line.startsWith('* 각 뉴스 상세 페이지')) {
+            inSummaryPage = false;
+            publisherNumber = 0; // 상세 페이지 진입 시 넘버링 초기화
+            html += '<hr class="detail-separator">';
+            continue;
+        }
+        
+        if (inSummaryPage) {
+            // "주요 뉴스 브리핑" 제목
+            if (line === '주요 뉴스 브리핑') {
+                html += '<h1 class="main-title">주요 뉴스 브리핑</h1>';
+                continue;
+            }
+            
+            // 헤더 문자열 (날짜 정보) - [ ] 형식 또는 일반 날짜 형식
+            if (line.match(/^\[.*\]$/) || line.match(/^\d{2}\.\d{2}\.\d{2}\./)) {
+                html += `<div class="header-info">${line}</div>`;
+                continue;
+            }
+            
+            // 카테고리 제목 (☐로 시작하거나 ☐ **...** 형식)
+            // 여러 줄에 걸쳐 있을 수 있으므로 전체를 볼드 처리
+            const categoryMatch1 = line.match(/^☐\s*\*\*(.+?)\*\*/);
+            const categoryMatch2 = line.match(/^\*\*☐\s*(.+?)\*\*/);
+            if (categoryMatch1) {
+                // 형식: ☐ **카테고리명** (전체 볼드)
+                html += `<h2 class="category-title"><strong>☐ ${categoryMatch1[1]}</strong></h2>`;
+                continue;
+            } else if (categoryMatch2) {
+                // 형식: **☐ 카테고리명** (전체 볼드)
+                html += `<h2 class="category-title"><strong>☐ ${categoryMatch2[1]}</strong></h2>`;
+                continue;
+            } else if (line.startsWith('☐ ')) {
+                // 일반 형식: ☐ 카테고리명 (마크다운 제거 후 전체 볼드)
+                const cleanCategory = line.replace(/\*\*(.*?)\*\*/g, '$1');
+                html += `<h2 class="category-title"><strong>${cleanCategory}</strong></h2>`;
+                continue;
+            }
+            
+            // 기사 항목 (○로 시작) - 주석 표기 제거
+            if (line.startsWith('○')) {
+                // [1], [2] 같은 주석 표기 제거
+                const cleanedLine = line.replace(/\[\d+\]/g, '');
+                html += `<div class="article-item">${cleanedLine}</div>`;
+                continue;
+            }
+            
+            // 빈 줄
+            if (!line) {
+                html += '<br>';
+                continue;
+            }
+        } else {
+            // 상세 페이지 처리
+            // 언론사명 (짧은 한글 텍스트) - 넘버링 추가
+            if (line.match(/^[가-힣\s]+$/) && !line.includes('주요') && !line.includes('뉴스') && 
+                !line.includes('브리핑') && line.length < 20 && !line.startsWith('☐') && !line.startsWith('○') && 
+                !line.startsWith('**') && line !== '---' && !line.match(/^\(URL/)) {
+                publisherNumber++;
+                html += `<h3 class="publisher-name">${publisherNumber}. ${line}</h3>`;
+                continue;
+            }
+            
+            // 기사 제목 (**...** 형식) - 주석 표기 제거
+            const titleMatch = line.match(/\*\*(.+?)\*\*/);
+            if (titleMatch) {
+                // 제목에서 주석 표기 제거
+                const cleanedTitle = titleMatch[1].replace(/\[\d+\]/g, '');
+                html += `<h4 class="article-title">${cleanedTitle}</h4>`;
+                continue;
+            }
+            
+            // URL 처리 (실제 URL만 링크, 생략 메시지는 그대로)
+            if (line.match(/^https?:\/\//)) {
+                html += `<div class="article-url"><a href="${line}" target="_blank" rel="noopener noreferrer">${line}</a></div>`;
+                continue;
+            }
+            
+            // URL 생략 메시지
+            if (line.match(/^\(URL 생략/)) {
+                html += `<div class="article-url-omitted">${line}</div>`;
+                continue;
+            }
+            
+            // 기사 내용 - 주석 표기 제거
+            if (line && line !== '---') {
+                // [1], [2] 같은 주석 표기 제거
+                let processedLine = line.replace(/\[\d+\]/g, '');
+                // 마크다운 볼드체 처리
+                processedLine = processedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                html += `<p class="article-content">${processedLine}</p>`;
+                continue;
+            }
+        }
+    }
     
     preview.innerHTML = html;
 }
