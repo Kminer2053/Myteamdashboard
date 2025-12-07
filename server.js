@@ -3101,7 +3101,10 @@ app.delete('/api/clear-all-news', async (req, res) => {
 });
 
 // === 뉴스 클리핑용 Perplexity API 프록시 ===
-app.post('/api/perplexity-chat', async (req, res) => {
+// OPTIONS 요청 처리 (CORS preflight)
+app.options('/api/perplexity-chat', cors());
+
+app.post('/api/perplexity-chat', cors(), async (req, res) => {
     try {
         const { messages, model = 'sonar-pro', max_tokens = 8000, temperature = 0.5 } = req.body;
 
