@@ -29,9 +29,11 @@ const weightSettingsRouter = require('./routes/weightSettings');
 const hotTopicAnalysisRouter = require('./routes/hotTopicAnalysis');
 const UserActionLog = require('./models/UserActionLog');
 const PDFGenerator = require('./services/pdfGenerator');
+const NewsClippingPdfGenerator = require('./services/newsClippingPdfGenerator');
 
 // PDF 생성기 인스턴스
 const pdfGenerator = new PDFGenerator();
+const newsClippingPdfGenerator = new NewsClippingPdfGenerator();
 
 // AI API 설정
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
@@ -3123,6 +3125,27 @@ app.post('/api/perplexity-chat', async (req, res) => {
         console.log(`[뉴스 클리핑] Finish reason: ${finishReason}`);
         console.log(`[뉴스 클리핑] Token usage: ${usage?.total_tokens || 'N/A'}`);
 
+        // 이용통계 기록 (성공 시)
+        try {
+            await UserActionLog.create({
+                type: 'news-clipping',
+                action: '뉴스클리핑자료생성',
+                userId: req.ip || 'unknown',
+                userAgent: req.get('user-agent') || 'unknown',
+                meta: {
+                    model: model,
+                    finishReason: finishReason,
+                    promptTokens: usage?.prompt_tokens || 0,
+                    completionTokens: usage?.completion_tokens || 0,
+                    totalTokens: usage?.total_tokens || 0,
+                    maxTokens: max_tokens
+                }
+            });
+        } catch (logError) {
+            console.error('[뉴스 클리핑] 통계 기록 실패:', logError.message);
+            // 통계 기록 실패해도 API 호출은 성공으로 처리
+        }
+
         // 토큰 잘림 감지 및 재시도
         if (finishReason === 'length') {
             console.warn('[뉴스 클리핑] ⚠️ 응답이 max_tokens로 잘렸습니다!');
@@ -3149,6 +3172,29 @@ app.post('/api/perplexity-chat', async (req, res) => {
 
                 if (retryFinishReason === 'stop') {
                     console.log('[뉴스 클리핑] ✅ 재시도 성공!');
+                    
+                    // 재시도 성공 시 통계 기록 업데이트 (재시도 정보 포함)
+                    try {
+                        await UserActionLog.create({
+                            type: 'news-clipping',
+                            action: '뉴스클리핑자료생성',
+                            userId: req.ip || 'unknown',
+                            userAgent: req.get('user-agent') || 'unknown',
+                            meta: {
+                                model: model,
+                                finishReason: retryFinishReason,
+                                promptTokens: retryResponse.data.usage?.prompt_tokens || 0,
+                                completionTokens: retryResponse.data.usage?.completion_tokens || 0,
+                                totalTokens: retryResponse.data.usage?.total_tokens || 0,
+                                maxTokens: retryMaxTokens,
+                                retried: true,
+                                originalMaxTokens: max_tokens
+                            }
+                        });
+                    } catch (logError) {
+                        console.error('[뉴스 클리핑] 재시도 통계 기록 실패:', logError.message);
+                    }
+                    
                     return res.json({
                         choices: [{
                             message: {
@@ -3207,8 +3253,8 @@ app.post('/api/news-clipping/generate-pdf', async (req, res) => {
         // 파일명 생성 (기본값: 뉴스클리핑_날짜)
         const defaultFilename = filename || `뉴스클리핑_${new Date().toISOString().split('T')[0]}`;
         
-        // PDF 생성
-        const result = await pdfGenerator.convertToPDF(content, defaultFilename);
+        // PDF 생성 (뉴스 클리핑 전용 생성기 사용)
+        const result = await newsClippingPdfGenerator.convertToPDF(content, defaultFilename);
 
         if (!result.success) {
             return res.status(500).json({
@@ -3218,6 +3264,24 @@ app.post('/api/news-clipping/generate-pdf', async (req, res) => {
         }
 
         console.log('[뉴스 클리핑] PDF 생성 완료:', result.fileName);
+
+        // 이용통계 기록
+        try {
+            await UserActionLog.create({
+                type: 'news-clipping',
+                action: '뉴스클리핑PDF생성',
+                userId: req.ip || 'unknown',
+                userAgent: req.get('user-agent') || 'unknown',
+                meta: {
+                    filename: result.fileName,
+                    fileSize: result.fileSize,
+                    date: defaultFilename
+                }
+            });
+        } catch (logError) {
+            console.error('[뉴스 클리핑] 통계 기록 실패:', logError.message);
+            // 통계 기록 실패해도 PDF 생성은 성공으로 처리
+        }
 
         // PDF 파일을 읽어서 base64로 인코딩하여 반환
         const pdfBuffer = fs.readFileSync(result.filePath);
