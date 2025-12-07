@@ -296,22 +296,23 @@ class NewsClippingPdfGenerator {
                 }
 
                 // 카테고리 제목 (☐로 시작하거나 ☐ **...** 형식) - 전체 볼드 처리
+                // ☐ 문자를 폰트 문제 방지를 위해 "□" (WHITE SQUARE) 또는 "[ ]"로 대체
+                const checkboxChar = '□'; // WHITE SQUARE (U+25A1) - 더 넓은 폰트 지원
                 const categoryMatch1 = line.match(/^☐\s*\*\*(.+?)\*\*/);
                 const categoryMatch2 = line.match(/^\*\*☐\s*(.+?)\*\*/);
                 if (categoryMatch1) {
                     // 형식: ☐ **카테고리명** (전체 볼드)
                     doc.moveDown(0.8);
-                    // ☐ 문자를 그대로 사용 (UTF-8 지원)
-                    renderText(`☐ ${categoryMatch1[1]}`, 14, true, 'left', 0.5);
+                    renderText(`${checkboxChar} ${categoryMatch1[1]}`, 14, true, 'left', 0.5);
                     continue;
                 } else if (categoryMatch2) {
                     // 형식: **☐ 카테고리명** (전체 볼드)
                     doc.moveDown(0.8);
-                    renderText(`☐ ${categoryMatch2[1]}`, 14, true, 'left', 0.5);
+                    renderText(`${checkboxChar} ${categoryMatch2[1]}`, 14, true, 'left', 0.5);
                     continue;
                 } else if (line.startsWith('☐ ')) {
                     // 일반 형식: ☐ 카테고리명 (마크다운 제거 후 전체 볼드)
-                    const cleanCategory = line.replace(/\*\*(.*?)\*\*/g, '$1');
+                    const cleanCategory = line.replace(/\*\*(.*?)\*\*/g, '$1').replace(/^☐/, checkboxChar);
                     doc.moveDown(0.8);
                     renderText(cleanCategory, 14, true, 'left', 0.5);
                     continue;
@@ -332,11 +333,15 @@ class NewsClippingPdfGenerator {
             // 상세 페이지 처리
             else {
                 // 언론사명 (새 기사 시작) - 한글, 숫자, 영문 포함 가능 - 넘버링 추가
-                const isPublisherName = line.match(/^[가-힣][가-힣\s\d\w]*$/) && 
-                    !line.includes('주요') && !line.includes('브리핑') && 
-                    line.length < 20 && !line.startsWith('☐') && !line.startsWith('○') &&
-                    !line.startsWith('**') && line !== '---' && !line.match(/^\(URL/) &&
-                    !line.match(/^https?:\/\//) && !line.match(/^\(URL 생략/);
+                // 이미 넘버링이 있는 경우(예: "2. 서울경제")도 처리
+                const hasExistingNumber = line.match(/^\d+\.\s*(.+)$/);
+                const publisherNameOnly = hasExistingNumber ? hasExistingNumber[1] : line;
+                
+                const isPublisherName = publisherNameOnly.match(/^[가-힣][가-힣\s\d\w]*$/) && 
+                    !publisherNameOnly.includes('주요') && !publisherNameOnly.includes('브리핑') && 
+                    publisherNameOnly.length < 20 && !publisherNameOnly.startsWith('☐') && !publisherNameOnly.startsWith('○') &&
+                    !publisherNameOnly.startsWith('**') && publisherNameOnly !== '---' && !publisherNameOnly.match(/^\(URL/) &&
+                    !publisherNameOnly.match(/^https?:\/\//) && !publisherNameOnly.match(/^\(URL 생략/);
                 
                 if (isPublisherName) {
                     // 이전 기사 URL 출력 (새 기사 시작 전)
@@ -354,19 +359,24 @@ class NewsClippingPdfGenerator {
                         currentArticleUrl = null;
                     }
                     
-                    // 페이지 여백 확인 후 새 페이지 추가 (빈 페이지 방지)
+                    // 새 기사는 새 페이지에서 시작
+                    // 단, 이미 페이지 상단 근처면 빈 페이지를 추가하지 않음
                     const pageHeight = doc.page.height;
-                    const bottomMargin = doc.page.margins.bottom;
-                    // 현재 위치가 페이지 하단 근처가 아니면 새 페이지 추가
-                    if (doc.y < pageHeight - bottomMargin - 100) {
+                    const topMargin = doc.page.margins.top;
+                    const currentY = doc.y;
+                    
+                    // 현재 위치가 페이지 상단 근처(첫 100px 이내)가 아니면 새 페이지 추가
+                    // 상단 근처면 이미 새 페이지이므로 여백만 추가
+                    if (currentY > topMargin + 100) {
+                        // 페이지 중간이나 하단이면 새 페이지 추가
                         doc.addPage();
                     } else {
-                        // 이미 페이지 하단이면 여백만 추가
-                        doc.moveDown(2.0);
+                        // 이미 페이지 상단 근처면 여백만 추가 (빈 페이지 방지)
+                        doc.moveDown(1.5);
                     }
                     
                     publisherNumber++;
-                    renderText(`${publisherNumber}. ${line}`, 12, false, 'left', 1.0);
+                    renderText(`${publisherNumber}. ${publisherNameOnly}`, 12, false, 'left', 1.0);
                     continue;
                 }
 
