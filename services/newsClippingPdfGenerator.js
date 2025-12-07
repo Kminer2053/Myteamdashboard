@@ -215,6 +215,7 @@ class NewsClippingPdfGenerator {
         // 스트리밍 처리: split 대신 라인 단위로 처리하여 메모리 효율성 향상
         let lineStart = 0;
         let lineEnd = 0;
+        let prevLineEmpty = false; // 연속된 빈 줄 감지용
         
         while (lineEnd < content.length) {
             // 다음 줄바꿈 찾기
@@ -224,22 +225,55 @@ class NewsClippingPdfGenerator {
             }
             
             const line = content.substring(lineStart, lineEnd).trim();
+            const isEmpty = !line;
             lineStart = lineEnd + 1;
             
+            // 상세 페이지 자동 감지: 요약 페이지에서 언론사명이 나오면 상세 페이지로 전환
+            if (inSummaryPage) {
+                const isPublisherName = line.match(/^[가-힣\s]+$/) && !line.includes('주요') && !line.includes('뉴스') && 
+                    !line.includes('브리핑') && line.length < 20 && !line.startsWith('☐') && !line.startsWith('○') &&
+                    !line.startsWith('**') && line !== '---' && !line.match(/^\(URL/);
+                
+                if (isPublisherName && !isEmpty) {
+                    inSummaryPage = false;
+                    publisherNumber = 0;
+                    doc.addPage(); // 상세 페이지 시작
+                }
+            }
+            
             // 빈 줄 처리
-            if (!line) {
+            if (isEmpty) {
+                // 연속된 빈 줄이면 기사가 끝난 것으로 보고 URL 출력
+                if (prevLineEmpty && !inSummaryPage && currentArticleUrl) {
+                    doc.moveDown(0.5);
+                    doc.font(koreanFont).fontSize(9);
+                    doc.fillColor('blue');
+                    doc.text(currentArticleUrl, {
+                        width: maxWidth,
+                        lineGap: 2,
+                        link: currentArticleUrl
+                    });
+                    doc.fillColor('black');
+                    doc.moveDown(1.0);
+                    currentArticleUrl = null;
+                }
+                
                 if (inSummaryPage) {
                     doc.moveDown(0.5);
                 } else {
                     doc.moveDown(0.3);
                 }
+                prevLineEmpty = true;
                 continue;
             }
+            
+            prevLineEmpty = false;
 
             // 1페이지 요약 페이지와 상세 페이지 구분
             // --- 구분선 또는 "* 각 뉴스 상세 페이지" 마커
             if (line === '---' || line.startsWith('* 각 뉴스 상세 페이지')) {
                 inSummaryPage = false;
+                publisherNumber = 0;
                 doc.addPage(); // 상세 페이지 시작
                 continue;
             }
@@ -295,43 +329,47 @@ class NewsClippingPdfGenerator {
             // 상세 페이지 처리
             else {
                 // 언론사명 (새 기사 시작) - 짧은 한글 텍스트만 - 넘버링 추가
-                // 요약 페이지에서 상세 페이지로 전환도 여기서 처리
                 if (line.match(/^[가-힣\s]+$/) && !line.includes('주요') && !line.includes('뉴스') && 
                     !line.includes('브리핑') && line.length < 20 && !line.startsWith('☐') && !line.startsWith('○') &&
                     !line.startsWith('**') && line !== '---' && !line.match(/^\(URL/)) {
                     
-                    // 요약 페이지에서 상세 페이지로 전환
-                    if (inSummaryPage) {
-                        inSummaryPage = false;
-                        publisherNumber = 0; // 상세 페이지 진입 시 넘버링 초기화
-                        doc.addPage();
-                    }
-                    
-                    // 이전 기사 URL 추가
+                    // 이전 기사 URL 출력 (새 기사 시작 전)
                     if (currentArticleUrl) {
                         doc.moveDown(0.5);
                         doc.font(koreanFont).fontSize(9);
                         doc.fillColor('blue');
                         doc.text(currentArticleUrl, {
                             width: maxWidth,
-                            lineGap: 2
+                            lineGap: 2,
+                            link: currentArticleUrl
                         });
                         doc.fillColor('black');
                         doc.moveDown(1.0);
+                        currentArticleUrl = null;
                     }
                     
                     // 새 페이지에서 새 기사 시작
                     doc.addPage();
-                    currentArticleUrl = null;
                     publisherNumber++;
                     
                     renderText(`${publisherNumber}. ${line}`, 12, false, 'left', 1.0);
                     continue;
                 }
 
-                // URL 추출 (http:// 또는 https://로 시작)
+                // URL 추출 및 출력 (http:// 또는 https://로 시작)
                 if (line.match(/^https?:\/\//)) {
-                    currentArticleUrl = line;
+                    // 기사 내용 다음에 URL 출력
+                    doc.moveDown(0.5);
+                    doc.font(koreanFont).fontSize(9);
+                    doc.fillColor('blue');
+                    doc.text(line, {
+                        width: maxWidth,
+                        lineGap: 2,
+                        link: line
+                    });
+                    doc.fillColor('black');
+                    doc.moveDown(1.0);
+                    currentArticleUrl = null; // 출력했으므로 초기화
                     continue;
                 }
 
@@ -371,14 +409,15 @@ class NewsClippingPdfGenerator {
             }
         }
 
-        // 마지막 기사 URL 추가
+        // 마지막 기사 URL 추가 (파일 끝에 도달했을 때)
         if (currentArticleUrl) {
             doc.moveDown(0.5);
             doc.font(koreanFont).fontSize(9);
             doc.fillColor('blue');
             doc.text(currentArticleUrl, {
                 width: maxWidth,
-                lineGap: 2
+                lineGap: 2,
+                link: currentArticleUrl
             });
             doc.fillColor('black');
         }

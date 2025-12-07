@@ -13,10 +13,11 @@ body {
     overflow-y: auto;
 }
 
-.preview-content h1 {
+.preview-content h1.main-title {
     font-size: 1.5em;
     font-weight: bold;
     margin-bottom: 10px;
+    text-align: center;
 }
 
 .preview-content .header-info {

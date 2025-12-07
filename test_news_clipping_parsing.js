@@ -221,6 +221,18 @@ function testPreviewParsing(result) {
             continue;
         }
         
+        // 상세 페이지 자동 감지: 언론사명 패턴이 나오면 상세 페이지로 전환
+        const isPublisherName = line.match(/^[가-힣\s]+$/) && !line.includes('주요') && !line.includes('뉴스') && 
+            !line.includes('브리핑') && line.length < 20 && !line.startsWith('☐') && !line.startsWith('○') && 
+            !line.startsWith('**') && line !== '---' && !line.match(/^\(URL/);
+        
+        if (inSummaryPage && isPublisherName && i > 5) { // 요약 페이지에서 언론사명이 나오면 상세 페이지로 전환
+            inSummaryPage = false;
+            publisherNumber = 0;
+            html += '<hr class="detail-separator">';
+            console.log(`✅ 상세 페이지 자동 감지: ${i}번째 줄 - ${line}`);
+        }
+        
         if (inSummaryPage) {
             // "주요 뉴스 브리핑" 제목
             if (line === '주요 뉴스 브리핑') {
@@ -242,12 +254,12 @@ function testPreviewParsing(result) {
             if (categoryMatch1) {
                 // 형식: ☐ **카테고리명** (전체 볼드)
                 html += `<h2 class="category-title"><strong>☐ ${categoryMatch1[1]}</strong></h2>`;
-                console.log(`✅ ☐ 카테고리 제목 발견: ${i}번째 줄 - ${categoryMatch1[1]}`);
+                console.log(`✅ ☐ 카테고리 제목 발견: ${i}번째 줄 - ☐ ${categoryMatch1[1]}`);
                 continue;
             } else if (categoryMatch2) {
-                // 형식: **☐ 카테고리명** (전체 볼드)
+                // 형식: **☐ 카테고리명** (전체 볼드) - ☐ 포함하여 출력
                 html += `<h2 class="category-title"><strong>☐ ${categoryMatch2[1]}</strong></h2>`;
-                console.log(`✅ ☐ 카테고리 제목 발견: ${i}번째 줄 - ${categoryMatch2[1]}`);
+                console.log(`✅ ☐ 카테고리 제목 발견: ${i}번째 줄 - ☐ ${categoryMatch2[1]}`);
                 continue;
             } else if (line.startsWith('☐ ')) {
                 // 일반 형식: ☐ 카테고리명 (마크다운 제거 후 전체 볼드)

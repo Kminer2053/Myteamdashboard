@@ -447,6 +447,17 @@ function displayResult(result) {
             continue;
         }
         
+        // 상세 페이지 자동 감지: 언론사명 패턴이 나오면 상세 페이지로 전환
+        const isPublisherName = line.match(/^[가-힣\s]+$/) && !line.includes('주요') && !line.includes('뉴스') && 
+            !line.includes('브리핑') && line.length < 20 && !line.startsWith('☐') && !line.startsWith('○') && 
+            !line.startsWith('**') && line !== '---' && !line.match(/^\(URL/);
+        
+        if (inSummaryPage && isPublisherName && i > 5) { // 요약 페이지에서 언론사명이 나오면 상세 페이지로 전환
+            inSummaryPage = false;
+            publisherNumber = 0;
+            html += '<hr class="detail-separator">';
+        }
+        
         if (inSummaryPage) {
             // "주요 뉴스 브리핑" 제목
             if (line === '주요 뉴스 브리핑') {
