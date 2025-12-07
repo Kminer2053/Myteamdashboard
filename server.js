@@ -42,8 +42,19 @@ const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
 const app = express();
 
 // 미들웨어 설정
-app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'], credentials: true }));
-app.options('*', cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'], credentials: true }));
+// CORS 설정: credentials를 false로 설정하거나, origin을 구체적으로 지정해야 함
+app.use(cors({ 
+    origin: '*', 
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], 
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: false // credentials와 origin: '*'는 함께 사용 불가
+}));
+app.options('*', cors({ 
+    origin: '*', 
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], 
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: false
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
@@ -3237,7 +3248,10 @@ app.post('/api/perplexity-chat', async (req, res) => {
 });
 
 // === 뉴스 클리핑용 PDF 생성 API ===
-app.post('/api/news-clipping/generate-pdf', async (req, res) => {
+// OPTIONS 요청 처리 (CORS preflight)
+app.options('/api/news-clipping/generate-pdf', cors());
+
+app.post('/api/news-clipping/generate-pdf', cors(), async (req, res) => {
     try {
         const { content, filename } = req.body;
 
