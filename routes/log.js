@@ -53,7 +53,9 @@ router.get('/stats/summary', async (req, res) => {
       { type: 'perplexity', action: '퍼플렉시티제휴처뉴스수집' },
       { type: 'perplexity', action: '퍼플렉시티기술뉴스수집' },
       { type: 'perplexity', action: '퍼플렉시티AI분석보고서생성' },
-      { type: 'db', action: '자동삭제' }
+      { type: 'db', action: '자동삭제' },
+      { type: 'news-clipping', action: '뉴스클리핑자료생성' },
+      { type: 'news-clipping', action: '뉴스클리핑PDF생성' }
     ];
 
     const group = {
