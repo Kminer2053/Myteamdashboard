@@ -159,7 +159,7 @@ class NewsClippingPdfGenerator {
     }
 
     /**
-     * 뉴스 클리핑 텍스트를 PDF로 렌더링
+     * 뉴스 클리핑 텍스트를 PDF로 렌더링 (기존 대시보드 방식 사용)
      * @param {PDFDocument} doc - PDF 문서 객체
      * @param {string} content - 뉴스 클리핑 텍스트
      * @param {string} koreanFont - 한글 폰트 이름
@@ -167,65 +167,53 @@ class NewsClippingPdfGenerator {
      */
     renderNewsClippingToPDF(doc, content, koreanFont = 'Helvetica', koreanFontBold = 'Helvetica-Bold') {
         const lines = content.split('\n');
-        const pageHeight = doc.page.height;
-        const margin = 54;
-        const maxWidth = doc.page.width - (margin * 2);
-        let y = margin;
-        const lineHeight = 14;
-        const categorySpacing = 8;
-        const articleSpacing = 4;
+        const maxWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        let inSummaryPage = true;
+        let currentArticleUrl = null;
 
-        // 페이지 넘김 체크 함수
-        const checkPageBreak = (requiredSpace = lineHeight) => {
-            if (y + requiredSpace > pageHeight - margin) {
+        // 페이지 넘김 체크 (기존 대시보드 방식)
+        const checkPageBreak = () => {
+            const pageHeight = doc.page.height;
+            const bottomMargin = doc.page.margins.bottom;
+            if (doc.y > pageHeight - bottomMargin - 50) {
                 doc.addPage();
-                y = margin;
                 return true;
             }
             return false;
         };
 
-        // 텍스트 렌더링 함수 (자동 줄바꿈)
-        const renderText = (text, font, fontSize, isBold = false, align = 'left') => {
-            const currentFont = isBold ? koreanFontBold : font;
-            doc.font(currentFont).fontSize(fontSize);
+        // 텍스트 렌더링 (기존 대시보드 방식)
+        const renderText = (text, fontSize, isBold = false, align = 'left', spacing = 1.0) => {
+            checkPageBreak();
+            doc.font(isBold ? koreanFontBold : koreanFont)
+               .fontSize(fontSize);
             
-            // PDFKit의 text 메서드는 자동으로 줄바꿈을 처리합니다
-            checkPageBreak(fontSize * 2);
+            if (align === 'center') {
+                doc.text(text, {
+                    align: 'center',
+                    width: maxWidth
+                });
+            } else {
+                doc.text(text, {
+                    width: maxWidth,
+                    lineGap: fontSize * 0.2
+                });
+            }
             
-            const savedY = y;
-            doc.text(text, margin, y, { 
-                align: align,
-                width: maxWidth,
-                lineGap: fontSize * 0.2
-            });
-            
-            // 실제로 사용된 높이 계산
-            const textHeight = doc.y - savedY;
-            y = doc.y;
-            
-            return textHeight;
+            doc.moveDown(spacing);
         };
 
         let i = 0;
-        let inSummaryPage = true;
-        let currentCategory = null;
-        let inDetailPage = false;
-        let currentArticle = { source: '', title: '', content: '', url: '' };
-
         while (i < lines.length) {
             const line = lines[i].trim();
             
             // 빈 줄 처리
             if (!line) {
-                if (inSummaryPage && currentCategory) {
-                    y += articleSpacing;
-                } else if (inDetailPage) {
-                    y += lineHeight / 2;
+                if (inSummaryPage) {
+                    doc.moveDown(0.5);
                 } else {
-                    y += lineHeight / 2;
+                    doc.moveDown(0.3);
                 }
-                checkPageBreak();
                 i++;
                 continue;
             }
@@ -233,6 +221,7 @@ class NewsClippingPdfGenerator {
             // 1페이지 요약 페이지와 상세 페이지 구분
             if (line.startsWith('* 각 뉴스 상세 페이지')) {
                 inSummaryPage = false;
+                doc.addPage(); // 상세 페이지 시작
                 i++;
                 continue;
             }
@@ -241,103 +230,76 @@ class NewsClippingPdfGenerator {
             if (inSummaryPage) {
                 // "주요 뉴스 브리핑" 제목
                 if (line === '주요 뉴스 브리핑') {
-                    y += 20;
-                    checkPageBreak(30);
-                    renderText(line, koreanFont, 24, true, 'center');
-                    y += 10;
+                    doc.moveDown(1.5);
+                    renderText(line, 24, true, 'center', 1.5);
                     continue;
                 }
 
                 // 헤더 문자열 (날짜 정보)
                 if (line.match(/^\[.*\]$/)) {
-                    checkPageBreak(20);
-                    renderText(line, koreanFont, 11, false, 'center');
-                    y += 15;
+                    renderText(line, 11, false, 'center', 1.0);
                     continue;
                 }
 
                 // 카테고리 제목 (☐로 시작)
                 if (line.startsWith('☐ ')) {
-                    const categoryName = line.substring(2).trim();
-                    y += categorySpacing;
-                    checkPageBreak(25);
-                    renderText(line, koreanFont, 14, true);
-                    y += 5;
-                    currentCategory = categoryName;
+                    doc.moveDown(0.8);
+                    renderText(line, 14, true, 'left', 0.5);
                     continue;
                 }
 
                 // 기사 항목 (○로 시작)
                 if (line.startsWith('○')) {
-                    checkPageBreak(20);
-                    renderText(line, koreanFont, 11, false);
-                    y += articleSpacing;
+                    renderText(line, 11, false, 'left', 0.4);
                     continue;
                 }
 
                 // 일반 텍스트
-                renderText(line, koreanFont, 11, false);
-                y += articleSpacing;
+                renderText(line, 11, false, 'left', 0.4);
             }
             // 상세 페이지 처리
             else {
-                // 언론사명 (새 기사 시작)
+                // 언론사명 (새 기사 시작) - 짧은 한글 텍스트만
                 if (line.match(/^[가-힣\s]+$/) && !line.includes('주요') && !line.includes('뉴스') && 
-                    !line.includes('브리핑') && line.length < 20 && !inDetailPage) {
-                    // 이전 기사가 있으면 URL 추가 후 새 페이지
-                    if (currentArticle.source && currentArticle.title) {
-                        if (currentArticle.url) {
-                            y += lineHeight;
-                            checkPageBreak(15);
-                            doc.font(koreanFont).fontSize(9);
-                            doc.fillColor('blue');
-                            const savedY = y;
-                            doc.text(currentArticle.url, margin, y, { 
-                                width: maxWidth,
-                                lineGap: 2
-                            });
-                            y = doc.y;
-                            doc.fillColor('black');
-                        }
-                        doc.addPage();
-                        y = margin;
+                    !line.includes('브리핑') && line.length < 20 && !line.startsWith('☐') && !line.startsWith('○')) {
+                    
+                    // 이전 기사 URL 추가
+                    if (currentArticleUrl) {
+                        doc.moveDown(0.5);
+                        doc.font(koreanFont).fontSize(9);
+                        doc.fillColor('blue');
+                        doc.text(currentArticleUrl, {
+                            width: maxWidth,
+                            lineGap: 2
+                        });
+                        doc.fillColor('black');
+                        doc.moveDown(1.0);
                     }
                     
-                    currentArticle = { source: line, title: '', content: '', url: '' };
-                    inDetailPage = true;
-                    y += 20;
-                    checkPageBreak(30);
-                    renderText(line, koreanFont, 12, false);
-                    y += 10;
-                    continue;
-                }
-
-                // 기사 제목 (볼드체로 크게)
-                if (inDetailPage && currentArticle.source && !currentArticle.title && line.length > 5) {
-                    currentArticle.title = line;
-                    checkPageBreak(30);
-                    renderText(line, koreanFont, 16, true);
-                    y += 10;
+                    // 새 페이지에서 새 기사 시작
+                    doc.addPage();
+                    currentArticleUrl = null;
+                    
+                    renderText(line, 12, false, 'left', 1.0);
                     continue;
                 }
 
                 // URL 추출 (http:// 또는 https://로 시작)
                 if (line.match(/^https?:\/\//)) {
-                    currentArticle.url = line;
+                    currentArticleUrl = line;
+                    i++;
+                    continue;
+                }
+
+                // 기사 제목 (볼드체로 크게) - 첫 번째 긴 줄
+                if (!currentArticleUrl && line.length > 5 && !line.match(/^https?:\/\//)) {
+                    renderText(line, 16, true, 'left', 1.0);
                     continue;
                 }
 
                 // 기사 내용
-                if (inDetailPage && currentArticle.title) {
-                    // URL이 포함된 줄은 건너뛰기 (이미 추출함)
-                    if (line.match(/^https?:\/\//)) {
-                        i++;
-                        continue;
-                    }
-                    
-                    currentArticle.content += (currentArticle.content ? '\n' : '') + line;
-                    renderText(line, koreanFont, 11, false);
-                    y += articleSpacing;
+                if (line.length > 0) {
+                    renderText(line, 11, false, 'left', 0.5);
                 }
             }
 
@@ -345,21 +307,17 @@ class NewsClippingPdfGenerator {
         }
 
         // 마지막 기사 URL 추가
-        if (currentArticle.source && currentArticle.title && currentArticle.url) {
-            y += lineHeight;
-            checkPageBreak(15);
+        if (currentArticleUrl) {
+            doc.moveDown(0.5);
             doc.font(koreanFont).fontSize(9);
             doc.fillColor('blue');
-            const savedY = y;
-            doc.text(currentArticle.url, margin, y, { 
+            doc.text(currentArticleUrl, {
                 width: maxWidth,
                 lineGap: 2
             });
-            y = doc.y;
             doc.fillColor('black');
         }
     }
 }
 
 module.exports = NewsClippingPdfGenerator;
-
