@@ -28,6 +28,10 @@ const { router: mailRouter, sendMonthlyStatMail } = require('./routes/mail');
 const weightSettingsRouter = require('./routes/weightSettings');
 const hotTopicAnalysisRouter = require('./routes/hotTopicAnalysis');
 const UserActionLog = require('./models/UserActionLog');
+const PDFGenerator = require('./services/pdfGenerator');
+
+// PDF 생성기 인스턴스
+const pdfGenerator = new PDFGenerator();
 
 // AI API 설정
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
@@ -3080,5 +3084,159 @@ app.delete('/api/clear-all-news', async (req, res) => {
     } catch (error) {
         console.error('❌ 데이터 삭제 중 오류:', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// === 뉴스 클리핑용 Perplexity API 프록시 ===
+app.post('/api/perplexity-chat', async (req, res) => {
+    try {
+        const { messages, model = 'sonar-pro', max_tokens = 8000, temperature = 0.5 } = req.body;
+
+        if (!messages || !Array.isArray(messages) || messages.length === 0) {
+            return res.status(400).json({ error: '메시지가 필요합니다.' });
+        }
+
+        if (!PERPLEXITY_API_KEY) {
+            return res.status(500).json({ error: 'Perplexity API 키가 설정되지 않았습니다.' });
+        }
+
+        console.log('[뉴스 클리핑] Perplexity API 호출 시작');
+
+        const response = await axios.post(PERPLEXITY_API_URL, {
+            model: model,
+            messages: messages,
+            max_tokens: max_tokens,
+            temperature: temperature
+        }, {
+            headers: {
+                'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 120000 // 2분 타임아웃
+        });
+
+        const aiResponse = response.data.choices[0].message.content;
+        const finishReason = response.data.choices[0].finish_reason;
+        const usage = response.data.usage;
+
+        console.log('[뉴스 클리핑] Perplexity API 응답 수신');
+        console.log(`[뉴스 클리핑] Finish reason: ${finishReason}`);
+        console.log(`[뉴스 클리핑] Token usage: ${usage?.total_tokens || 'N/A'}`);
+
+        // 토큰 잘림 감지 및 재시도
+        if (finishReason === 'length') {
+            console.warn('[뉴스 클리핑] ⚠️ 응답이 max_tokens로 잘렸습니다!');
+            
+            const retryMaxTokens = max_tokens * 2;
+            console.log(`[뉴스 클리핑] 토큰 제한을 ${retryMaxTokens}로 늘려서 재시도합니다...`);
+            
+            try {
+                const retryResponse = await axios.post(PERPLEXITY_API_URL, {
+                    model: model,
+                    messages: messages,
+                    max_tokens: retryMaxTokens,
+                    temperature: temperature
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 120000
+                });
+
+                const retryAiResponse = retryResponse.data.choices[0].message.content;
+                const retryFinishReason = retryResponse.data.choices[0].finish_reason;
+
+                if (retryFinishReason === 'stop') {
+                    console.log('[뉴스 클리핑] ✅ 재시도 성공!');
+                    return res.json({
+                        choices: [{
+                            message: {
+                                content: retryAiResponse
+                            },
+                            finish_reason: retryFinishReason
+                        }],
+                        usage: retryResponse.data.usage
+                    });
+                }
+            } catch (retryError) {
+                console.error('[뉴스 클리핑] 재시도 중 오류:', retryError.message);
+            }
+        }
+
+        res.json({
+            choices: [{
+                message: {
+                    content: aiResponse
+                },
+                finish_reason: finishReason
+            }],
+            usage: usage
+        });
+
+    } catch (error) {
+        console.error('[뉴스 클리핑] Perplexity API 호출 실패:', error.message);
+        
+        if (error.response && error.response.status === 429) {
+            res.status(429).json({ error: 'Rate Limit 도달. 잠시 후 다시 시도해주세요.' });
+        } else if (error.response) {
+            res.status(error.response.status).json({ 
+                error: 'API 호출 실패', 
+                message: error.response.data?.message || error.message 
+            });
+        } else {
+            res.status(500).json({ error: '서버 오류', message: error.message });
+        }
+    }
+});
+
+// === 뉴스 클리핑용 PDF 생성 API ===
+app.post('/api/news-clipping/generate-pdf', async (req, res) => {
+    try {
+        const { content, filename } = req.body;
+
+        if (!content) {
+            return res.status(400).json({ 
+                success: false, 
+                error: '콘텐츠가 필요합니다.' 
+            });
+        }
+
+        console.log('[뉴스 클리핑] PDF 생성 시작');
+
+        // 파일명 생성 (기본값: 뉴스클리핑_날짜)
+        const defaultFilename = filename || `뉴스클리핑_${new Date().toISOString().split('T')[0]}`;
+        
+        // PDF 생성
+        const result = await pdfGenerator.convertToPDF(content, defaultFilename);
+
+        if (!result.success) {
+            return res.status(500).json({
+                success: false,
+                error: result.error || 'PDF 생성 실패'
+            });
+        }
+
+        console.log('[뉴스 클리핑] PDF 생성 완료:', result.fileName);
+
+        // PDF 파일을 읽어서 base64로 인코딩하여 반환
+        const pdfBuffer = fs.readFileSync(result.filePath);
+        const pdfBase64 = pdfBuffer.toString('base64');
+
+        res.json({
+            success: true,
+            fileName: result.fileName,
+            fileSize: result.fileSize,
+            data: pdfBase64, // base64 인코딩된 PDF 데이터
+            url: `/reports/${result.fileName}` // 서버에서 직접 접근 가능한 URL
+        });
+
+    } catch (error) {
+        console.error('[뉴스 클리핑] PDF 생성 오류:', error);
+        res.status(500).json({
+            success: false,
+            error: 'PDF 생성 중 오류가 발생했습니다.',
+            message: error.message
+        });
     }
 });
