@@ -166,7 +166,6 @@ class NewsClippingPdfGenerator {
      * @param {string} koreanFontBold - 한글 볼드 폰트 이름
      */
     renderNewsClippingToPDF(doc, content, koreanFont = 'Helvetica', koreanFontBold = 'Helvetica-Bold') {
-        const lines = content.split('\n');
         const maxWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
         let inSummaryPage = true;
         let currentArticleUrl = null;
@@ -184,6 +183,8 @@ class NewsClippingPdfGenerator {
 
         // 텍스트 렌더링 (기존 대시보드 방식)
         const renderText = (text, fontSize, isBold = false, align = 'left', spacing = 1.0) => {
+            if (!text || text.trim().length === 0) return;
+            
             checkPageBreak();
             doc.font(isBold ? koreanFontBold : koreanFont)
                .fontSize(fontSize);
@@ -203,9 +204,19 @@ class NewsClippingPdfGenerator {
             doc.moveDown(spacing);
         };
 
-        let i = 0;
-        while (i < lines.length) {
-            const line = lines[i].trim();
+        // 스트리밍 처리: split 대신 라인 단위로 처리하여 메모리 효율성 향상
+        let lineStart = 0;
+        let lineEnd = 0;
+        
+        while (lineEnd < content.length) {
+            // 다음 줄바꿈 찾기
+            lineEnd = content.indexOf('\n', lineStart);
+            if (lineEnd === -1) {
+                lineEnd = content.length;
+            }
+            
+            const line = content.substring(lineStart, lineEnd).trim();
+            lineStart = lineEnd + 1;
             
             // 빈 줄 처리
             if (!line) {
@@ -214,7 +225,6 @@ class NewsClippingPdfGenerator {
                 } else {
                     doc.moveDown(0.3);
                 }
-                i++;
                 continue;
             }
 
@@ -222,7 +232,6 @@ class NewsClippingPdfGenerator {
             if (line.startsWith('* 각 뉴스 상세 페이지')) {
                 inSummaryPage = false;
                 doc.addPage(); // 상세 페이지 시작
-                i++;
                 continue;
             }
 
@@ -287,7 +296,6 @@ class NewsClippingPdfGenerator {
                 // URL 추출 (http:// 또는 https://로 시작)
                 if (line.match(/^https?:\/\//)) {
                     currentArticleUrl = line;
-                    i++;
                     continue;
                 }
 
@@ -302,8 +310,6 @@ class NewsClippingPdfGenerator {
                     renderText(line, 11, false, 'left', 0.5);
                 }
             }
-
-            i++;
         }
 
         // 마지막 기사 URL 추가
