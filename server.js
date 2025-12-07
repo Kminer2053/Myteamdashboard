@@ -3300,16 +3300,14 @@ app.post('/api/news-clipping/generate-pdf', cors(), async (req, res) => {
             // 통계 기록 실패해도 PDF 생성은 성공으로 처리
         }
 
-        // PDF 파일을 읽어서 base64로 인코딩하여 반환
-        const pdfBuffer = fs.readFileSync(result.filePath);
-        const pdfBase64 = pdfBuffer.toString('base64');
-
+        // 메모리 절약: base64 인코딩 대신 파일을 직접 스트리밍으로 전송
+        // 또는 파일 URL만 반환하고 클라이언트에서 직접 다운로드
         res.json({
             success: true,
             fileName: result.fileName,
             fileSize: result.fileSize,
-            data: pdfBase64, // base64 인코딩된 PDF 데이터
-            url: `/reports/${result.fileName}` // 서버에서 직접 접근 가능한 URL
+            url: `https://myteamdashboard.onrender.com/reports/${result.fileName}`, // 전체 URL
+            downloadUrl: `/reports/${result.fileName}` // 상대 경로
         });
 
     } catch (error) {

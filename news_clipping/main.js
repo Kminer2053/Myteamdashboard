@@ -574,23 +574,15 @@ async function generatePDF() {
         const result = await response.json();
 
         if (result.success) {
-            // base64 데이터를 Blob으로 변환
-            const pdfData = atob(result.data);
-            const pdfBytes = new Uint8Array(pdfData.length);
-            for (let i = 0; i < pdfData.length; i++) {
-                pdfBytes[i] = pdfData.charCodeAt(i);
-            }
-            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-
-            // 다운로드
-            const url = window.URL.createObjectURL(blob);
+            // 서버에서 생성된 PDF 파일을 직접 다운로드
+            const downloadUrl = result.url || `${API_BASE_URL}${result.downloadUrl}`;
             const a = document.createElement('a');
-            a.href = url;
+            a.href = downloadUrl;
             a.download = result.fileName;
+            a.target = '_blank'; // 새 탭에서 열기 (필요시)
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
 
             alert('PDF가 다운로드되었습니다.');
         } else {
