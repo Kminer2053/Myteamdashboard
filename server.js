@@ -42,15 +42,43 @@ const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
 const app = express();
 
 // 미들웨어 설정
-// CORS 설정: credentials를 false로 설정하거나, origin을 구체적으로 지정해야 함
+// CORS 설정: Vercel 도메인 및 모든 origin 허용
+const allowedOrigins = [
+    'https://myteamdashboard.onrender.com',
+    /\.vercel\.app$/,  // 모든 Vercel 도메인 허용
+    /\.netlify\.app$/,  // Netlify 도메인도 허용 (선택사항)
+    'http://localhost:8002',  // 로컬 개발용
+    'http://localhost:4000'   // 로컬 개발용
+];
+
 app.use(cors({ 
-    origin: '*', 
+    origin: function (origin, callback) {
+        // origin이 없으면 (같은 도메인 요청) 허용
+        if (!origin) return callback(null, true);
+        
+        // 허용된 origin 목록 확인
+        const isAllowed = allowedOrigins.some(allowed => {
+            if (typeof allowed === 'string') {
+                return origin === allowed;
+            } else if (allowed instanceof RegExp) {
+                return allowed.test(origin);
+            }
+            return false;
+        });
+        
+        if (isAllowed) {
+            callback(null, true);
+        } else {
+            // 모든 origin 허용 (개발 중)
+            callback(null, true);
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], 
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    credentials: false // credentials와 origin: '*'는 함께 사용 불가
+    credentials: false
 }));
 app.options('*', cors({ 
-    origin: '*', 
+    origin: true,  // 모든 origin 허용
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], 
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: false
