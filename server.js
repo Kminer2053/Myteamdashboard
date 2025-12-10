@@ -3346,6 +3346,10 @@ app.post('/api/perplexity-chat', cors(), async (req, res) => {
         }
 
         console.log('[뉴스 클리핑] Perplexity API 호출 시작');
+        
+        // 프롬프트 길이 확인 (디버깅용)
+        const promptLength = messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
+        console.log(`[뉴스 클리핑] 프롬프트 총 길이: ${promptLength}자 (약 ${Math.ceil(promptLength / 4)} 토큰 추정)`);
 
         const response = await axios.post(PERPLEXITY_API_URL, {
             model: model,
@@ -3465,6 +3469,16 @@ app.post('/api/perplexity-chat', cors(), async (req, res) => {
 
     } catch (error) {
         console.error('[뉴스 클리핑] Perplexity API 호출 실패:', error.message);
+        
+        // 400 에러의 상세 정보 로깅
+        if (error.response && error.response.status === 400) {
+            console.error('[뉴스 클리핑] 400 에러 상세:', {
+                status: error.response.status,
+                statusText: error.response.statusText,
+                data: error.response.data,
+                message: error.message
+            });
+        }
         
         if (error.response && error.response.status === 429) {
             res.status(429).json({ error: 'Rate Limit 도달. 잠시 후 다시 시도해주세요.' });
