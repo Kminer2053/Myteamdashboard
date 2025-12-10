@@ -3167,6 +3167,156 @@ app.delete('/api/clear-all-news', async (req, res) => {
     }
 });
 
+// === 뉴스 클리핑용 기사 수집 API ===
+app.post('/api/news-clipping/collect-articles', cors(), async (req, res) => {
+    try {
+        const { date } = req.body; // 기준일자 (YYYY-MM-DD 형식)
+        
+        if (!date) {
+            return res.status(400).json({ error: '기준일자가 필요합니다.' });
+        }
+
+        console.log(`[뉴스 클리핑] 기사 수집 시작: ${date}`);
+
+        // 카테고리별 키워드 정의
+        const categoryKeywords = {
+            '코레일유통': ['코레일유통', '스토리웨이', '역사 상업시설', '코레일 역세권', '코레일 상업시설'],
+            '철도': ['코레일', 'KTX', 'SRT', 'GTX', '도시철도', '철도 노선', '철도 안전', '역세권 개발', '철도 정책', '국가철도공단', 'SR', '철도 파업', '철도 사고'],
+            '지역본부/계열사': ['코레일관광개발', '코레일네트웍스', '코레일테크', '코레일 지역본부'],
+            '공공기관': ['기재부', '국토부', 'SOC 투자', '역세권 규제', '공공자산', '물가 정책', '배송 정책', '노동 정책'],
+            '유통': ['편의점', '도시락', '간편식', '역세권 상권', 'K-푸드', 'K-스낵', '캐릭터 콜라보', '유통 트렌드', '소비 트렌드', 'F&B', '프랜차이즈']
+        };
+
+        // 날짜 범위 계산 (전일 18시 ~ 당일 23:59)
+        const targetDate = new Date(date);
+        targetDate.setHours(0, 0, 0, 0);
+        const prevDay = new Date(targetDate);
+        prevDay.setDate(prevDay.getDate() - 1);
+        prevDay.setHours(18, 0, 0, 0);
+        const endDate = new Date(targetDate);
+        endDate.setHours(23, 59, 59, 999);
+
+        const allArticles = [];
+        const articleMap = new Map(); // 중복 제거용 (제목+언론사+날짜)
+
+        // 카테고리별로 순차 처리
+        for (const [category, keywords] of Object.entries(categoryKeywords)) {
+            console.log(`[뉴스 클리핑] ${category} 카테고리 처리 중...`);
+            
+            for (const keyword of keywords) {
+                try {
+                    // 네이버 뉴스 API 호출
+                    const response = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+                        headers: {
+                            'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                            'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+                        },
+                        params: {
+                            query: keyword,
+                            display: 100,
+                            sort: 'date',
+                            start: 1
+                        }
+                    });
+
+                    const items = response.data.items || [];
+                    
+                    // 날짜 필터링 및 중복 제거
+                    for (const item of items) {
+                        const pubDate = new Date(item.pubDate);
+                        
+                        // 날짜 범위 체크 (전일 18시 ~ 당일 23:59)
+                        if (pubDate < prevDay || pubDate > endDate) {
+                            continue;
+                        }
+
+                        // HTML 태그 제거
+                        const title = item.title.replace(/<[^>]*>/g, '').trim();
+                        const description = item.description ? item.description.replace(/<[^>]*>/g, '').trim() : '';
+                        
+                        // 중복 체크 (제목+URL+날짜)
+                        const dateKey = pubDate.toISOString().split('T')[0];
+                        const articleUrl = item.originallink || item.link;
+                        const uniqueKey = `${title}|${articleUrl}|${dateKey}`;
+                        
+                        if (!articleMap.has(uniqueKey)) {
+                            articleMap.set(uniqueKey, true);
+                            
+                            // 언론사명 추출 (URL에서 도메인 추출)
+                            let publisher = '알 수 없음';
+                            try {
+                                if (articleUrl) {
+                                    const urlObj = new URL(articleUrl);
+                                    let hostname = urlObj.hostname.replace('www.', '').replace('m.', '');
+                                    // 도메인에서 언론사명 추출 (예: news.naver.com -> naver, mk.co.kr -> mk)
+                                    const domainParts = hostname.split('.');
+                                    if (domainParts.length > 1) {
+                                        // .co.kr, .com 등 제거하고 첫 번째 부분 사용
+                                        publisher = domainParts[0];
+                                        // 한글 도메인인 경우 전체 사용
+                                        if (/[가-힣]/.test(hostname)) {
+                                            publisher = hostname.split('.')[0];
+                                        }
+                                    } else {
+                                        publisher = hostname;
+                                    }
+                                }
+                            } catch (e) {
+                                // URL 파싱 실패 시 기본값 사용
+                                publisher = '알 수 없음';
+                            }
+                            
+                            allArticles.push({
+                                category: category,
+                                title: title,
+                                publisher: publisher,
+                                url: articleUrl,
+                                description: description,
+                                pubDate: pubDate.toISOString(),
+                                keyword: keyword
+                            });
+                        }
+                    }
+
+                    // API 호출 간격 조절 (Rate Limit 방지)
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    
+                } catch (error) {
+                    console.error(`[뉴스 클리핑] 키워드 "${keyword}" 검색 실패:`, error.message);
+                    // 개별 키워드 실패해도 계속 진행
+                }
+            }
+        }
+
+        // 카테고리별로 그룹화
+        const articlesByCategory = {};
+        for (const article of allArticles) {
+            if (!articlesByCategory[article.category]) {
+                articlesByCategory[article.category] = [];
+            }
+            articlesByCategory[article.category].push(article);
+        }
+
+        console.log(`[뉴스 클리핑] 기사 수집 완료: 총 ${allArticles.length}건`);
+        console.log(`[뉴스 클리핑] 카테고리별:`, Object.entries(articlesByCategory).map(([cat, arts]) => `${cat}: ${arts.length}건`).join(', '));
+
+        res.json({
+            success: true,
+            date: date,
+            totalArticles: allArticles.length,
+            articlesByCategory: articlesByCategory,
+            articles: allArticles
+        });
+
+    } catch (error) {
+        console.error('[뉴스 클리핑] 기사 수집 오류:', error);
+        res.status(500).json({ 
+            error: '기사 수집 중 오류가 발생했습니다.',
+            message: error.message 
+        });
+    }
+});
+
 // === 뉴스 클리핑용 Perplexity API 프록시 ===
 // OPTIONS 요청 처리 (CORS preflight)
 app.options('/api/perplexity-chat', cors());
