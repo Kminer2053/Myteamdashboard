@@ -3170,7 +3170,7 @@ app.delete('/api/clear-all-news', async (req, res) => {
 // === 뉴스 클리핑용 기사 수집 API ===
 app.post('/api/news-clipping/collect-articles', cors(), async (req, res) => {
     try {
-        const { date } = req.body; // 기준일자 (YYYY-MM-DD 형식)
+        const { date, customKeywords } = req.body; // 기준일자 (YYYY-MM-DD 형식)
         
         if (!date) {
             return res.status(400).json({ error: '기준일자가 필요합니다.' });
@@ -3179,12 +3179,24 @@ app.post('/api/news-clipping/collect-articles', cors(), async (req, res) => {
         console.log(`[뉴스 클리핑] 기사 수집 시작: ${date}`);
 
         // 카테고리별 키워드 정의
-        const categoryKeywords = {
+        const defaultCategoryKeywords = {
             '코레일유통': ['코레일유통', '스토리웨이', '역사 상업시설', '코레일 역세권', '코레일 상업시설'],
             '철도': ['코레일', 'KTX', 'SRT', 'GTX', '도시철도', '철도 노선', '철도 안전', '역세권 개발', '철도 정책', '국가철도공단', 'SR', '철도 파업', '철도 사고'],
             '지역본부/계열사': ['코레일관광개발', '코레일네트웍스', '코레일테크', '코레일 지역본부'],
             '공공기관': ['기재부', '국토부', 'SOC 투자', '역세권 규제', '공공자산', '물가 정책', '배송 정책', '노동 정책'],
             '유통': ['편의점', '도시락', '간편식', '역세권 상권', 'K-푸드', 'K-스낵', '캐릭터 콜라보', '유통 트렌드', '소비 트렌드', 'F&B', '프랜차이즈']
+        };
+        const normalizeKeywords = (val) => {
+            if (!val) return [];
+            if (Array.isArray(val)) return val.map(v => String(v).trim()).filter(Boolean);
+            return String(val).split(/[\n,]/).map(v => v.trim()).filter(Boolean);
+        };
+        const categoryKeywords = {
+            '코레일유통': normalizeKeywords(customKeywords?.korail).length ? normalizeKeywords(customKeywords?.korail) : defaultCategoryKeywords['코레일유통'],
+            '철도': normalizeKeywords(customKeywords?.rail).length ? normalizeKeywords(customKeywords?.rail) : defaultCategoryKeywords['철도'],
+            '지역본부/계열사': normalizeKeywords(customKeywords?.subsidiary).length ? normalizeKeywords(customKeywords?.subsidiary) : defaultCategoryKeywords['지역본부/계열사'],
+            '공공기관': normalizeKeywords(customKeywords?.gov).length ? normalizeKeywords(customKeywords?.gov) : defaultCategoryKeywords['공공기관'],
+            '유통': normalizeKeywords(customKeywords?.retail).length ? normalizeKeywords(customKeywords?.retail) : defaultCategoryKeywords['유통']
         };
 
         // 날짜 범위 계산 (전일 18시 ~ 당일 23:59)
