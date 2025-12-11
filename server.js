@@ -3325,6 +3325,13 @@ app.post('/api/news-clipping/collect-articles', cors(), async (req, res) => {
         console.log(`[뉴스 클리핑] 기사 수집 완료: 총 ${allArticles.length}건`);
         console.log(`[뉴스 클리핑] 카테고리별:`, Object.entries(articlesByCategory).map(([cat, arts]) => `${cat}: ${arts.length}건`).join(', '));
 
+        // 이용통계 기록
+        await logServerAction('뉴스클리핑기사수집', { 
+            date: date, 
+            totalArticles: allArticles.length,
+            categories: Object.keys(articlesByCategory).join(', ')
+        });
+
         res.json({
             success: true,
             date: date,
