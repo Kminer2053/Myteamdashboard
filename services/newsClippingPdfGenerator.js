@@ -339,7 +339,11 @@ class NewsClippingPdfGenerator {
                 // 괄호와 그 안의 내용 제거 (예: "택스저널(택스타임즈)" -> "택스저널")
                 publisherNameOnly = publisherNameOnly.replace(/\s*\([^)]*\)\s*$/, '').trim();
                 
-                const isPublisherName = publisherNameOnly.match(/^[가-힣][가-힣\s\d\w]*$/) && 
+                // 한글, 영문, 영문+한글 조합 모두 허용
+                const isKoreanPublisher = publisherNameOnly.match(/^[가-힣][가-힣\s\d\w]*$/);
+                const isEnglishPublisher = publisherNameOnly.match(/^[A-Z][A-Z0-9]{1,10}$/);
+                const isMixedPublisher = publisherNameOnly.match(/^[A-Z][A-Z0-9]*[가-힣][가-힣\s\d\w]*$/);
+                const isPublisherName = (isKoreanPublisher || isEnglishPublisher || isMixedPublisher) && 
                     !publisherNameOnly.includes('주요') && !publisherNameOnly.includes('브리핑') && 
                     publisherNameOnly.length < 20 && !publisherNameOnly.startsWith('☐') && !publisherNameOnly.startsWith('○') &&
                     !publisherNameOnly.startsWith('**') && publisherNameOnly !== '---' && !publisherNameOnly.match(/^\(URL/) &&
