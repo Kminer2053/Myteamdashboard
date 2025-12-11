@@ -3199,9 +3199,9 @@ app.post('/api/news-clipping/collect-articles', cors(), async (req, res) => {
             '유통': normalizeKeywords(customKeywords?.retail).length ? normalizeKeywords(customKeywords?.retail) : defaultCategoryKeywords['유통']
         };
 
-        // 날짜 범위 계산 (전일 18시 ~ 당일 23:59)
-        const targetDate = new Date(date);
-        targetDate.setHours(0, 0, 0, 0);
+        // 날짜 범위 계산 (전일 18시 ~ 당일 23:59) - 한국시간 기준
+        // date는 YYYY-MM-DD 형식이므로 한국시간 기준으로 파싱
+        const targetDate = new Date(date + 'T00:00:00+09:00'); // 한국시간(UTC+9) 기준
         const prevDay = new Date(targetDate);
         prevDay.setDate(prevDay.getDate() - 1);
         prevDay.setHours(18, 0, 0, 0);
@@ -3209,11 +3209,13 @@ app.post('/api/news-clipping/collect-articles', cors(), async (req, res) => {
         endDate.setHours(23, 59, 59, 999);
 
         const allArticles = [];
-        const articleMap = new Map(); // 중복 제거용 (제목+언론사+날짜)
 
         // 카테고리별로 순차 처리
         for (const [category, keywords] of Object.entries(categoryKeywords)) {
             console.log(`[뉴스 클리핑] ${category} 카테고리 처리 중...`);
+            
+            const categoryArticles = []; // 카테고리별 기사 임시 저장
+            const categoryArticleMap = new Map(); // 카테고리별 중복 제거용 (제목+URL+날짜)
             
             for (const keyword of keywords) {
                 try {
@@ -3226,18 +3228,18 @@ app.post('/api/news-clipping/collect-articles', cors(), async (req, res) => {
                         params: {
                             query: keyword,
                             display: 100,
-                            sort: 'date',
+                            sort: 'date', // 최신순
                             start: 1
                         }
                     });
 
                     const items = response.data.items || [];
                     
-                    // 날짜 필터링 및 중복 제거
+                    // 날짜 필터링
                     for (const item of items) {
                         const pubDate = new Date(item.pubDate);
                         
-                        // 날짜 범위 체크 (전일 18시 ~ 당일 23:59)
+                        // 날짜 범위 체크 (전일 18시 ~ 당일 23:59) - 한국시간 기준
                         if (pubDate < prevDay || pubDate > endDate) {
                             continue;
                         }
@@ -3251,8 +3253,8 @@ app.post('/api/news-clipping/collect-articles', cors(), async (req, res) => {
                         const articleUrl = item.originallink || item.link;
                         const uniqueKey = `${title}|${articleUrl}|${dateKey}`;
                         
-                        if (!articleMap.has(uniqueKey)) {
-                            articleMap.set(uniqueKey, true);
+                        if (!categoryArticleMap.has(uniqueKey)) {
+                            categoryArticleMap.set(uniqueKey, true);
                             
                             // 언론사명 추출 (URL에서 도메인 추출)
                             let publisher = '알 수 없음';
@@ -3278,7 +3280,7 @@ app.post('/api/news-clipping/collect-articles', cors(), async (req, res) => {
                                 publisher = '알 수 없음';
                             }
                             
-                            allArticles.push({
+                            categoryArticles.push({
                                 category: category,
                                 title: title,
                                 publisher: publisher,
@@ -3298,6 +3300,17 @@ app.post('/api/news-clipping/collect-articles', cors(), async (req, res) => {
                     // 개별 키워드 실패해도 계속 진행
                 }
             }
+            
+            // 카테고리별로 발행일 기준 정렬 (최신순)
+            categoryArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            
+            // 카테고리별 최대 100건까지만 사용
+            const limitedCategoryArticles = categoryArticles.slice(0, 100);
+            
+            // 전체 리스트에 추가
+            allArticles.push(...limitedCategoryArticles);
+            
+            console.log(`[뉴스 클리핑] ${category}: 총 ${categoryArticles.length}건 수집 → 최근보도 기준 100건 제한 → ${limitedCategoryArticles.length}건 사용`);
         }
 
         // 카테고리별로 그룹화
