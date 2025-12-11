@@ -345,6 +345,7 @@ class NewsClippingPdfGenerator {
                 const isMixedPublisher = publisherNameOnly.match(/^[A-Z][A-Z0-9]*[가-힣][가-힣\s\d\w]*$/);
                 const isPublisherName = (isKoreanPublisher || isEnglishPublisher || isMixedPublisher) && 
                     !publisherNameOnly.includes('주요') && !publisherNameOnly.includes('브리핑') && 
+                    !publisherNameOnly.includes('뉴스 상세') && !publisherNameOnly.includes('상세') && 
                     publisherNameOnly.length < 20 && !publisherNameOnly.startsWith('☐') && !publisherNameOnly.startsWith('○') &&
                     !publisherNameOnly.startsWith('**') && publisherNameOnly !== '---' && !publisherNameOnly.match(/^\(URL/) &&
                     !publisherNameOnly.match(/^https?:\/\//) && !publisherNameOnly.match(/^\(URL 생략/) &&
