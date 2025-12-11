@@ -335,7 +335,9 @@ class NewsClippingPdfGenerator {
                 // 언론사명 (새 기사 시작) - 한글, 숫자, 영문 포함 가능 - 넘버링 추가
                 // 이미 넘버링이 있는 경우(예: "2. 서울경제")도 처리
                 const hasExistingNumber = line.match(/^\d+\.\s*(.+)$/);
-                const publisherNameOnly = hasExistingNumber ? hasExistingNumber[1] : line;
+                let publisherNameOnly = hasExistingNumber ? hasExistingNumber[1] : line;
+                // 괄호와 그 안의 내용 제거 (예: "택스저널(택스타임즈)" -> "택스저널")
+                publisherNameOnly = publisherNameOnly.replace(/\s*\([^)]*\)\s*$/, '').trim();
                 
                 const isPublisherName = publisherNameOnly.match(/^[가-힣][가-힣\s\d\w]*$/) && 
                     !publisherNameOnly.includes('주요') && !publisherNameOnly.includes('브리핑') && 
