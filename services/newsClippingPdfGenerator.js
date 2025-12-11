@@ -342,8 +342,9 @@ class NewsClippingPdfGenerator {
                 // 한글, 영문, 영문+한글 조합 모두 허용
                 const isKoreanPublisher = publisherNameOnly.match(/^[가-힣][가-힣\s\d\w]*$/);
                 const isEnglishPublisher = publisherNameOnly.match(/^[A-Z][A-Z0-9]{1,10}$/);
+                const isEnglishWithSpace = publisherNameOnly.match(/^[A-Z][A-Z0-9\s]{1,15}$/); // 공백 포함 영어 (예: "SBS Biz")
                 const isMixedPublisher = publisherNameOnly.match(/^[A-Z][A-Z0-9]*[가-힣][가-힣\s\d\w]*$/);
-                const isPublisherName = (isKoreanPublisher || isEnglishPublisher || isMixedPublisher) && 
+                const isPublisherName = (isKoreanPublisher || isEnglishPublisher || isEnglishWithSpace || isMixedPublisher) && 
                     !publisherNameOnly.includes('주요') && !publisherNameOnly.includes('브리핑') && 
                     !publisherNameOnly.includes('뉴스 상세') && !publisherNameOnly.includes('상세') && 
                     publisherNameOnly.length < 20 && !publisherNameOnly.startsWith('☐') && !publisherNameOnly.startsWith('○') &&
