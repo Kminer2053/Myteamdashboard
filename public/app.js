@@ -181,10 +181,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 화제성 분석 초기화 (새로운 워크플로우)
     function initAdvancedMediaAnalysis() {
-        // 기본 날짜 설정 (최근 30일)
+        // 기본 날짜 설정 (최근 3개월)
         const endDate = new Date();
         const startDate = new Date();
-        startDate.setDate(startDate.getDate() - 30);
+        startDate.setMonth(startDate.getMonth() - 3);
         
         // 새로운 HTML 구조에 맞게 날짜 설정
         const startDateInput = document.getElementById('hotTopicStartDate');
@@ -3376,15 +3376,6 @@ async function searchHotTopicInfo() {
         return;
     }
     
-    // 최대 1년 제한 확인
-    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-    const maxDays = 365; // 1년
-    
-    if (daysDiff > maxDays) {
-        showToast(`분석 기간은 최대 ${maxDays}일(1년)까지만 가능합니다. 현재 기간: ${daysDiff}일`);
-        return;
-    }
-    
     const searchInfoBtn = document.getElementById('searchInfoBtn');
     const progressInfo = document.getElementById('hotTopicProgressInfo');
     
@@ -3432,6 +3423,17 @@ async function searchHotTopicInfo() {
             
             // 정보검색 결과 표시
             displaySearchInfoResults(result.data);
+            
+            // API 제한 안내 메시지 표시
+            if (result.data.newsData?.apiLimitMessage) {
+                const daysDiff = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+                if (daysDiff > 90 || result.data.newsData.apiLimitWarning) {
+                    // 경고 메시지를 토스트로 표시
+                    setTimeout(() => {
+                        showToast(result.data.newsData.apiLimitMessage);
+                    }, 500);
+                }
+            }
             
             // 화제성 분석 버튼 활성화
             document.getElementById('generateReportBtn').disabled = false;

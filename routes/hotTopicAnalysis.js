@@ -40,20 +40,12 @@ router.post('/search-info', async (req, res) => {
             });
         }
 
-        // 최대 1년 제한
-        const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-        const maxDays = 365; // 1년
-        
-        if (daysDiff > maxDays) {
-            return res.status(400).json({
-            success: false,
-                message: `분석 기간은 최대 ${maxDays}일(1년)까지만 가능합니다. 현재 기간: ${daysDiff}일`
-            });
-        }
-
         console.log(`🔍 정보검색 시작: ${keyword} (${startDate} ~ ${endDate})`);
+        
+        // 기간 정보 (안내용)
+        const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
 
-        // 1. 언론보도 효과성 데이터 수집 (스마트 분할 조회)
+        // 1. 언론보도 효과성 데이터 수집
         let newsData = null;
         const progressMessages = [];
         
@@ -64,8 +56,10 @@ router.post('/search-info', async (req, res) => {
                 progressMessages.push(message);
             };
             
-            // 스마트 분할 조회
-            const allNewsItems = await collectNewsSmart(keyword, start, end, progressCallback);
+            progressCallback(`뉴스 데이터 조회 중... (${startDate} ~ ${endDate})`);
+            
+            // 단순 조회 (네이버 뉴스 API는 날짜 범위 지정 불가, 최신 1000건만 조회 가능)
+            const allNewsItems = await collectNewsForPeriod(keyword, start, end);
             
             const filteredNews = allNewsItems.map(item => {
                 // originallink가 있으면 우선 사용, 없으면 link 사용
@@ -108,14 +102,20 @@ router.post('/search-info', async (req, res) => {
                 }
             });
 
-            // 네이버뉴스 API 제한 확인 (950건 이상 시 경고)
+            // 네이버뉴스 API 제한 확인 및 안내
             const apiLimitWarning = filteredNews.length >= 950;
+            const apiLimitMessage = apiLimitWarning 
+                ? '네이버 뉴스 API 제한(최대 1000건)에 도달했습니다. 일부 데이터가 누락되었을 수 있습니다.'
+                : (filteredNews.length > 0 && daysDiff > 90 
+                    ? '네이버 뉴스 API는 날짜 범위 지정이 불가하여 최신 1000건만 조회됩니다. 기간이 길 경우 최신 데이터만 포함될 수 있습니다.'
+                    : null);
             
             newsData = {
                 news: filteredNews,
                 aggregated: aggregated,
                 totalCount: filteredNews.length,
                 apiLimitWarning: apiLimitWarning,
+                apiLimitMessage: apiLimitMessage,
                 progressMessages: progressMessages
             };
         } catch (error) {
