@@ -3376,18 +3376,26 @@ async function searchHotTopicInfo() {
         return;
     }
     
-    // 최대 3개월 제한 확인
+    // 최대 1년 제한 확인
     const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-    const maxDays = 90; // 3개월
+    const maxDays = 365; // 1년
     
     if (daysDiff > maxDays) {
-        showToast(`분석 기간은 최대 ${maxDays}일(3개월)까지만 가능합니다. 현재 기간: ${daysDiff}일`);
+        showToast(`분석 기간은 최대 ${maxDays}일(1년)까지만 가능합니다. 현재 기간: ${daysDiff}일`);
         return;
     }
     
     const searchInfoBtn = document.getElementById('searchInfoBtn');
+    const progressInfo = document.getElementById('hotTopicProgressInfo');
+    
     searchInfoBtn.disabled = true;
     searchInfoBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>검색 중...';
+    
+    // 진행 상황 표시 영역 표시
+    if (progressInfo) {
+        progressInfo.style.display = 'block';
+        progressInfo.innerHTML = '<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>뉴스 데이터 수집 중...</div>';
+    }
     
     try {
         const response = await fetch(`${API_BASE_URL}/api/hot-topic-analysis/search-info`, {
@@ -3405,6 +3413,14 @@ async function searchHotTopicInfo() {
         const result = await response.json();
         
         if (result.success) {
+            // 진행 상황 업데이트
+            if (result.data.newsData?.progressMessages && progressInfo) {
+                const lastMessage = result.data.newsData.progressMessages[result.data.newsData.progressMessages.length - 1];
+                if (lastMessage) {
+                    progressInfo.innerHTML = `<div class="alert alert-success"><i class="fas fa-check-circle me-2"></i>${lastMessage}</div>`;
+                }
+            }
+            
             hotTopicData = {
                 keyword,
                 startDate,
@@ -3434,6 +3450,9 @@ async function searchHotTopicInfo() {
         }
     } catch (error) {
         console.error('정보검색 오류:', error);
+        if (progressInfo) {
+            progressInfo.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i>오류가 발생했습니다: ' + error.message + '</div>';
+        }
         showToast('정보검색 중 오류가 발생했습니다: ' + error.message);
     } finally {
         searchInfoBtn.disabled = false;

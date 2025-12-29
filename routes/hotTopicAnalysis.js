@@ -40,68 +40,45 @@ router.post('/search-info', async (req, res) => {
             });
         }
 
-        // 최대 3개월 제한
+        // 최대 1년 제한
         const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-        const maxDays = 90; // 3개월
+        const maxDays = 365; // 1년
         
         if (daysDiff > maxDays) {
             return res.status(400).json({
             success: false,
-                message: `분석 기간은 최대 ${maxDays}일(3개월)까지만 가능합니다. 현재 기간: ${daysDiff}일`
+                message: `분석 기간은 최대 ${maxDays}일(1년)까지만 가능합니다. 현재 기간: ${daysDiff}일`
             });
         }
 
         console.log(`🔍 정보검색 시작: ${keyword} (${startDate} ~ ${endDate})`);
 
-        // 1. 언론보도 효과성 데이터 수집 (한번에 조회)
+        // 1. 언론보도 효과성 데이터 수집 (스마트 분할 조회)
         let newsData = null;
+        const progressMessages = [];
+        
         try {
-            let allNewsItems = [];
-            const maxPages = 10; // 최대 10페이지 (1000건)
+            // 진행 상황 콜백
+            const progressCallback = (message) => {
+                console.log(`📊 ${message}`);
+                progressMessages.push(message);
+            };
             
-            // 한번에 조회 (월별 분할 제거)
-            for (let page = 1; page <= maxPages; page++) {
-                const newsResponse = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-                    headers: {
-                        'X-Naver-Client-Id': NAVER_CLIENT_ID,
-                        'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
-                    },
-                    params: {
-                        query: keyword,
-                        display: 100,
-                        sort: 'date',
-                        start: (page - 1) * 100 + 1
-                    }
-                });
-
-                const pageItems = newsResponse.data.items || [];
-                if (pageItems.length === 0) break;
-                
-                allNewsItems = allNewsItems.concat(pageItems);
-                
-                // API 호출 간격 조절
-                if (page < maxPages) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
-            }
-
-            const filteredNews = allNewsItems
-                .filter(item => {
-                    const pubDate = new Date(item.pubDate);
-                    return pubDate >= start && pubDate <= end;
-                })
-                .map(item => {
-                    // originallink가 있으면 우선 사용, 없으면 link 사용
-                    const newsLink = item.originallink || item.link;
-                    return {
-                        title: item.title.replace(/<[^>]+>/g, ''),
-                        link: newsLink,
-                        description: item.description.replace(/<[^>]+>/g, ''),
-                        pubDate: new Date(item.pubDate).toISOString().split('T')[0],
-                        source: extractSourceFromLink(newsLink),
-                        originallink: item.originallink
-                    };
-                });
+            // 스마트 분할 조회
+            const allNewsItems = await collectNewsSmart(keyword, start, end, progressCallback);
+            
+            const filteredNews = allNewsItems.map(item => {
+                // originallink가 있으면 우선 사용, 없으면 link 사용
+                const newsLink = item.originallink || item.link;
+                return {
+                    title: item.title.replace(/<[^>]+>/g, ''),
+                    link: newsLink,
+                    description: item.description.replace(/<[^>]+>/g, ''),
+                    pubDate: new Date(item.pubDate).toISOString().split('T')[0],
+                    source: extractSourceFromLink(newsLink),
+                    originallink: item.originallink
+                };
+            });
 
             // 날짜별 집계 (전체 기간 포함, 뉴스 없는 날은 0으로 표시)
             const aggregated = {};
@@ -138,7 +115,8 @@ router.post('/search-info', async (req, res) => {
                 news: filteredNews,
                 aggregated: aggregated,
                 totalCount: filteredNews.length,
-                apiLimitWarning: apiLimitWarning
+                apiLimitWarning: apiLimitWarning,
+                progressMessages: progressMessages
             };
         } catch (error) {
             console.error('언론보도 효과성 데이터 수집 오류:', error.message);
@@ -582,6 +560,151 @@ ${naverTrendData}
 
 **참고**: 마크다운 형식으로 작성하고, 표나 리스트를 적절히 활용해주세요.
 `;
+}
+
+// 뉴스 API 스마트 분할 조회 함수
+async function collectNewsSmart(keyword, startDate, endDate, progressCallback = null) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    let allNewsItems = [];
+    
+    // 1단계: 전체 기간으로 조회 시도
+    if (progressCallback) {
+        progressCallback(`전체 기간 조회 중... (${start.toISOString().split('T')[0]} ~ ${end.toISOString().split('T')[0]})`);
+    }
+    
+    let newsItems = await collectNewsForPeriod(keyword, start, end);
+    
+    // 1000건 이하면 그대로 반환
+    if (newsItems.length <= 1000) {
+        if (progressCallback) {
+            progressCallback(`조회 완료: ${newsItems.length}건`);
+        }
+        return newsItems;
+    }
+    
+    // 2단계: 분기 단위로 재시도
+    if (progressCallback) {
+        progressCallback(`데이터가 많아 분기 단위로 조회 중... (${newsItems.length}건 초과)`);
+    }
+    
+    allNewsItems = [];
+    let currentQuarter = new Date(start);
+    currentQuarter.setDate(1); // 월의 첫날로 설정
+    
+    while (currentQuarter <= end) {
+        // 분기 시작일 계산
+        const quarterStart = new Date(currentQuarter);
+        const quarterMonth = Math.floor(quarterStart.getMonth() / 3) * 3;
+        quarterStart.setMonth(quarterMonth, 1);
+        
+        // 분기 종료일 계산
+        const quarterEnd = new Date(quarterStart);
+        quarterEnd.setMonth(quarterEnd.getMonth() + 3, 0);
+        quarterEnd.setHours(23, 59, 59, 999);
+        
+        // 실제 조회 기간 (요청 기간과 교집합)
+        const queryStart = quarterStart > start ? quarterStart : start;
+        const queryEnd = quarterEnd < end ? quarterEnd : end;
+        
+        if (progressCallback) {
+            const quarterNum = Math.floor(queryStart.getMonth() / 3) + 1;
+            progressCallback(`${queryStart.getFullYear()}년 ${quarterNum}분기 조회 중...`);
+        }
+        
+        let quarterNews = await collectNewsForPeriod(keyword, queryStart, queryEnd);
+        
+        // 분기 단위로도 1000건 초과 시 월 단위로 재시도
+        if (quarterNews.length > 1000) {
+            if (progressCallback) {
+                const quarterNum = Math.floor(queryStart.getMonth() / 3) + 1;
+                progressCallback(`${queryStart.getFullYear()}년 ${quarterNum}분기 데이터가 많아 월 단위로 조회 중...`);
+            }
+            
+            quarterNews = await collectNewsByMonth(keyword, queryStart, queryEnd, progressCallback);
+        }
+        
+        allNewsItems = allNewsItems.concat(quarterNews);
+        
+        // 다음 분기로 이동
+        currentQuarter.setMonth(currentQuarter.getMonth() + 3);
+        
+        // API 호출 간격
+        await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    
+    if (progressCallback) {
+        progressCallback(`조회 완료: 총 ${allNewsItems.length}건`);
+    }
+    
+    return allNewsItems;
+}
+
+// 월별 조회 함수
+async function collectNewsByMonth(keyword, startDate, endDate, progressCallback = null) {
+    let allNewsItems = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    let currentMonth = new Date(start);
+    currentMonth.setDate(1);
+    
+    while (currentMonth <= end) {
+        const monthStart = new Date(currentMonth);
+        const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+        monthEnd.setHours(23, 59, 59, 999);
+        
+        const queryStart = monthStart > start ? monthStart : start;
+        const queryEnd = monthEnd < end ? monthEnd : end;
+        
+        if (progressCallback) {
+            progressCallback(`${queryStart.getFullYear()}년 ${queryStart.getMonth() + 1}월 조회 중...`);
+        }
+        
+        const monthNews = await collectNewsForPeriod(keyword, queryStart, queryEnd);
+        allNewsItems = allNewsItems.concat(monthNews);
+        
+        currentMonth.setMonth(currentMonth.getMonth() + 1);
+        await new Promise(resolve => setTimeout(resolve, 150));
+    }
+    
+    return allNewsItems;
+}
+
+// 기간별 조회 함수 (기존 로직)
+async function collectNewsForPeriod(keyword, startDate, endDate) {
+    let allNewsItems = [];
+    const maxPages = 10; // 최대 10페이지 (1000건)
+    
+    for (let page = 1; page <= maxPages; page++) {
+        const newsResponse = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+            headers: {
+                'X-Naver-Client-Id': NAVER_CLIENT_ID,
+                'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+            },
+            params: {
+                query: keyword,
+                display: 100,
+                sort: 'date',
+                start: (page - 1) * 100 + 1
+            }
+        });
+
+        const pageItems = newsResponse.data.items || [];
+        if (pageItems.length === 0) break;
+        
+        allNewsItems = allNewsItems.concat(pageItems);
+        
+        if (page < maxPages) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
+    
+    // 날짜 필터링
+    return allNewsItems.filter(item => {
+        const pubDate = new Date(item.pubDate);
+        return pubDate >= startDate && pubDate <= endDate;
+    });
 }
 
 // 언론사 추출 함수 (네이버 뉴스 링크 처리 개선)
