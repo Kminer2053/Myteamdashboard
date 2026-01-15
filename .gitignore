@@ -29,3 +29,6 @@ build/
 
 # News Clipping (별도 리포지토리로 관리)
 news_clipping/
+reports/
+test_output/
+test_*.js
