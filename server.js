@@ -76,13 +76,13 @@ app.use(cors({
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], 
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-ADMIN-TOKEN', 'X-BOT-TOKEN'],
     credentials: false
 }));
 app.options('*', cors({ 
     origin: true,  // 모든 origin 허용
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], 
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-ADMIN-TOKEN', 'X-BOT-TOKEN'],
     credentials: false
 }));
 app.use(express.json({ limit: '10mb' }));
