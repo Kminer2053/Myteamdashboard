@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>미래성장처 대시보드 v20251202</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet">
+    <script>window.VITE_API_URL = "https://myteamdashboard.onrender.com";</script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">미래성장처 대시보드</a>
+            <div class="ms-auto">
+                <a href="admin.html" class="text-white" aria-label="관리자 설정">
+                    <i class="fas fa-cog fa-lg" aria-hidden="true"></i>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- 탭 네비게이션 -->
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="schedule-tab" data-bs-toggle="tab" data-bs-target="#schedule" type="button" role="tab" aria-controls="schedule" aria-selected="true">
+                    <i class="fas fa-calendar-alt me-2"></i>업무일정표
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="news-tab" data-bs-toggle="tab" data-bs-target="#news" type="button" role="tab" aria-controls="news" aria-selected="false">
+                    <i class="fas fa-newspaper me-2"></i>뉴스모니터링
+                </button>
+            </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="media-tab" data-bs-toggle="tab" data-bs-target="#media" type="button" role="tab" aria-controls="media" aria-selected="false">
+                                <i class="fas fa-fire me-2"></i>화제성 분석
+                            </button>
+                        </li>
+        </ul>
+
+        <!-- 탭 콘텐츠 -->
+        <div class="tab-content" id="mainTabContent">
+            <!-- 탭 1: 업무일정표 (초기 활성화) -->
+            <div class="tab-pane fade show active" id="schedule" role="tabpanel" aria-labelledby="schedule-tab">
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header section-schedule">
+                                <h5 class="card-title"><i class="fas fa-calendar-alt me-2"></i>업무일정표</h5>
+                            </div>
+                            <div class="card-body section-schedule">
+                                <!-- 일정 등록 모달(팝업) 추가 -->
+                                <div class="modal fade" id="scheduleModal" tabindex="-1">
+                                  <div class="modal-dialog">
+                                    <form class="modal-content" id="modalScheduleForm">
+                                      <div class="modal-header">
+                                        <h5 class="modal-title">일정 등록</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                      </div>
+                                      <div class="modal-body">
+                                        <input type="hidden" id="modalScheduleDate">
+                                        <div class="mb-3">
+                                          <label class="form-label" for="modalScheduleTitle">제목</label>
+                                          <input type="text" class="form-control" id="modalScheduleTitle" required>
+                                        </div>
+                                        <div class="mb-3">
+                                          <label class="form-label" for="modalScheduleTime">시간</label>
+                                          <input type="time" class="form-control" id="modalScheduleTime" required>
+                                        </div>
+                                        <div class="mb-3">
+                                          <label class="form-label" for="modalScheduleContent">내용</label>
+                                          <textarea class="form-control" id="modalScheduleContent" rows="2" required></textarea>
+                                        </div>
+                                      </div>
+                                      <div class="modal-footer">
+                                        <button type="submit" class="btn btn-success">등록</button>
+                                        <button type="button" class="btn btn-danger" id="deleteScheduleBtn" style="display:none;">삭제</button>
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                                      </div>
+                                    </form>
+                                  </div>
+                                </div>
+                                <!-- 일정 등록 비밀번호 확인 모달 추가 -->
+                                <div class="modal fade" id="pwModal" tabindex="-1" aria-labelledby="pwModalLabel" aria-hidden="true">
+                                  <div class="modal-dialog">
+                                    <form class="modal-content" id="pwForm">
+                                      <div class="modal-header">
+                                        <h5 class="modal-title" id="pwModalLabel">관리자 인증</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                                      </div>
+                                      <div class="modal-body">
+                                        <input type="password" class="form-control" id="pwInput" placeholder="비밀번호 입력" required>
+                                      </div>
+                                      <div class="modal-footer">
+                                        <button type="submit" class="btn btn-primary">확인</button>
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                                      </div>
+                                    </form>
+                                  </div>
+                                </div>
+                                <!-- 일정 상세 모달 -->
+                                <div class="modal fade" id="viewScheduleModal" tabindex="-1" aria-labelledby="viewScheduleModalLabel" aria-hidden="true">
+                                  <div class="modal-dialog">
+                                    <div class="modal-content">
+                                      <div class="modal-header">
+                                        <h5 class="modal-title" id="viewScheduleModalLabel">일정 상세</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                                      </div>
+                                      <div class="modal-body">
+                                        <p id="scheduleDetails"></p>
+                                      </div>
+                                      <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div id="calendar"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 탭 2: 뉴스모니터링 (지연 로딩) -->
+            <div class="tab-pane fade" id="news" role="tabpanel" aria-labelledby="news-tab">
+                <div class="row mt-3">
+                    <!-- 리스크이슈 모니터링 -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header section-risk">
+                                <h5 class="card-title"><i class="fas fa-exclamation-triangle me-2"></i>리스크이슈 모니터링</h5>
+                            </div>
+                            <div class="card-body section-risk">
+                                <div id="keywordDisplay" class="mb-3 p-2 bg-light rounded"></div>
+                                <div id="newsFeed"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 제휴처 탐색 -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header section-partner">
+                                <h5 class="card-title"><i class="fas fa-handshake me-2"></i>제휴처 탐색</h5>
+                            </div>
+                            <div class="card-body section-partner">
+                                <div id="partnerDisplay" class="mb-3 p-2 bg-light rounded"></div>
+                                <div id="partnerResults"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 신기술 동향 -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header section-tech">
+                                <h5 class="card-title"><i class="fas fa-microchip me-2"></i>신기술 동향</h5>
+                            </div>
+                            <div class="card-body section-tech">
+                                <div id="techDisplay" class="mb-3 p-2 bg-light rounded"></div>
+                                <div id="techTrendResults"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 탭 3: 화제성 분석 (지연 로딩) -->
+            <div class="tab-pane fade" id="media" role="tabpanel" aria-labelledby="media-tab">
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <!-- 분석 설정 카드 -->
+                        <div class="card mb-4">
+                            <div class="card-header section-media">
+                                <h5 class="card-title"><i class="fas fa-cogs me-2"></i>분석 설정</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <!-- 키워드 입력 섹션 -->
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label"><i class="fas fa-tags me-2"></i>분석 키워드</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="keywordInput" placeholder="키워드를 입력하고 Enter를 누르세요">
+                                                <button class="btn btn-outline-secondary" type="button" id="addKeywordBtn">
+                                                    <i class="fas fa-plus"></i>
+                                                </button>
+                                            </div>
+                                            <div class="form-text">동일 이슈/토픽의 다양한 키워드를 입력하여 종합 화제성을 분석합니다.</div>
+                                        </div>
+                                        <div id="keywordTags" class="mb-3">
+                                            <!-- 키워드 태그들이 여기에 표시됩니다 -->
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 분석 기간 설정 -->
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label"><i class="fas fa-calendar me-2"></i>분석 기간</label>
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <input type="date" class="form-control" id="startDate">
+                                                </div>
+                                                <div class="col-6">
+                                                    <input type="date" class="form-control" id="endDate">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 데이터 소스 선택 -->
+                                        <div class="mb-3">
+                                            <label class="form-label"><i class="fas fa-database me-2"></i>데이터 소스</label>
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="naver-news" id="sourceNews" checked>
+                                                        <label class="form-check-label" for="sourceNews">
+                                                            <i class="fas fa-newspaper me-1"></i>네이버 뉴스
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="naver-trend" id="sourceTrend">
+                                                        <label class="form-check-label" for="sourceTrend">
+                                                            <i class="fas fa-chart-line me-1"></i>검색트렌드
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="youtube" id="sourceYoutube">
+                                                        <label class="form-check-label" for="sourceYoutube">
+                                                            <i class="fab fa-youtube me-1"></i>YouTube
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="naver-shopping" id="sourceShopping">
+                                                        <label class="form-check-label" for="sourceShopping">
+                                                            <i class="fas fa-shopping-cart me-1"></i>쇼핑인사이트
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row mt-2">
+                                                <div class="col-6">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="twitter" id="sourceTwitter">
+                                                        <label class="form-check-label" for="sourceTwitter">
+                                                            <i class="fab fa-twitter me-1"></i>Twitter
+                                                        </label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="instagram" id="sourceInstagram">
+                                                        <label class="form-check-label" for="sourceInstagram">
+                                                            <i class="fab fa-instagram me-1"></i>Instagram
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" value="tiktok" id="sourceTikTok">
+                                                        <label class="form-check-label" for="sourceTikTok">
+                                                            <i class="fab fa-tiktok me-1"></i>TikTok
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 분석 시작 버튼 -->
+                                <div class="text-center">
+                                    <button class="btn btn-primary btn-lg" id="startAdvancedAnalysis">
+                                        <i class="fas fa-fire me-2"></i>화제성 분석 시작
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 진행상황 카드 -->
+                        <div class="card mb-4" id="progressCard" style="display: none;">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0"><i class="fas fa-spinner fa-spin me-2"></i>분석 진행상황</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="progress mb-3">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                         id="progressBar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                                <div id="progressLog" class="small text-muted">
+                                    <!-- 진행 로그가 여기에 표시됩니다 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 결과 대시보드 -->
+                        <div class="card" id="resultsCard" style="display: none;">
+                            <div class="card-header section-media">
+                                <h5 class="card-title"><i class="fas fa-chart-bar me-2"></i>분석 결과</h5>
+                                <div class="btn-group ms-auto">
+                                    <button class="btn btn-sm btn-outline-primary" id="downloadReportBtn">
+                                        <i class="fas fa-download me-1"></i>PDF 다운로드
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-success" id="downloadDataBtn">
+                                        <i class="fas fa-file-csv me-1"></i>CSV 다운로드
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <!-- 종합 점수 -->
+                                <div class="row mb-4">
+                                    <div class="col-md-3">
+                                        <div class="text-center p-3 bg-primary text-white rounded">
+                                            <h3 id="overallScore">-</h3>
+                                            <small>종합 점수</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center p-3 bg-info text-white rounded">
+                                            <h3 id="exposureScore">-</h3>
+                                            <small>노출 지표</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center p-3 bg-success text-white rounded">
+                                            <h3 id="engagementScore">-</h3>
+                                            <small>참여 지표</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="text-center p-3 bg-warning text-white rounded">
+                                            <h3 id="demandScore">-</h3>
+                                            <small>수요 지표</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 일자별 화제성 변화 -->
+                                <div class="row mb-4">
+                                    <div class="col-12">
+                                        <div class="card">
+                                            <div class="card-header d-flex justify-content-between align-items-center">
+                                                <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>일자별 화제성 변화</h6>
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <input type="radio" class="btn-check" name="chartType" id="chartOverall" value="overall" checked>
+                                                    <label class="btn btn-outline-primary" for="chartOverall">종합</label>
+                                                    
+                                                    <input type="radio" class="btn-check" name="chartType" id="chartExposure" value="exposure">
+                                                    <label class="btn btn-outline-info" for="chartExposure">노출</label>
+                                                    
+                                                    <input type="radio" class="btn-check" name="chartType" id="chartEngagement" value="engagement">
+                                                    <label class="btn btn-outline-success" for="chartEngagement">참여</label>
+                                                    
+                                                    <input type="radio" class="btn-check" name="chartType" id="chartDemand" value="demand">
+                                                    <label class="btn btn-outline-warning" for="chartDemand">수요</label>
+                                                </div>
+                                            </div>
+                                            <div class="card-body">
+                                                <canvas id="trendChart" height="400"></canvas>
+                                                <div class="mt-2">
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-info-circle me-1"></i>
+                                                        차트의 점을 클릭하면 해당 일자의 상세 데이터를 확인할 수 있습니다.
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- AI 분석 인사이트 -->
+                                <div class="row mt-4">
+                                    <div class="col-12">
+                                        <div class="card">
+                                            <div class="card-header d-flex justify-content-between align-items-center">
+                                                <h6 class="mb-0"><i class="fas fa-brain me-2"></i>AI 분석 인사이트</h6>
+                                                <small class="text-muted">Perplexity AI 기반 종합 분석</small>
+                                            </div>
+                                            <div class="card-body">
+                                                <div id="aiInsights">
+                                                    <div class="text-center text-muted">
+                                                        <i class="fas fa-spinner fa-spin me-2"></i>AI 분석 중...
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 지표 해석 가이드 -->
+                                <div class="row mt-4">
+                                    <div class="col-12">
+                                        <div class="card bg-light">
+                                            <div class="card-header">
+                                                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>지표 해석 가이드</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="row">
+                                                    <div class="col-md-3">
+                                                        <div class="text-center">
+                                                            <div class="metric-icon mb-2">
+                                                                <i class="fas fa-eye fa-2x text-info"></i>
+                                                            </div>
+                                                            <h6 class="metric-exposure">노출 지표</h6>
+                                                            <small class="text-muted">
+                                                                뉴스 기사 수, 검색량,<br>
+                                                                미디어 노출 빈도
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="text-center">
+                                                            <div class="metric-icon mb-2">
+                                                                <i class="fas fa-heart fa-2x text-success"></i>
+                                                            </div>
+                                                            <h6 class="metric-engagement">참여 지표</h6>
+                                                            <small class="text-muted">
+                                                                댓글, 공유, 좋아요,<br>
+                                                                사용자 상호작용
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="text-center">
+                                                            <div class="metric-icon mb-2">
+                                                                <i class="fas fa-shopping-cart fa-2x text-warning"></i>
+                                                            </div>
+                                                            <h6 class="metric-demand">수요 지표</h6>
+                                                            <small class="text-muted">
+                                                                쇼핑 검색량, 구매 의도,<br>
+                                                                상품 관심도
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <div class="text-center">
+                                                            <div class="metric-icon mb-2">
+                                                                <i class="fas fa-chart-line fa-2x text-primary"></i>
+                                                            </div>
+                                                            <h6 class="metric-overall">종합 점수</h6>
+                                                            <small class="text-muted">
+                                                                <strong>가중평균:</strong><br>
+                                                                노출(30%) + 참여(40%) + 수요(30%)
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 상세 데이터 테이블 -->
+                                <div class="row mt-4">
+                                    <div class="col-12">
+                                        <div class="card">
+                                            <div class="card-header d-flex justify-content-between align-items-center">
+                                                <h6 class="mb-0"><i class="fas fa-table me-2"></i>상세 데이터</h6>
+                                                <small class="text-muted" id="selectedDateInfo">차트의 점을 클릭하여 특정 일자 데이터를 확인하세요</small>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="table-responsive">
+                                                    <table class="table table-striped table-hover" id="dataTable">
+                                                        <thead class="table-dark">
+                                                            <tr>
+                                                                <th>날짜</th>
+                                                                <th>키워드</th>
+                                                                <th>채널</th>
+                                                                <th>노출수</th>
+                                                                <th>참여수</th>
+                                                                <th>수요지수</th>
+                                                                <th>종합점수</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <!-- 데이터가 여기에 표시됩니다 -->
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" role="alert" aria-live="polite" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#333; color:#fff; padding:10px 20px; border-radius:5px; z-index:9999; font-size:1rem;"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/ko.js"></script>
+    <script type="module" src="/app.js?v=20251202-2"></script>
+    <script>
+        let scheduleModal = new bootstrap.Modal(document.getElementById('scheduleModal'));
+    </script>
+</body>
+</html>

@@ -23,7 +23,7 @@ yarn-error.log*
 Thumbs.db
 
 # Build
-dist/
+# dist/ - 이제 배포에 포함
 build/ 
 .vercel
 

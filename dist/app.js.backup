@@ -1,0 +1,2042 @@
+// API 기본 URL 설정 (전역)
+const API_BASE_URL = window.VITE_API_URL || 'https://myteamdashboard.onrender.com';
+
+// pubDate에서 YYYY-MM-DD 추출 함수 (전역) - 한국시간 기준
+function extractDate(pubDate) {
+    if (!pubDate) return '';
+    
+    // 이미 YYYY-MM-DD 형식인 경우
+    if (/^\d{4}-\d{2}-\d{2}$/.test(pubDate)) {
+        return pubDate;
+    }
+    
+    // 한국어 형식: 2025. 5. 19. 오전 9:02:00
+    const match = pubDate.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\./);
+    if (match) {
+        const [, y, m, d] = match;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    
+    // ISO 포맷(UTC)일 경우 한국시간으로 변환
+    const d = new Date(pubDate);
+    if (isNaN(d)) return '';
+    
+    // UTC를 한국시간(KST)으로 변환 (UTC+9)
+    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    return kst.toISOString().slice(0, 10);
+}
+
+// 서버에서 공인된 KST 기준 오늘 날짜를 받아오는 비동기 함수
+async function getKoreaToday() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/korea-today`);
+        const data = await res.json();
+        return data.today;
+    } catch (e) {
+        // 네트워크 오류 등 발생 시 fallback: 기존 방식
+        const now = new Date();
+        const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+        const year = kst.getUTCFullYear();
+        const month = String(kst.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(kst.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+}
+
+// === 토스트 메시지 함수 (전역) ===
+function showToast(msg) {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.style.display = 'none';
+        toast.style.position = 'fixed';
+        toast.style.top = '50%';
+        toast.style.left = '50%';
+        toast.style.transform = 'translate(-50%,-50%)';
+        toast.style.background = '#333';
+        toast.style.color = '#fff';
+        toast.style.padding = '10px 20px';
+        toast.style.borderRadius = '5px';
+        toast.style.zIndex = '9999';
+        toast.style.fontSize = '1rem';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 2000);
+}
+
+// 캘린더 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    let holidayDates = [];
+
+    // 대시보드 방문자수 기록
+    fetch(`${API_BASE_URL}/api/visit`, { method: 'POST' });
+
+    // 일정 데이터 서버에서 불러오기
+    async function loadUserEvents() {
+        const res = await fetch(`${API_BASE_URL}/api/schedules`);
+        const events = await res.json();
+        return events.map(ev => ({
+            ...ev,
+            id: ev._id,
+            start: ev.start,
+            end: ev.end,
+            title: ev.title,
+            allDay: ev.allDay,
+            extendedProps: { content: ev.content, id: ev._id },
+            backgroundColor: ev.backgroundColor,
+            borderColor: ev.borderColor,
+            textColor: ev.textColor
+        }));
+    }
+    // 일정 추가
+    async function addUserEvent(event) {
+        const res = await fetch(`${API_BASE_URL}/api/schedules`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(event)
+        });
+        
+        // 응답 상태 확인
+        if (!res.ok) {
+            throw new Error(`서버 오류: ${res.status} ${res.statusText}`);
+        }
+        
+        const result = await res.json();
+        
+        // 로깅은 별도로 처리 (실패해도 일정 저장은 성공)
+        try {
+            await logUserAction('일정등록', { event });
+        } catch (logError) {
+            console.warn('사용자 액션 로깅 실패:', logError.message);
+        }
+        
+        return result;
+    }
+    // 일정 수정
+    async function updateUserEvent(id, event) {
+        const res = await fetch(`${API_BASE_URL}/api/schedules/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(event)
+        });
+        
+        // 응답 상태 확인
+        if (!res.ok) {
+            throw new Error(`서버 오류: ${res.status} ${res.statusText}`);
+        }
+        
+        const result = await res.json();
+        
+        // 로깅은 별도로 처리 (실패해도 일정 수정은 성공)
+        try {
+            await logUserAction('일정수정', { id, event });
+        } catch (logError) {
+            console.warn('사용자 액션 로깅 실패:', logError.message);
+        }
+        
+        return result;
+    }
+    // 일정 삭제
+    async function deleteUserEvent(id) {
+        const res = await fetch(`${API_BASE_URL}/api/schedules/${id}`, { method: 'DELETE' });
+        
+        // 응답 상태 확인
+        if (!res.ok) {
+            throw new Error(`서버 오류: ${res.status} ${res.statusText}`);
+        }
+        
+        const result = await res.json();
+        
+        // 로깅은 별도로 처리 (실패해도 일정 삭제는 성공)
+        try {
+            await logUserAction('일정삭제', { id });
+        } catch (logError) {
+            console.warn('사용자 액션 로깅 실패:', logError.message);
+        }
+        
+        return result;
+    }
+
+    // 공휴일 데이터 가져오기 (연도 전체)
+    async function fetchHolidays(year) {
+        try {
+            const API_KEY = 'DTrcjG%2BXCsB9m%2F6xPK4LmJ%2FG61dwF%2B3h%2FM7Rzv4IbI9ilfsqDRFErvOryzE45LblhwWpU4GSwuoA9W8CxVav5A%3D%3D';
+            const response = await fetch(`https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${API_KEY}&solYear=${year}&_type=json&numOfRows=100`);
+            const data = await response.json();
+            if (data.response && data.response.body && data.response.body.items) {
+                let items = data.response.body.items.item;
+                if (!Array.isArray(items)) items = [items];
+                return items.map(holiday => ({
+                    date: `${holiday.locdate}`.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
+                    title: holiday.dateName
+                }));
+            }
+            return [];
+        } catch (error) {
+            console.error('공휴일 데이터를 가져오는데 실패했습니다:', error);
+            return [];
+        }
+    }
+
+    // 월별 공휴일만 반환
+    function getMonthHolidays(holidays, year, month) {
+        return holidays.filter(h => {
+            const [y, m, d] = h.date.split('-').map(Number);
+            return y === year && (m - 1) === month;
+        }).map(h => ({
+            title: h.title,
+            start: h.date,
+            allDay: true,
+            backgroundColor: '#ff4444',
+            borderColor: '#ff4444',
+            textColor: '#fff'
+        }));
+    }
+
+    // FullCalendar 인스턴스 생성
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'ko',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth'
+        },
+        height: 'parent',
+        events: async function(fetchInfo, successCallback, failureCallback) {
+            // fetchInfo.start ~ fetchInfo.end의 중간 날짜를 기준으로 연/월 계산
+            const midTime = (fetchInfo.start.getTime() + fetchInfo.end.getTime()) / 2;
+            const currentDate = new Date(midTime);
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth(); // 0부터 시작 (5월이면 4)
+            const holidays = await fetchHolidays(year);
+            const monthHolidays = getMonthHolidays(holidays, year, month);
+            try {
+                const userEvents = await loadUserEvents();
+                const filteredEvents = userEvents.filter(ev => {
+                    const start = new Date(ev.start);
+                    return start.getFullYear() === year && start.getMonth() === month;
+                });
+                holidayDates = monthHolidays.map(h => h.start || h.date);
+                successCallback([...monthHolidays, ...filteredEvents]);
+            } catch (error) {
+                console.error('일정 로드 중 오류:', error);
+                failureCallback(error);
+            }
+            setTimeout(() => {
+                document.querySelectorAll('.fc-daygrid-day').forEach(cell => {
+                    const dateStr = cell.getAttribute('data-date');
+                    const dayNum = new Date(dateStr).getDay();
+                    const dateNumberEl = cell.querySelector('.fc-daygrid-day-number');
+                    if (dateNumberEl) {
+                        if (holidayDates.includes(dateStr)) {
+                            dateNumberEl.style.color = '#ff4444';
+                        } else if (dayNum === 0 || dayNum === 6) {
+                            dateNumberEl.style.color = '#ff4444';
+                        } else {
+                            dateNumberEl.style.color = '#222';
+                        }
+                    }
+                });
+            }, 10);
+        },
+        eventDidMount: function(info) {
+            if (info.event.backgroundColor === '#ff4444') {
+                info.el.style.backgroundColor = '#ff4444';
+                info.el.style.color = '#fff';
+            }
+        },
+        dayCellDidMount: function(info) {
+            const dayNum = info.date.getDay();
+            if (dayNum === 0 || dayNum === 6) {
+                info.el.style.backgroundColor = '#f8f9fa';
+            }
+        },
+        dateClick: function(info) {
+            // 항상 신규등록: 입력폼 초기화
+            modalScheduleDate.value = info.dateStr;
+            modalScheduleTitle.value = '';
+            modalScheduleTime.value = '';
+            modalScheduleContent.value = '';
+            pendingEvent = { date: info.dateStr, action: 'create' };
+            pwInput.value = '';
+            pwModal.show();
+        },
+        eventClick: function(info) {
+            // 공휴일이 아닌 사용자 일정만 등록 모달로 확인/수정/삭제 가능하게
+            if (info.event.backgroundColor !== '#ff4444') {
+                const event = info.event;
+                // 수정: 기존 값 채우기
+                modalScheduleDate.value = event.start ? event.start.toISOString().slice(0, 10) : '';
+                modalScheduleTitle.value = event.title || '';
+                if (event.start) {
+                    const hours = event.start.getHours().toString().padStart(2, '0');
+                    const minutes = event.start.getMinutes().toString().padStart(2, '0');
+                    modalScheduleTime.value = `${hours}:${minutes}`;
+                } else {
+                    modalScheduleTime.value = '';
+                }
+                modalScheduleContent.value = (event.extendedProps && event.extendedProps.content) ? event.extendedProps.content : '';
+                pendingEvent = { id: event.extendedProps && event.extendedProps.id ? event.extendedProps.id : event.id, action: 'edit' };
+                document.getElementById('deleteScheduleBtn').style.display = 'inline-block';
+                scheduleModal.show();
+            }
+        },
+        eventContent: function(arg) {
+            // 사용자 일정은 제목만, 공휴일은 기존대로
+            if (arg.event.backgroundColor === '#ff4444') {
+                if (arg.event.extendedProps && arg.event.extendedProps.content) {
+                    return {
+                        html: `<b>${arg.event.title}</b><br><small>${arg.event.extendedProps.content}</small>`
+                    };
+                } else {
+                    return { html: `<b>${arg.event.title}</b>` };
+                }
+            } else {
+                return { html: `<b>${arg.event.title}</b>` };
+            }
+        },
+        datesSet: function() {
+            calendar.refetchEvents();
+        }
+    });
+
+    calendar.render();
+
+    // 모달 관련 변수는 반드시 이 시점 이후에!
+    let scheduleModal = new bootstrap.Modal(document.getElementById('scheduleModal'));
+    let modalScheduleForm = document.getElementById('modalScheduleForm');
+    let modalScheduleDate = document.getElementById('modalScheduleDate');
+    let modalScheduleTitle = document.getElementById('modalScheduleTitle');
+    let modalScheduleTime = document.getElementById('modalScheduleTime');
+    let modalScheduleContent = document.getElementById('modalScheduleContent');
+    let pwModal = new bootstrap.Modal(document.getElementById('pwModal'));
+    let pwForm = document.getElementById('pwForm');
+    let pwInput = document.getElementById('pwInput');
+    let viewScheduleModal = new bootstrap.Modal(document.getElementById('viewScheduleModal'));
+    let viewScheduleBody = document.getElementById('viewScheduleBody');
+
+    // 임시로 일정 등록 정보 저장
+    let pendingEvent = null;
+
+
+
+    // 일정등록 모달 제출
+    modalScheduleForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        if (!(pendingEvent && pendingEvent.pwChecked)) {
+            pendingEvent.action = pendingEvent && pendingEvent.id ? 'edit' : 'create';
+            pwInput.value = '';
+            pwModal.show();
+            return;
+        }
+        const title = modalScheduleTitle.value;
+        const date = modalScheduleDate.value;
+        const time = modalScheduleTime.value;
+        const content = modalScheduleContent.value;
+        const start = date + 'T' + (time ? time : '00:00');
+        let events = await loadUserEvents();
+        let newEvent = {
+            title,
+            start,
+            allDay: false,
+            content,
+            backgroundColor: '#1976d2',
+            borderColor: '#1976d2',
+            textColor: '#fff',
+        };
+        // === 스피너 표시 ===
+        const submitBtn = modalScheduleForm.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 저장 중...';
+        try {
+            if (!(pendingEvent && pendingEvent.id)) {
+                newEvent.id = Date.now().toString();
+                events.push(newEvent);
+                await addUserEvent(newEvent);
+                calendar.refetchEvents();
+                scheduleModal.hide();
+                showToast('일정이 등록되었습니다.');
+            } else {
+                newEvent.id = pendingEvent.id;
+                const beforeEvent = events.find(ev => ev.id === pendingEvent.id);
+                events = events.map(ev => (ev.id === pendingEvent.id ? newEvent : ev));
+                await updateUserEvent(pendingEvent.id, newEvent);
+                calendar.refetchEvents();
+                scheduleModal.hide();
+                showToast('일정이 수정되었습니다.');
+            }
+        } catch (err) {
+            console.error('일정 저장 오류:', err);
+            showToast(`일정 저장 중 오류가 발생했습니다: ${err.message}`);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '등록';
+            pendingEvent = null;
+        }
+    });
+
+    // 일정 삭제 기능
+    const deleteBtn = document.getElementById('deleteScheduleBtn');
+    deleteBtn.addEventListener('click', async function() {
+        if (!(pendingEvent && pendingEvent.pwChecked)) {
+            pendingEvent.action = 'delete';
+            pwInput.value = '';
+            pwModal.show();
+            return;
+        }
+        if (pendingEvent && pendingEvent.id) {
+            // === 스피너 표시 ===
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 삭제 중...';
+            try {
+                let events = await loadUserEvents();
+                events = events.filter(ev => ev.id !== pendingEvent.id);
+                await deleteUserEvent(pendingEvent.id);
+                calendar.refetchEvents();
+                scheduleModal.hide();
+                showToast('일정을 삭제했습니다.');
+                pendingEvent = null;
+            } catch (err) {
+                console.error('일정 삭제 오류:', err);
+                showToast(`일정 삭제 중 오류가 발생했습니다: ${err.message}`);
+            } finally {
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = '삭제';
+            }
+        }
+    });
+
+    // 비밀번호 확인 모달 제출
+    pwForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (pwInput.value === 'admin123') {
+            // 비밀번호 맞으면 액션별로 처리
+            if (pendingEvent && pendingEvent.action === 'create') {
+                pendingEvent.pwChecked = true;
+                pwModal.hide();
+                scheduleModal.show();
+            } else if (pendingEvent && pendingEvent.action === 'edit') {
+                pendingEvent.pwChecked = true;
+                pwModal.hide();
+                // 바로 저장 및 모달 종료까지 진행
+                modalScheduleForm.requestSubmit();
+            } else if (pendingEvent && pendingEvent.action === 'delete') {
+                pendingEvent.pwChecked = true;
+                pwModal.hide();
+                document.getElementById('deleteScheduleBtn').click();
+            }
+        } else {
+            alert('비밀번호가 일치하지 않습니다.');
+            pwInput.value = '';
+            pwInput.focus();
+        }
+    });
+
+    // ===== 리스크 이슈 키워드 서버 연동 =====
+    async function loadKeywords() {
+        const res = await fetch(`${API_BASE_URL}/api/risk-keywords`);
+        const keywords = await res.json();
+        return keywords.map(k => k.value);
+    }
+    async function addKeyword(value) {
+        const res = await fetch(`${API_BASE_URL}/api/risk-keywords`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ value })
+        });
+        return await res.json();
+    }
+    async function deleteKeyword(id) {
+        const res = await fetch(`${API_BASE_URL}/api/risk-keywords/${id}`, { method: 'DELETE' });
+        return await res.json();
+    }
+
+    // ===== 제휴처 조건 서버 연동 =====
+    async function loadPartnerConditions() {
+        const res = await fetch(`${API_BASE_URL}/api/partner-conditions`);
+        const conds = await res.json();
+        return conds.map(c => c.value);
+    }
+    async function addPartnerCondition(value) {
+        const res = await fetch(`${API_BASE_URL}/api/partner-conditions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ value })
+        });
+        return await res.json();
+    }
+    async function deletePartnerCondition(id) {
+        const res = await fetch(`${API_BASE_URL}/api/partner-conditions/${id}`, { method: 'DELETE' });
+        return await res.json();
+    }
+
+    // ===== 신기술 주제 서버 연동 =====
+    async function loadTechTopics() {
+        const res = await fetch(`${API_BASE_URL}/api/tech-topics`);
+        const topics = await res.json();
+        return topics.map(t => t.value);
+    }
+    async function addTechTopic(value) {
+        const res = await fetch(`${API_BASE_URL}/api/tech-topics`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ value })
+        });
+        return await res.json();
+    }
+    async function deleteTechTopic(id) {
+        const res = await fetch(`${API_BASE_URL}/api/tech-topics/${id}`, { method: 'DELETE' });
+        return await res.json();
+    }
+
+
+
+    // ===== 리스크 이슈 모니터링 1단계: 키워드 관리 및 뉴스 모킹 =====
+    // 키워드 체크박스 UI 렌더링 (서버 연동)
+    async function renderKeywordDisplay() {
+        const keywords = await loadKeywords();
+        const container = document.getElementById('keywordDisplay');
+        if (!container) return;
+        container.innerHTML = '';
+        if (keywords.length === 0) {
+            container.innerHTML = '<span class="text-muted">등록된 키워드가 없습니다.</span>';
+            renderNews([]);
+            return;
+        }
+        // 키워드를 텍스트로 표시
+        const keywordText = keywords.join(', ');
+        container.innerHTML = `<strong>설정된 키워드:</strong> ${keywordText}`;
+        
+        renderNews(keywords);
+    }
+
+    function renderNewsByChecked() {
+        const container = document.getElementById('keywordCheckboxList');
+        if (!container) return;
+        const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked'))
+            .flatMap(cb => cb.value.split('|').map(v => v.trim()));
+        renderNews(checked);
+    }
+
+    // 리스크 이슈 모니터링 뉴스 UI 렌더링 (무한 스크롤 적용)
+    let riskNewsData = {
+        items: [],
+        totalCount: 0,
+        offset: 0,
+        limit: 50,
+        loading: false,
+        hasMore: true
+    };
+
+    async function renderNews(selectedKeywords) {
+        const newsFeed = document.getElementById('newsFeed');
+        if (!newsFeed) return;
+        
+        // 초기 로딩
+        newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 로딩 중...</div></div>';
+        
+        // 데이터 초기화
+        riskNewsData = {
+            items: [],
+            totalCount: 0,
+            offset: 0,
+            limit: 50,
+            loading: false,
+            hasMore: true
+        };
+        
+        await loadMoreRiskNews();
+    }
+
+    async function loadMoreRiskNews() {
+        if (riskNewsData.loading || !riskNewsData.hasMore) return;
+        
+        riskNewsData.loading = true;
+        const newsFeed = document.getElementById('newsFeed');
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/risk-news?limit=${riskNewsData.limit}&offset=${riskNewsData.offset}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                // 첫 번째 로드인 경우 기존 데이터 초기화
+                if (riskNewsData.offset === 0) {
+                    riskNewsData.items = [];
+                    riskNewsData.todayNews = [];
+                    riskNewsData.otherNews = [];
+                    newsFeed.innerHTML = '';
+                }
+                
+                // 새 데이터 추가
+                riskNewsData.items = [...riskNewsData.items, ...data.data];
+                riskNewsData.todayNews = data.todayNews || [];
+                riskNewsData.otherNews = data.otherNews || [];
+                riskNewsData.totalCount = data.totalCount;
+                riskNewsData.hasMore = data.hasMore;
+                riskNewsData.offset += data.data.length;
+                
+                // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
+                if (riskNewsData.offset === data.data.length || !riskNewsData.analysisReport) {
+                    riskNewsData.analysisReport = data.analysisReport;
+                }
+                
+                await renderRiskNewsContent();
+            }
+        } catch (error) {
+            console.error('리스크 뉴스 로드 실패:', error);
+            if (riskNewsData.offset === 0) {
+                newsFeed.innerHTML = '<div class="alert alert-danger">뉴스를 불러오는데 실패했습니다.</div>';
+            }
+        } finally {
+            riskNewsData.loading = false;
+        }
+    }
+
+    async function renderRiskNewsContent() {
+        const newsFeed = document.getElementById('newsFeed');
+        const today = await getKoreaToday();
+        
+        // 항상 전체 내용 렌더링 (조건 제거)
+        newsFeed.innerHTML = '';
+        
+        // === 분석 보고서 표출 ===
+        const analysisReport = riskNewsData.analysisReport;
+        const reportDiv = document.createElement('div');
+        reportDiv.className = 'card mb-4';
+        reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #6c757d;';
+        reportDiv.innerHTML = `
+            <div class="card-header" style="background: linear-gradient(135deg, #6c757d, #495057); color: white; padding: 15px 20px;">
+                <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport?.analysisModel || 'perplexity-ai'}</small></h6>
+            </div>
+            <div class="card-body" style="padding: 20px;">
+                ${formatStructuredAnalysis(analysisReport?.analysis || '분석 내용이 없습니다.')}
+            </div>
+        `;
+        newsFeed.appendChild(reportDiv);
+        
+        // === 뉴스 현황 표시 ===
+        const todayCount = riskNewsData.todayNews ? riskNewsData.todayNews.length : 0;
+        
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'd-flex justify-content-end align-items-center mb-3';
+        statusDiv.innerHTML = `
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${riskNewsData.totalCount}</b>건</span>
+            <button class="btn btn-sm btn-outline-section-risk" id="refreshRiskBtn">정보갱신</button>
+        `;
+        newsFeed.appendChild(statusDiv);
+        
+        // 정보갱신 버튼 이벤트
+        document.getElementById('refreshRiskBtn').onclick = async function() {
+            const keywords = await loadKeywords();
+            if (!keywords.length) {
+                alert('등록된 키워드가 없습니다.');
+                return;
+            }
+            newsFeed.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>리스크이슈 정보갱신 중...</div></div>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/collect-news/risk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    console.log('리스크 뉴스 수집 완료');
+                } else {
+                    console.error('리스크 뉴스 수집 실패');
+                }
+            } catch (error) {
+                console.error('리스크 뉴스 수집 오류:', error);
+            }
+            
+            await renderNews(keywords);
+        };
+        
+        // === 뉴스 목록 렌더링 ===
+        // 오늘의 뉴스 (서버에서 필터링된 데이터 사용)
+        const todayNews = riskNewsData.todayNews || [];
+        const otherNews = riskNewsData.otherNews || [];
+        
+        console.log('📋 리스크 뉴스 렌더링:', {
+            totalItems: riskNewsData.items.length,
+            todayNews: todayNews.length,
+            otherNews: otherNews.length
+        });
+        
+        // === 오늘의 뉴스 섹션 ===
+        const todayDiv = document.createElement('div');
+        todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+        newsFeed.appendChild(todayDiv);
+        
+        if (todayNews.length > 0) {
+            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            todayNews.forEach(item => {
+                const card = createNewsCard(item, 'risk', 'Today');
+                newsFeed.appendChild(card);
+            });
+        } else {
+            const emptyTodayDiv = document.createElement('div');
+            emptyTodayDiv.className = 'alert alert-info';
+            emptyTodayDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>금일은 뉴스가 없습니다</h5>
+                    <p class="text-muted">오늘 수집된 뉴스가 없습니다.</p>
+                </div>
+            `;
+            newsFeed.appendChild(emptyTodayDiv);
+        }
+        
+        // === 최근 누적 뉴스 섹션 (항상 표시) ===
+        const recentDiv = document.createElement('div');
+        recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+        newsFeed.appendChild(recentDiv);
+        
+        // 누적 뉴스 (todayNews + otherNews 합쳐서 사용)
+        const allNews = [...todayNews, ...otherNews];
+        if (allNews.length > 0) {
+            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            allNews.forEach(item => {
+                const card = createNewsCard(item, 'risk');
+                newsFeed.appendChild(card);
+            });
+        } else {
+            const emptyRecentDiv = document.createElement('div');
+            emptyRecentDiv.className = 'alert alert-info';
+            emptyRecentDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>누적 뉴스가 없습니다</h5>
+                    <p class="text-muted">기존 누적 데이터가 없습니다.</p>
+                </div>
+            `;
+            newsFeed.appendChild(emptyRecentDiv);
+        }
+        
+        // 무한 스크롤 로딩 표시
+        if (riskNewsData.hasMore) {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'riskLoadingIndicator';
+            loadingDiv.className = 'd-flex justify-content-center my-3';
+            loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+            newsFeed.appendChild(loadingDiv);
+        }
+    }
+
+    // 분석 텍스트 포맷팅 함수
+    function formatStructuredAnalysis(analysis) {
+        if (!analysis) return '분석 내용이 없습니다.';
+        
+        // 문자열인 경우 JSON 파싱 시도
+        if (typeof analysis === 'string') {
+            try {
+                const parsed = JSON.parse(analysis);
+                if (typeof parsed === 'object' && parsed !== null) {
+                    analysis = parsed;
+                }
+            } catch (e) {
+                // JSON 파싱 실패 시 기존 텍스트 처리
+                return formatAnalysisText(analysis);
+            }
+        }
+        
+        // JSON 객체인지 확인
+        if (typeof analysis === 'object' && analysis !== null) {
+            let html = '';
+            
+            // 뉴스요약
+            if (analysis.newsSummary) {
+                html += `
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #333; font-size: 1.1em;">뉴스요약</strong>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.newsSummary}</div>
+                    </div>
+                `;
+            }
+            
+            // 감성점수
+            if (analysis.sentimentScore !== undefined) {
+                html += `
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #333; font-size: 1.1em;">감성점수</strong>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.sentimentScore}</div>
+                    </div>
+                `;
+            }
+            
+            // 주가정보
+            if (analysis.stockSummary) {
+                html += `
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #333; font-size: 1.1em;">주가정보</strong>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.stockSummary}</div>
+                    </div>
+                `;
+            }
+            
+            // 감성점수 해석
+            if (analysis.sentimentCommentary) {
+                html += `
+                    <div style="margin-bottom: 20px;">
+                        <strong style="color: #333; font-size: 1.1em;">감성분석 해석</strong>
+                        <div style="margin-top: 5px; color: #666; line-height: 1.6;">${analysis.sentimentCommentary}</div>
+                    </div>
+                `;
+            }
+            
+            return html || formatAnalysisText(JSON.stringify(analysis));
+        }
+        
+        // 문자열인 경우 기존 함수 사용
+        return formatAnalysisText(analysis);
+    }
+
+    function formatAnalysisText(text) {
+        if (!text) return '분석 내용이 없습니다.';
+        
+        // 구조화된 섹션들 (콜론으로 구분)
+        const sections = text.split(/(?=^[가-힣]+:)/m);
+        
+        if (sections.length > 1) {
+            // 구조화된 텍스트인 경우
+            return sections.map(section => {
+                const trimmed = section.trim();
+                if (!trimmed) return '';
+                
+                if (trimmed.includes(':')) {
+                    const [title, ...content] = trimmed.split(':');
+                    const contentText = content.join(':').trim();
+                    
+                    if (title && contentText) {
+                        return `
+                            <div style="margin-bottom: 15px;">
+                                <strong style="color: #333; font-size: 1.1em;">${title.trim()}</strong>
+                                <div style="margin-top: 5px; color: #666; line-height: 1.6;">${contentText}</div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                return `<div style="color: #666; line-height: 1.6; margin-bottom: 10px;">${trimmed}</div>`;
+            }).join('');
+        } else {
+            // 일반 텍스트인 경우 단락으로 분리
+            const paragraphs = text.split(/\n+/).filter(p => p.trim());
+            return paragraphs.map(paragraph => 
+                `<div style="color: #666; line-height: 1.6; margin-bottom: 10px;">${paragraph.trim()}</div>`
+            ).join('');
+        }
+    }
+
+    // 뉴스 카드 생성 함수
+    function createNewsCard(item, category, badge = '') {
+        const card = document.createElement('div');
+        card.className = 'card mb-3';
+        card.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); overflow: hidden; transition: transform 0.2s;';
+        card.classList.add(`border-${category === 'risk' ? 'danger' : category === 'partner' ? 'primary' : 'success'}`, 'bg-light');
+        
+        const badgeHtml = badge ? `<span class="badge badge-section-${category} me-2">${badge}</span>` : '';
+        
+        card.innerHTML = `
+            <div class="card-header d-flex justify-content-between align-items-center" style="padding: 15px 20px; border-bottom: 1px solid #eee;">
+                <h6 class="card-title mb-0" style="font-weight: bold; color: #333; margin: 0;">
+                    ${badgeHtml}
+                    <a href="${item.link}" target="_blank" style="color: #333; text-decoration: none;">${item.title.replace(/<[^>]+>/g, '')}</a>
+                </h6>
+            </div>
+            <div class="card-body" style="padding: 20px;">
+                ${item.aiSummary ? `<div style="color: #666; line-height: 1.6; margin-bottom: 15px;">${item.aiSummary}</div>` : ''}
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                    ${(item.relatedKeywords || []).map(kw => 
+                        `<span class="badge" style="background: #f0f0f0; color: #333; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">${kw}</span>`
+                    ).join('')}
+                </div>
+                <div style="font-size: 0.8em; color: #999;">
+                    출처: ${item.source || '알 수 없음'} | 
+                    발행일: ${item.pubDate ? new Date(item.pubDate).toLocaleDateString() : 'N/A'} | 
+                    수집일: ${item.collectedDate || 'N/A'} | 
+                    <span class="badge badge-section-${category}">${item.keyword}</span>
+                </div>
+            </div>
+        `;
+        return card;
+    }
+
+    // 무한 스크롤 이벤트 리스너
+    function setupAllInfiniteScrolls() {
+        // 리스크 뉴스 무한 스크롤
+        const riskObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !riskNewsData.loading && riskNewsData.hasMore) {
+                    loadMoreRiskNews();
+                }
+            });
+        }, { threshold: 0.1 });
+        
+        // 제휴처 뉴스 무한 스크롤
+        const partnerObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !partnerNewsData.loading && partnerNewsData.hasMore) {
+                    loadMorePartnerNews();
+                }
+            });
+        }, { threshold: 0.1 });
+        
+        // 신기술 뉴스 무한 스크롤
+        const techObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !techNewsData.loading && techNewsData.hasMore) {
+                    loadMoreTechNews();
+                }
+            });
+        }, { threshold: 0.1 });
+        
+        // 로딩 인디케이터 관찰 시작
+        function observeLoadingIndicators() {
+            const riskLoadingIndicator = document.getElementById('riskLoadingIndicator');
+            const partnerLoadingIndicator = document.getElementById('partnerLoadingIndicator');
+            const techLoadingIndicator = document.getElementById('techLoadingIndicator');
+            
+            if (riskLoadingIndicator) {
+                riskObserver.observe(riskLoadingIndicator);
+            }
+            if (partnerLoadingIndicator) {
+                partnerObserver.observe(partnerLoadingIndicator);
+            }
+            if (techLoadingIndicator) {
+                techObserver.observe(techLoadingIndicator);
+            }
+        }
+        
+        // DOM 변경 감지하여 새로운 로딩 인디케이터 관찰
+        const observer = new MutationObserver(() => {
+            observeLoadingIndicators();
+        });
+        
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        // 초기 관찰 시작
+        observeLoadingIndicators();
+    }
+
+    // 제휴처 탐색, 신기술 동향도 체크박스 렌더링 후 필터링 함수 실행
+            renderPartnerDisplay();
+            renderTechDisplay();
+
+    // 제휴처 탐색 키워드 관리
+    async function renderPartnerDisplay() {
+        const conds = await loadPartnerConditions();
+        const container = document.getElementById('partnerDisplay');
+        if (!container) return;
+        container.innerHTML = '';
+        if (conds.length === 0) {
+            container.innerHTML = '<span class="text-muted">등록된 조건이 없습니다.</span>';
+            renderPartnerResults([]);
+            return;
+        }
+        // 조건을 텍스트로 표시
+        const conditionText = conds.join(', ');
+        container.innerHTML = `<strong>설정된 조건:</strong> ${conditionText}`;
+        
+        // 기존 AI 분석 보고서 표출 제거 (새로운 디자인으로 대체)
+        
+        renderPartnerResults(conds);
+    }
+    function renderPartnerResultsByChecked() {
+        const container = document.getElementById('partnerCheckboxList');
+        if (!container) return;
+        const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+        renderPartnerResults(checked);
+    }
+    // 제휴처 탐색 뉴스 렌더링 (무한 스크롤 적용)
+    let partnerNewsData = {
+        items: [],
+        totalCount: 0,
+        offset: 0,
+        limit: 50,
+        loading: false,
+        hasMore: true
+    };
+
+    async function renderPartnerResults(selected) {
+        const resultsDiv = document.getElementById('partnerResults');
+        if (!resultsDiv) return;
+        
+        // 초기 로딩
+        resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 로딩 중...</div></div>';
+        
+        // 데이터 초기화
+        partnerNewsData = {
+            items: [],
+            totalCount: 0,
+            offset: 0,
+            limit: 50,
+            loading: false,
+            hasMore: true
+        };
+        
+        await loadMorePartnerNews();
+    }
+
+    async function loadMorePartnerNews() {
+        if (partnerNewsData.loading || !partnerNewsData.hasMore) return;
+        
+        partnerNewsData.loading = true;
+        const resultsDiv = document.getElementById('partnerResults');
+        
+        console.log('🔍 제휴처 뉴스 로딩 시작:', {
+            offset: partnerNewsData.offset,
+            limit: partnerNewsData.limit,
+            hasMore: partnerNewsData.hasMore
+        });
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/partner-news?limit=${partnerNewsData.limit}&offset=${partnerNewsData.offset}`);
+            const data = await response.json();
+            
+            console.log('📥 제휴처 뉴스 응답:', data);
+            
+            if (data.success) {
+                // 첫 번째 로드인 경우 기존 데이터 초기화
+                if (partnerNewsData.offset === 0) {
+                    partnerNewsData.items = [];
+                    partnerNewsData.todayNews = [];
+                    partnerNewsData.otherNews = [];
+                    resultsDiv.innerHTML = '';
+                    console.log('🔄 첫 번째 로드 - 데이터 초기화');
+                }
+                
+                // 새 데이터 추가
+                partnerNewsData.items = [...partnerNewsData.items, ...data.data];
+                partnerNewsData.todayNews = data.todayNews || [];
+                partnerNewsData.otherNews = data.otherNews || [];
+                partnerNewsData.totalCount = data.totalCount;
+                partnerNewsData.hasMore = data.hasMore;
+                partnerNewsData.offset += data.data.length;
+                
+                // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
+                if (partnerNewsData.offset === data.data.length || !partnerNewsData.analysisReport) {
+                    partnerNewsData.analysisReport = data.analysisReport;
+                }
+                
+                console.log('📊 제휴처 뉴스 데이터 업데이트:', {
+                    itemsCount: partnerNewsData.items.length,
+                    totalCount: partnerNewsData.totalCount,
+                    hasMore: partnerNewsData.hasMore,
+                    offset: partnerNewsData.offset
+                });
+                
+                // 항상 전체 렌더링 (리스크 뉴스와 동일한 방식)
+                await renderPartnerNewsContent();
+            }
+        } catch (error) {
+            console.error('❌ 제휴처 뉴스 로드 실패:', error);
+            if (partnerNewsData.offset === 0) {
+                resultsDiv.innerHTML = '<div class="alert alert-danger">뉴스를 불러오는데 실패했습니다.</div>';
+            }
+        } finally {
+            partnerNewsData.loading = false;
+        }
+    }
+
+    async function renderPartnerNewsContent() {
+        const resultsDiv = document.getElementById('partnerResults');
+        const today = await getKoreaToday();
+        
+        // 항상 전체 내용 렌더링 (조건 제거)
+        resultsDiv.innerHTML = '';
+        
+        // === AI 분석 보고서 표출 ===
+        const analysisReport = partnerNewsData.analysisReport;
+        const reportDiv = document.createElement('div');
+        reportDiv.className = 'card mb-4';
+        reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #1565c0;';
+        reportDiv.innerHTML = `
+            <div class="card-header" style="background: linear-gradient(135deg, #1565c0, #0d47a1); color: white; padding: 15px 20px;">
+                <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport?.analysisModel || 'perplexity-ai'}</small></h6>
+            </div>
+            <div class="card-body" style="padding: 20px;">
+                <div style="color: #666; line-height: 1.6;">${formatAnalysisText(analysisReport?.analysis || '분석 내용이 없습니다.')}</div>
+            </div>
+        `;
+        resultsDiv.appendChild(reportDiv);
+        
+        // === 상단 건수/정보갱신 버튼 ===
+        const todayCount = partnerNewsData.todayNews ? partnerNewsData.todayNews.length : 0;
+        
+        const topBar = document.createElement('div');
+        topBar.className = 'd-flex justify-content-end align-items-center mb-2';
+        topBar.innerHTML = `
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${partnerNewsData.totalCount}</b>건</span>
+            <button class="btn btn-sm btn-outline-section-partner" id="refreshPartnerBtn">정보갱신</button>
+        `;
+        resultsDiv.appendChild(topBar);
+        
+        // 정보갱신 버튼 이벤트
+        document.getElementById('refreshPartnerBtn').onclick = async function() {
+            const conds = await loadPartnerConditions();
+            if (!conds.length) {
+                alert('등록된 조건이 없습니다.');
+                return;
+            }
+            resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>제휴처탐색 정보갱신 중...</div></div>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/collect-news/partner`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    console.log('제휴처탐색 뉴스 수집 완료');
+                } else {
+                    console.error('제휴처탐색 뉴스 수집 실패');
+                }
+            } catch (error) {
+                console.error('제휴처탐색 뉴스 수집 오류:', error);
+            }
+            
+            await renderPartnerResults(conds);
+        };
+        
+        // === 뉴스 목록 렌더링 ===
+        // 오늘의 뉴스 (서버에서 필터링된 데이터 사용)
+        const todayNews = partnerNewsData.todayNews || [];
+        const otherNews = partnerNewsData.otherNews || [];
+        
+        console.log('📋 제휴처 뉴스 렌더링:', {
+            totalItems: partnerNewsData.items.length,
+            todayNews: todayNews.length,
+            otherNews: otherNews.length
+        });
+        
+        // === 오늘의 뉴스 섹션 ===
+        const todayDiv = document.createElement('div');
+        todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+        resultsDiv.appendChild(todayDiv);
+        
+        if (todayNews.length > 0) {
+            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            todayNews.forEach(item => {
+                const card = createNewsCard(item, 'partner', 'Today');
+                resultsDiv.appendChild(card);
+            });
+        } else {
+            const emptyTodayDiv = document.createElement('div');
+            emptyTodayDiv.className = 'alert alert-info';
+            emptyTodayDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>금일은 뉴스가 없습니다</h5>
+                    <p class="text-muted">오늘 수집된 뉴스가 없습니다.</p>
+                </div>
+            `;
+            resultsDiv.appendChild(emptyTodayDiv);
+        }
+        
+        // === 최근 누적 뉴스 섹션 (항상 표시) ===
+        const recentDiv = document.createElement('div');
+        recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+        resultsDiv.appendChild(recentDiv);
+        
+        // 누적 뉴스 (todayNews + otherNews 합쳐서 사용)
+        const allNews = [...todayNews, ...otherNews];
+        if (allNews.length > 0) {
+            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            allNews.forEach(item => {
+                const card = createNewsCard(item, 'partner');
+                resultsDiv.appendChild(card);
+            });
+        } else {
+            const emptyRecentDiv = document.createElement('div');
+            emptyRecentDiv.className = 'alert alert-info';
+            emptyRecentDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>누적 뉴스가 없습니다</h5>
+                    <p class="text-muted">기존 누적 데이터가 없습니다.</p>
+                </div>
+            `;
+            resultsDiv.appendChild(emptyRecentDiv);
+        }
+        
+        // 무한 스크롤 로딩 표시
+        if (partnerNewsData.hasMore) {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'partnerLoadingIndicator';
+            loadingDiv.className = 'd-flex justify-content-center my-3';
+            loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+            resultsDiv.appendChild(loadingDiv);
+        }
+    }
+
+
+
+    // 신기술 동향 키워드 관리
+    async function renderTechDisplay() {
+        const topics = await loadTechTopics();
+        const container = document.getElementById('techDisplay');
+        if (!container) return;
+        container.innerHTML = '';
+        if (topics.length === 0) {
+            container.innerHTML = '<span class="text-muted">등록된 주제가 없습니다.</span>';
+            renderTechTrendResults([]);
+            return;
+        }
+        // 주제를 텍스트로 표시
+        const topicText = topics.join(', ');
+        container.innerHTML = `<strong>설정된 주제:</strong> ${topicText}`;
+        
+        // 기존 AI 분석 보고서 표출 제거 (새로운 디자인으로 대체)
+        
+        renderTechTrendResults(topics);
+    }
+    function renderTechTrendResultsByChecked() {
+        const container = document.getElementById('techCheckboxList');
+        if (!container) return;
+        const checked = Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+        renderTechTrendResults(checked);
+    }
+    // 신기술 동향 뉴스 렌더링 (무한 스크롤 적용)
+    let techNewsData = {
+        items: [],
+        totalCount: 0,
+        offset: 0,
+        limit: 50,
+        loading: false,
+        hasMore: true
+    };
+
+    async function renderTechTrendResults(selected) {
+        const resultsDiv = document.getElementById('techTrendResults');
+        if (!resultsDiv) return;
+        
+        // 초기 로딩
+        resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 로딩 중...</div></div>';
+        
+        // 데이터 초기화
+        techNewsData = {
+            items: [],
+            totalCount: 0,
+            offset: 0,
+            limit: 50,
+            loading: false,
+            hasMore: true
+        };
+        
+        await loadMoreTechNews();
+    }
+
+    async function loadMoreTechNews() {
+        if (techNewsData.loading || !techNewsData.hasMore) return;
+        
+        techNewsData.loading = true;
+        const resultsDiv = document.getElementById('techTrendResults');
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/tech-news?limit=${techNewsData.limit}&offset=${techNewsData.offset}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                // 첫 번째 로드인 경우 기존 데이터 초기화
+                if (techNewsData.offset === 0) {
+                    techNewsData.items = [];
+                    techNewsData.todayNews = [];
+                    techNewsData.otherNews = [];
+                    resultsDiv.innerHTML = '';
+                }
+                
+                // 새 데이터 추가
+                techNewsData.items = [...techNewsData.items, ...data.data];
+                techNewsData.todayNews = data.todayNews || [];
+                techNewsData.otherNews = data.otherNews || [];
+                techNewsData.totalCount = data.totalCount;
+                techNewsData.hasMore = data.hasMore;
+                techNewsData.offset += data.data.length;
+                
+                // AI 분석보고서 데이터 저장 (첫 번째 로드에서만, 또는 기존 데이터가 없을 때)
+                if (techNewsData.offset === data.data.length || !techNewsData.analysisReport) {
+                    techNewsData.analysisReport = data.analysisReport;
+                }
+                
+                // 항상 전체 렌더링 (리스크 뉴스와 동일한 방식)
+                await renderTechNewsContent();
+            }
+        } catch (error) {
+            console.error('신기술 뉴스 로드 실패:', error);
+            if (techNewsData.offset === 0) {
+                resultsDiv.innerHTML = '<div class="alert alert-danger">뉴스를 불러오는데 실패했습니다.</div>';
+            }
+        } finally {
+            techNewsData.loading = false;
+        }
+    }
+
+    async function renderTechNewsContent() {
+        const resultsDiv = document.getElementById('techTrendResults');
+        const today = await getKoreaToday();
+        
+        // 항상 전체 내용 렌더링 (조건 제거)
+        resultsDiv.innerHTML = '';
+        
+        // === AI 분석 보고서 표출 ===
+        const analysisReport = techNewsData.analysisReport;
+        const reportDiv = document.createElement('div');
+        reportDiv.className = 'card mb-4';
+        reportDiv.style.cssText = 'border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 4px solid #512da8;';
+        reportDiv.innerHTML = `
+            <div class="card-header" style="background: linear-gradient(135deg, #512da8, #311b92); color: white; padding: 15px 20px;">
+                <h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>AI 분석 보고서 <small class="float-end">출처: ${analysisReport?.analysisModel || 'perplexity-ai'}</small></h6>
+            </div>
+            <div class="card-body" style="padding: 20px;">
+                <div style="color: #666; line-height: 1.6;">${formatAnalysisText(analysisReport?.analysis || '분석 내용이 없습니다.')}</div>
+            </div>
+        `;
+        resultsDiv.appendChild(reportDiv);
+        
+        // === 상단 건수/정보갱신 버튼 ===
+        const todayCount = techNewsData.todayNews ? techNewsData.todayNews.length : 0;
+        
+        const topBar = document.createElement('div');
+        topBar.className = 'd-flex justify-content-end align-items-center mb-2';
+        topBar.innerHTML = `
+            <span class="me-2 text-secondary small">금일: <b>${todayCount}</b>건, 누적: <b>${techNewsData.totalCount}</b>건</span>
+            <button class="btn btn-sm btn-outline-section-tech" id="refreshTechBtn">정보갱신</button>
+        `;
+        resultsDiv.appendChild(topBar);
+        
+        // 정보갱신 버튼 이벤트
+        document.getElementById('refreshTechBtn').onclick = async function() {
+            const topics = await loadTechTopics();
+            if (!topics.length) {
+                alert('등록된 주제가 없습니다.');
+                return;
+            }
+            resultsDiv.innerHTML = '<div class="d-flex flex-column align-items-center my-3"><div class="spinner-border text-primary mb-2" role="status"></div><div>신기술동향 정보갱신 중...</div></div>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/collect-news/tech`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    console.log('신기술동향 뉴스 수집 완료');
+                } else {
+                    console.error('신기술동향 뉴스 수집 실패');
+                }
+            } catch (error) {
+                console.error('신기술동향 뉴스 수집 오류:', error);
+            }
+            
+            await renderTechTrendResults(topics);
+        };
+        
+        // === 뉴스 목록 렌더링 ===
+        // 오늘의 뉴스 (서버에서 필터링된 데이터 사용)
+        const todayNews = techNewsData.todayNews || [];
+        const otherNews = techNewsData.otherNews || [];
+        
+        console.log('📋 신기술 뉴스 렌더링:', {
+            totalItems: techNewsData.items.length,
+            todayNews: todayNews.length,
+            otherNews: otherNews.length
+        });
+        
+        // === 오늘의 뉴스 섹션 ===
+        const todayDiv = document.createElement('div');
+        todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+        resultsDiv.appendChild(todayDiv);
+        
+        if (todayNews.length > 0) {
+            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            todayNews.forEach(item => {
+                const card = createNewsCard(item, 'tech', 'Today');
+                resultsDiv.appendChild(card);
+            });
+        } else {
+            const emptyTodayDiv = document.createElement('div');
+            emptyTodayDiv.className = 'alert alert-info';
+            emptyTodayDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>금일은 뉴스가 없습니다</h5>
+                    <p class="text-muted">오늘 수집된 뉴스가 없습니다.</p>
+                </div>
+            `;
+            resultsDiv.appendChild(emptyTodayDiv);
+        }
+        
+        // === 최근 누적 뉴스 섹션 (항상 표시) ===
+        const recentDiv = document.createElement('div');
+        recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+        resultsDiv.appendChild(recentDiv);
+        
+        // 누적 뉴스 (todayNews + otherNews 합쳐서 사용)
+        const allNews = [...todayNews, ...otherNews];
+        if (allNews.length > 0) {
+            allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            allNews.forEach(item => {
+                const card = createNewsCard(item, 'tech');
+                resultsDiv.appendChild(card);
+            });
+        } else {
+            const emptyRecentDiv = document.createElement('div');
+            emptyRecentDiv.className = 'alert alert-info';
+            emptyRecentDiv.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                    <h5>누적 뉴스가 없습니다</h5>
+                    <p class="text-muted">기존 누적 데이터가 없습니다.</p>
+                </div>
+            `;
+            resultsDiv.appendChild(emptyRecentDiv);
+        }
+        
+        // 무한 스크롤 로딩 표시
+        if (techNewsData.hasMore) {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'techLoadingIndicator';
+            loadingDiv.className = 'd-flex justify-content-center my-3';
+            loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+            resultsDiv.appendChild(loadingDiv);
+        }
+    }
+
+    async function renderTechNewsList() {
+        const resultsDiv = document.getElementById('techTrendResults');
+        const today = await getKoreaToday();
+        
+        const todayNews = uniqueItems.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr === todayDateStr;
+        });
+        
+        // 중복 제거 (link 기준)
+        const uniqueItems = techNewsData.items.filter((item, index, self) => 
+            index === self.findIndex(t => t.link === item.link)
+        );
+        
+        const otherNews = uniqueItems.filter(item => {
+            const itemDate = new Date(item.pubDate);
+            const todayDate = new Date(today);
+            const itemDateStr = itemDate.toISOString().split('T')[0];
+            const todayDateStr = todayDate.toISOString().split('T')[0];
+            return itemDateStr !== todayDateStr;
+        });
+        
+        console.log('📋 신기술 뉴스 렌더링:', {
+            totalItems: techNewsData.items.length,
+            todayNews: todayNews.length,
+            otherNews: otherNews.length
+        });
+        
+        // 기존 뉴스 목록 컨테이너 제거
+        const existingNewsList = resultsDiv.querySelector('.news-list-container');
+        if (existingNewsList) {
+            existingNewsList.remove();
+        }
+        
+        // 뉴스 목록 컨테이너 생성
+        const newsListContainer = document.createElement('div');
+        newsListContainer.className = 'news-list-container';
+        
+        // === 오늘의 뉴스 섹션 (항상 표시) ===
+        const todayDiv = document.createElement('div');
+        todayDiv.innerHTML = '<h6 class="mb-2">오늘의 뉴스</h6>';
+        newsListContainer.appendChild(todayDiv);
+        
+        if (todayNews.length > 0) {
+            todayNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+            todayNews.forEach(item => {
+                const card = createNewsCard(item, 'tech', 'Today');
+                            newsListContainer.appendChild(card);
+        });
+    } else {
+        const emptyTodayDiv = document.createElement('div');
+        emptyTodayDiv.className = 'alert alert-info';
+        emptyTodayDiv.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                <h5>금일은 뉴스가 없습니다</h5>
+                <p class="text-muted">오늘 수집된 뉴스가 없습니다.</p>
+            </div>
+        `;
+        newsListContainer.appendChild(emptyTodayDiv);
+    }
+    
+    // === 최근 누적 뉴스 섹션 (항상 표시) ===
+    const recentDiv = document.createElement('div');
+    recentDiv.innerHTML = '<h6 class="mt-3 mb-2">최근 누적 뉴스</h6>';
+    newsListContainer.appendChild(recentDiv);
+    
+    if (otherNews.length > 0) {
+        otherNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+        otherNews.forEach(item => {
+            const card = createNewsCard(item, 'tech');
+            newsListContainer.appendChild(card);
+        });
+    } else {
+        const emptyRecentDiv = document.createElement('div');
+        emptyRecentDiv.className = 'alert alert-info';
+        emptyRecentDiv.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <i class="fas fa-info-circle" style="font-size: 2em; color: #17a2b8; margin-bottom: 10px;"></i>
+                <h5>누적 뉴스가 없습니다</h5>
+                <p class="text-muted">기존 누적 데이터가 없습니다.</p>
+            </div>
+        `;
+        newsListContainer.appendChild(emptyRecentDiv);
+    }
+    
+    // 뉴스 목록 컨테이너를 resultsDiv에 추가
+    resultsDiv.appendChild(newsListContainer);
+    
+    // 무한 스크롤 로딩 표시
+    if (techNewsData.hasMore) {
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'techLoadingIndicator';
+        loadingDiv.className = 'd-flex justify-content-center my-3';
+        loadingDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+        resultsDiv.appendChild(loadingDiv);
+    }
+    }
+
+    // 제휴처 탐색 정보 수집 및 저장 (네이버 뉴스 API 비활성화, 퍼플렉시티 API만 사용)
+    async function fetchAndSaveAllPartners(keywordsParam) {
+        // 네이버 뉴스 API 수집 비활성화 - 퍼플렉시티 API만 사용
+        console.log('네이버 뉴스 API 수집 비활성화됨 - 퍼플렉시티 API만 사용');
+        return;
+    }
+    async function checkAndUpdatePartnerNews() {
+        const today = await getKoreaToday();
+        const lastUpdate = localStorage.getItem('partnerNews_lastUpdate');
+        const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
+        const now = new Date();
+        const [h, m] = updateTime.split(':').map(Number);
+        const updateDate = new Date(today + 'T' + updateTime);
+        if (lastUpdate !== today && now >= updateDate) {
+            await fetchAndSaveAllPartners();
+            await renderPartnerResults(loadPartnerConditions());
+        } else {
+            await renderPartnerResults(loadPartnerConditions());
+        }
+    }
+    // 신기술 동향 정보 수집 및 저장 (네이버 뉴스 API 비활성화, 퍼플렉시티 API만 사용)
+    async function fetchAndSaveAllTechs(keywordsParam) {
+        // 네이버 뉴스 API 수집 비활성화 - 퍼플렉시티 API만 사용
+        console.log('네이버 뉴스 API 수집 비활성화됨 - 퍼플렉시티 API만 사용');
+        return;
+    }
+    async function checkAndUpdateTechNews() {
+        const today = await getKoreaToday();
+        const lastUpdate = localStorage.getItem('techNews_lastUpdate');
+        const updateTime = localStorage.getItem('newsUpdateTime') || '07:00';
+        const now = new Date();
+        const [h, m] = updateTime.split(':').map(Number);
+        const updateDate = new Date(today + 'T' + updateTime);
+        if (lastUpdate !== today && now >= updateDate) {
+            await fetchAndSaveAllTechs();
+            await renderTechTrendResults(loadTechTopics());
+        } else {
+            await renderTechTrendResults(loadTechTopics());
+        }
+    }
+
+    // 페이지 로드 시 자동 갱신 체크
+    if (document.getElementById('partnerResults')) checkAndUpdatePartnerNews();
+    if (document.getElementById('techTrendResults')) checkAndUpdateTechNews();
+
+    // 관리자 페이지에서 partnerConditions, techTopics 관리 함수 (입력/저장/삭제/불러오기)
+    // 관리자 페이지에서만 동작, localStorage 연동
+    if (document.getElementById('addPartnerCondition')) {
+        const partnerInput = document.getElementById('partnerConditionInput');
+        const addBtn = document.getElementById('addPartnerCondition');
+        const listDiv = document.getElementById('partnerConditionsList');
+        function updatePartnerList() {
+            const items = loadPartnerConditions();
+            listDiv.innerHTML = '';
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'list-group-item d-flex justify-content-between align-items-center';
+                div.innerHTML = `<span>${item}</span><button class="btn btn-outline-danger btn-sm" onclick="removePartnerCondition('${item}')"><i class="fas fa-minus"></i></button>`;
+                listDiv.appendChild(div);
+            });
+        }
+        window.removePartnerCondition = function(item) {
+            let items = loadPartnerConditions();
+            items = items.filter(i => i !== item);
+            savePartnerConditions(items);
+            updatePartnerList();
+        };
+        addBtn.onclick = function() {
+            const val = partnerInput.value.trim();
+            if (val) {
+                let items = loadPartnerConditions();
+                if (!items.includes(val)) {
+                    items.push(val);
+                    savePartnerConditions(items);
+                    updatePartnerList();
+                }
+                partnerInput.value = '';
+            }
+        };
+        updatePartnerList();
+    }
+    if (document.getElementById('addTechTopic')) {
+        const techInput = document.getElementById('techTopicInput');
+        const addBtn = document.getElementById('addTechTopic');
+        const listDiv = document.getElementById('techTopicsList');
+        function updateTechList() {
+            const items = loadTechTopics();
+            listDiv.innerHTML = '';
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'list-group-item d-flex justify-content-between align-items-center';
+                div.innerHTML = `<span>${item}</span><button class="btn btn-outline-danger btn-sm" onclick="removeTechTopic('${item}')"><i class="fas fa-minus"></i></button>`;
+                listDiv.appendChild(div);
+            });
+        }
+        window.removeTechTopic = function(item) {
+            let items = loadTechTopics();
+            items = items.filter(i => i !== item);
+            saveTechTopics(items);
+            updateTechList();
+        };
+        addBtn.onclick = function() {
+            const val = techInput.value.trim();
+            if (val) {
+                let items = loadTechTopics();
+                if (!items.includes(val)) {
+                    items.push(val);
+                    saveTechTopics(items);
+                    updateTechList();
+                }
+                techInput.value = '';
+            }
+        };
+        updateTechList();
+    }
+
+    // 리스크이슈/제휴처탐색/신기술동향 정보갱신 버튼 클릭 시 로그 기록
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.id === 'refreshNewsBtn') {
+            logUserAction('리스크이슈정보갱신');
+        }
+        if (e.target && e.target.id === 'refreshPartnerBtn') {
+            logUserAction('제휴처탐색정보갱신');
+        }
+        if (e.target && e.target.id === 'refreshTechBtn') {
+            logUserAction('신기술동향정보갱신');
+        }
+    });
+
+    setupAllInfiniteScrolls();
+
+    // 대시보드 진입 시 자동 뉴스 갱신 체크 및 체크박스/뉴스 렌더링 순서 보장
+    if (document.getElementById('newsFeed')) {
+        renderKeywordDisplay().then(() => {
+            renderNewsByChecked();
+        });
+    }
+
+    // 무한 스크롤 초기화
+    setupAllInfiniteScrolls();
+    
+    // 언론보도 효과성 측정 초기화
+    loadChartJS();
+    initMediaEffectiveness();
+});
+
+// 디바운스 유틸리티 함수
+// === 언론보도 효과성 측정 기능 ===
+let mediaEffectivenessData = {
+    news: [],
+    aggregated: {},
+    loading: false,
+    chart: null
+};
+
+// 언론보도 효과성 측정 초기화
+function initMediaEffectiveness() {
+    // HTML 요소 존재 여부 확인
+    const mediaStartDate = document.getElementById('mediaStartDate');
+    const mediaEndDate = document.getElementById('mediaEndDate');
+    const mediaSearchBtn = document.getElementById('mediaSearchBtn');
+    const mediaChartBtn = document.getElementById('mediaChartBtn');
+    const mediaExportBtn = document.getElementById('mediaExportBtn');
+    
+    if (!mediaStartDate || !mediaEndDate || !mediaSearchBtn || !mediaChartBtn || !mediaExportBtn) {
+        console.warn('언론보도 효과성 측정 요소를 찾을 수 없습니다.');
+        return;
+    }
+    
+    // 기본 날짜 설정 (최근 30일)
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    
+    mediaStartDate.value = startDate.toISOString().split('T')[0];
+    mediaEndDate.value = endDate.toISOString().split('T')[0];
+    
+    // 이벤트 리스너 중복 등록 방지
+    mediaSearchBtn.removeEventListener('click', searchMediaEffectiveness);
+    mediaChartBtn.removeEventListener('click', showMediaChart);
+    mediaExportBtn.removeEventListener('click', exportMediaData);
+    
+    // 이벤트 리스너 등록
+    mediaSearchBtn.addEventListener('click', searchMediaEffectiveness);
+    mediaChartBtn.addEventListener('click', showMediaChart);
+    mediaExportBtn.addEventListener('click', exportMediaData);
+    
+    // 초기 뉴스 건수 설정
+    updateMediaNewsCount(0);
+}
+
+// 언론보도 효과성 검색
+async function searchMediaEffectiveness() {
+    const keyword = document.getElementById('mediaKeyword').value.trim();
+    const startDate = document.getElementById('mediaStartDate').value;
+    const endDate = document.getElementById('mediaEndDate').value;
+    const aggregation = document.getElementById('mediaAggregation').value;
+    
+    if (!keyword) {
+        showToast('키워드를 입력해주세요.');
+        return;
+    }
+    
+    if (!startDate || !endDate) {
+        showToast('시작일과 종료일을 입력해주세요.');
+        return;
+    }
+    
+    if (new Date(startDate) > new Date(endDate)) {
+        showToast('시작일은 종료일보다 이전이어야 합니다.');
+        return;
+    }
+    
+    mediaEffectivenessData.loading = true;
+    showMediaLoading(true);
+    hideMediaError();
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/media-effectiveness?keyword=${encodeURIComponent(keyword)}&startDate=${startDate}&endDate=${endDate}&aggregation=${aggregation}&limit=1000`);
+        const data = await response.json();
+        
+        if (data.success) {
+            mediaEffectivenessData.news = data.data.news;
+            mediaEffectivenessData.aggregated = data.data.aggregated;
+            
+            renderMediaNewsList();
+            updateMediaNewsCount(data.data.totalCount);
+            showMediaNewsArea(true);
+            showMediaChartArea(false);
+            
+            showToast(`검색 완료: ${data.data.totalCount}건의 뉴스를 찾았습니다. (네이버 뉴스 API는 최신 뉴스만 제공합니다)`);
+        } else {
+            throw new Error(data.error || '검색 중 오류가 발생했습니다.');
+        }
+    } catch (error) {
+        console.error('언론보도 효과성 검색 실패:', error);
+        showMediaError(error.message);
+    } finally {
+        mediaEffectivenessData.loading = false;
+        showMediaLoading(false);
+    }
+}
+
+// 언론보도 효과성 차트 표시
+function showMediaChart() {
+    if (!mediaEffectivenessData.news.length) {
+        showToast('먼저 뉴스를 검색해주세요.');
+        return;
+    }
+    
+    showMediaChartArea(true);
+    renderMediaChart();
+}
+
+// 언론보도 효과성 차트 렌더링
+function renderMediaChart() {
+    const ctx = document.getElementById('mediaChart');
+    
+    if (!ctx) {
+        console.error('차트 캔버스를 찾을 수 없습니다.');
+        return;
+    }
+    
+    // Chart.js 로드 확인
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js가 로드되지 않았습니다.');
+        showToast('차트 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+        return;
+    }
+    
+    // 기존 차트 제거
+    if (mediaEffectivenessData.chart) {
+        mediaEffectivenessData.chart.destroy();
+    }
+    
+    const aggregated = mediaEffectivenessData.aggregated;
+    const labels = Object.keys(aggregated).sort();
+    const data = labels.map(label => aggregated[label]);
+    
+        try {
+        mediaEffectivenessData.chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '뉴스 건수',
+                    data: data,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('차트 생성 실패:', error);
+        showToast('차트를 생성하는 중 오류가 발생했습니다.');
+    }
+}
+
+// 언론보도 효과성 뉴스 리스트 렌더링
+function renderMediaNewsList() {
+    const container = document.getElementById('mediaNewsList');
+    
+    if (!container) {
+        console.error('뉴스 리스트 컨테이너를 찾을 수 없습니다.');
+        return;
+    }
+    
+    const news = mediaEffectivenessData.news;
+    
+    if (!news.length) {
+        container.innerHTML = '<div class="text-center text-muted">검색된 뉴스가 없습니다.</div>';
+        updateMediaNewsCount(0);
+        return;
+    }
+    
+    try {
+        container.innerHTML = news.map((item, index) => `
+            <div class="media-news-item" onclick="openMediaNewsDetail(${index})">
+                <div class="media-news-title">${item.title || '제목 없음'}</div>
+                <div class="media-news-meta">
+                    <span class="media-news-source">${item.source || '알 수 없음'}</span>
+                    <span>📅 ${item.pubDate || '날짜 없음'}</span>
+                </div>
+                <div class="media-news-description">${item.description || '내용 없음'}</div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('뉴스 리스트 렌더링 실패:', error);
+        container.innerHTML = '<div class="text-center text-danger">뉴스 목록을 표시하는 중 오류가 발생했습니다.</div>';
+    }
+}
+
+// 언론보도 효과성 뉴스 상세 모달
+function openMediaNewsDetail(index) {
+    const news = mediaEffectivenessData.news[index];
+    
+    if (!news) {
+        showToast('뉴스 정보를 찾을 수 없습니다.');
+        return;
+    }
+    
+    const modalHtml = `
+        <div class="modal fade" id="mediaNewsDetailModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">뉴스 상세</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <strong>제목:</strong> ${news.title || '제목 없음'}
+                        </div>
+                        <div class="mb-3">
+                            <strong>링크주소URL:</strong> 
+                            <a href="${news.link || '#'}" target="_blank">${news.link || '링크 없음'}</a>
+                        </div>
+                        <div class="mb-3">
+                            <strong>발행일:</strong> ${news.pubDate || '날짜 없음'}
+                        </div>
+                        <div class="mb-3">
+                            <strong>언론사명:</strong> ${news.source || '알 수 없음'}
+                        </div>
+                        <div class="mb-3">
+                            <strong>주요내용:</strong><br>
+                            ${news.description || '내용 없음'}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    try {
+        // 기존 모달 제거
+        const existingModal = document.getElementById('mediaNewsDetailModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // 새 모달 추가 및 표시
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('mediaNewsDetailModal'));
+        modal.show();
+        
+        // 모달 닫힐 때 제거
+        document.getElementById('mediaNewsDetailModal').addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+    } catch (error) {
+        console.error('모달 생성 실패:', error);
+        showToast('뉴스 상세 정보를 표시하는 중 오류가 발생했습니다.');
+    }
+}
+
+// 언론보도 효과성 데이터 엑셀 다운로드
+function exportMediaData() {
+    if (!mediaEffectivenessData.news.length) {
+        showToast('먼저 뉴스를 검색해주세요.');
+        return;
+    }
+    
+    const news = mediaEffectivenessData.news;
+    const csvContent = [
+        ['제목', '링크주소URL', '발행일', '언론사명', '주요내용'],
+        ...news.map(item => [
+            item.title,
+            item.link,
+            item.pubDate,
+            item.source,
+            item.description
+        ])
+    ].map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
+    
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `언론보도효과성_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast('CSV 파일이 다운로드되었습니다.');
+}
+
+// 언론보도 효과성 UI 제어 함수들
+function showMediaLoading(show) {
+    document.getElementById('mediaLoading').style.display = show ? 'block' : 'none';
+}
+
+function showMediaChartArea(show) {
+    document.getElementById('mediaChartArea').style.display = show ? 'block' : 'none';
+}
+
+function showMediaNewsArea(show) {
+    document.getElementById('mediaNewsArea').style.display = show ? 'block' : 'none';
+}
+
+function showMediaError(message) {
+    const errorDiv = document.getElementById('mediaError');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+}
+
+function hideMediaError() {
+    document.getElementById('mediaError').style.display = 'none';
+}
+
+// 뉴스 건수 업데이트 함수
+function updateMediaNewsCount(count) {
+    const countElement = document.getElementById('mediaNewsCount');
+    if (countElement) {
+        countElement.textContent = count;
+    }
+}
+
+// Chart.js 라이브러리 로드
+function loadChartJS() {
+    if (typeof Chart === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        script.onload = () => {
+            console.log('Chart.js 로드 완료');
+        };
+        document.head.appendChild(script);
+    }
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// force redeploy
+
+// 사용자 액션 로깅 함수
+async function logUserAction(action, meta = {}) {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/log/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                type: 'dashboard',
+                action, 
+                userAgent: navigator.userAgent,
+                meta 
+            })
+        });
+        if (!res.ok) {
+            console.warn('사용자 액션 로깅 실패:', res.status);
+        }
+    } catch (e) {
+        console.warn('사용자 액션 로깅 중 오류:', e.message);
+    }
+}
