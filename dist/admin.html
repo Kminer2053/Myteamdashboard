@@ -527,22 +527,8 @@
     <script>
     const API_BASE_URL = window?.VITE_API_URL || (window.import_meta_env && window.import_meta_env.VITE_API_URL) || '';
     document.addEventListener('DOMContentLoaded', function() {
-        var adminPwModal = new bootstrap.Modal(document.getElementById('adminPwModal'));
-        var adminPwForm = document.getElementById('adminPwForm');
-        var adminPwInput = document.getElementById('adminPwInput');
-        var adminPageContent = document.getElementById('adminPageContent');
-        adminPwModal.show();
-        adminPwForm.onsubmit = function(e) {
-            e.preventDefault();
-            if (adminPwInput.value === 'admin123') {
-                adminPwModal.hide();
-                adminPageContent.style.display = '';
-            } else {
-                alert('비밀번호가 일치하지 않습니다.');
-                adminPwInput.value = '';
-                adminPwInput.focus();
-            }
-        };
+        // 인증 로직은 admin.js에서 처리 (중복 제거)
+        
         // 뉴스 갱신 시간 저장/불러오기
         const saveBtn = document.getElementById('saveNewsUpdateTime');
         const timeInput = document.getElementById('newsUpdateTime');
