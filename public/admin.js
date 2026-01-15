@@ -2,28 +2,49 @@ const API_BASE_URL = window.VITE_API_URL || 'https://myteamdashboard.onrender.co
 
 document.addEventListener('DOMContentLoaded', function() {
     let isAuthenticated = false;
+    let adminToken = null; // 어드민 세션 토큰
     const passwordModal = new bootstrap.Modal(document.getElementById('adminPwModal'));
     
     // 페이지 로드 시 비밀번호 확인 모달 표시
     passwordModal.show();
 
     // 비밀번호 확인 (폼 submit 이벤트로 변경)
-    document.getElementById('adminPwForm').addEventListener('submit', function(e) {
+    document.getElementById('adminPwForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const passwordInput = document.getElementById('adminPwInput');
-        if (passwordInput.value === 'admin123') { // 실제로는 더 안전한 인증 방식 사용 필요
-            isAuthenticated = true;
-            passwordModal.hide();
-            document.querySelectorAll('.input-group').forEach(group => {
-                group.style.display = 'flex';
+        
+        try {
+            // 서버에 인증 요청
+            const response = await fetch(`${API_BASE_URL}/api/admin/auth`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: passwordInput.value })
             });
-            updateList('riskKeywords', riskKeywordsList);
-            updateList('partnerConditions', partnerConditionsList);
-            updateList('techTopics', techTopicsList);
-            loadTokenLimits();
-            loadPerplexityTimeout();
-        } else {
-            alert('비밀번호가 일치하지 않습니다.');
+            
+            if (response.ok) {
+                const data = await response.json();
+                adminToken = data.token;
+                isAuthenticated = true;
+                passwordModal.hide();
+                document.querySelectorAll('.input-group').forEach(group => {
+                    group.style.display = 'flex';
+                });
+                updateList('riskKeywords', riskKeywordsList);
+                updateList('partnerConditions', partnerConditionsList);
+                updateList('techTopics', techTopicsList);
+                loadTokenLimits();
+                loadPerplexityTimeout();
+                // 카카오봇 설정 로드
+                loadBotConfig();
+                loadBotStats();
+            } else {
+                alert('비밀번호가 일치하지 않습니다.');
+                passwordInput.value = '';
+                passwordInput.focus();
+            }
+        } catch (error) {
+            console.error('인증 오류:', error);
+            alert('인증 처리 중 오류가 발생했습니다.');
             passwordInput.value = '';
             passwordInput.focus();
         }
@@ -789,5 +810,272 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (testTechApi) {
         testTechApi.onclick = () => testApi('tech', document.getElementById('testTechResult'));
+    }
+
+    // ========================================
+    // 카카오봇 관리 로직
+    // ========================================
+    
+    let botRooms = [];
+    let botAdmins = [];
+
+    // 카카오봇 설정 로드
+    async function loadBotConfig() {
+        if (!adminToken) return;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/admin/bot/config`, {
+                headers: { 'X-ADMIN-TOKEN': adminToken }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                botRooms = data.rooms || [];
+                botAdmins = data.admins || [];
+                renderBotRooms();
+                renderBotAdmins();
+                logUserAction('카카오봇_설정조회', {});
+            }
+        } catch (error) {
+            console.error('봇 설정 로드 오류:', error);
+        }
+    }
+
+    // 카카오봇 설정 저장
+    async function saveBotConfig() {
+        if (!adminToken) return;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/admin/bot/config`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-ADMIN-TOKEN': adminToken 
+                },
+                body: JSON.stringify({ rooms: botRooms, admins: botAdmins })
+            });
+            
+            if (response.ok) {
+                console.log('봇 설정 저장 완료');
+                logUserAction('카카오봇_설정저장', {});
+            }
+        } catch (error) {
+            console.error('봇 설정 저장 오류:', error);
+        }
+    }
+
+    // 방 목록 렌더링
+    function renderBotRooms() {
+        const tbody = document.getElementById('botRoomsTableBody');
+        tbody.innerHTML = '';
+        
+        botRooms.forEach((room, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${room.roomName}</td>
+                <td>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" ${room.enabled ? 'checked' : ''} 
+                            data-index="${index}" data-field="enabled">
+                    </div>
+                </td>
+                <td>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" ${room.scheduleNotify ? 'checked' : ''} 
+                            data-index="${index}" data-field="scheduleNotify">
+                    </div>
+                </td>
+                <td>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" ${room.commandsEnabled ? 'checked' : ''} 
+                            data-index="${index}" data-field="commandsEnabled">
+                    </div>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-danger" data-index="${index}">
+                        <i class="fas fa-trash" aria-hidden="true"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // 토글 스위치 이벤트
+        tbody.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const index = parseInt(this.dataset.index);
+                const field = this.dataset.field;
+                botRooms[index][field] = this.checked;
+                saveBotConfig();
+                logUserAction(`카카오봇_방토글_${field}`, { 
+                    roomName: botRooms[index].roomName, 
+                    value: this.checked 
+                });
+            });
+        });
+
+        // 삭제 버튼 이벤트
+        tbody.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = parseInt(this.dataset.index);
+                const roomName = botRooms[index].roomName;
+                if (confirm(`"${roomName}" 방을 삭제하시겠습니까?`)) {
+                    botRooms.splice(index, 1);
+                    renderBotRooms();
+                    saveBotConfig();
+                    logUserAction('카카오봇_방삭제', { roomName });
+                }
+            });
+        });
+    }
+
+    // 관리자 목록 렌더링
+    function renderBotAdmins() {
+        const container = document.getElementById('botAdminsList');
+        container.innerHTML = '';
+        
+        botAdmins.forEach((admin, index) => {
+            const chip = document.createElement('span');
+            chip.className = 'badge bg-primary d-flex align-items-center';
+            chip.style.fontSize = '0.9rem';
+            chip.innerHTML = `
+                ${admin}
+                <button type="button" class="btn-close btn-close-white ms-2" style="font-size:0.6rem" 
+                    data-index="${index}" aria-label="삭제"></button>
+            `;
+            container.appendChild(chip);
+        });
+
+        // 삭제 버튼 이벤트
+        container.querySelectorAll('.btn-close').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = parseInt(this.dataset.index);
+                botAdmins.splice(index, 1);
+                renderBotAdmins();
+                saveBotConfig();
+            });
+        });
+    }
+
+    // 봇 통계 로드
+    async function loadBotStats() {
+        if (!adminToken) return;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/admin/bot/outbox/stats?limit=10`, {
+                headers: { 'X-ADMIN-TOKEN': adminToken }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                // 카운트 업데이트
+                document.getElementById('botPendingCount').textContent = data.pending;
+                document.getElementById('botSentCount').textContent = data.sent;
+                document.getElementById('botFailedCount').textContent = data.failed;
+                
+                // 로그 테이블 렌더링
+                const tbody = document.getElementById('botLogsTableBody');
+                tbody.innerHTML = '';
+                
+                if (data.recentLogs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">로그가 없습니다</td></tr>';
+                } else {
+                    data.recentLogs.forEach(log => {
+                        const tr = document.createElement('tr');
+                        const statusBadge = 
+                            log.status === 'sent' ? '<span class="badge bg-success">전송완료</span>' :
+                            log.status === 'pending' ? '<span class="badge bg-secondary">대기중</span>' :
+                            '<span class="badge bg-danger">실패</span>';
+                        
+                        const time = log.sentAt ? new Date(log.sentAt).toLocaleString('ko-KR') : 
+                                     new Date(log.createdAt).toLocaleString('ko-KR');
+                        
+                        tr.innerHTML = `
+                            <td>${log.targetRoom}</td>
+                            <td><small>${log.message}</small></td>
+                            <td>${statusBadge}</td>
+                            <td>${log.attempts}</td>
+                            <td><small>${time}</small></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+                
+                logUserAction('카카오봇_outbox조회', {});
+            }
+        } catch (error) {
+            console.error('봇 통계 로드 오류:', error);
+        }
+    }
+
+    // 방 추가 버튼
+    const addBotRoomBtn = document.getElementById('addBotRoom');
+    if (addBotRoomBtn) {
+        addBotRoomBtn.addEventListener('click', function() {
+            if (!isAuthenticated) return;
+            
+            const input = document.getElementById('botRoomNameInput');
+            const roomName = input.value.trim();
+            
+            if (!roomName) {
+                alert('방 이름을 입력해주세요.');
+                return;
+            }
+            
+            // 중복 체크
+            if (botRooms.find(r => r.roomName === roomName)) {
+                alert('이미 존재하는 방입니다.');
+                return;
+            }
+            
+            botRooms.push({
+                roomName: roomName,
+                enabled: true,
+                scheduleNotify: true,
+                commandsEnabled: true
+            });
+            
+            input.value = '';
+            renderBotRooms();
+            saveBotConfig();
+            logUserAction('카카오봇_방추가', { roomName });
+        });
+    }
+
+    // 관리자 추가 버튼
+    const addBotAdminBtn = document.getElementById('addBotAdmin');
+    if (addBotAdminBtn) {
+        addBotAdminBtn.addEventListener('click', function() {
+            if (!isAuthenticated) return;
+            
+            const input = document.getElementById('botAdminInput');
+            const adminName = input.value.trim();
+            
+            if (!adminName) {
+                alert('관리자 닉네임을 입력해주세요.');
+                return;
+            }
+            
+            // 중복 체크
+            if (botAdmins.includes(adminName)) {
+                alert('이미 존재하는 관리자입니다.');
+                return;
+            }
+            
+            botAdmins.push(adminName);
+            input.value = '';
+            renderBotAdmins();
+            saveBotConfig();
+        });
+    }
+
+    // 통계 새로고침 버튼
+    const refreshBotStatsBtn = document.getElementById('refreshBotStats');
+    if (refreshBotStatsBtn) {
+        refreshBotStatsBtn.addEventListener('click', function() {
+            if (!isAuthenticated) return;
+            loadBotStats();
+        });
     }
 }); 

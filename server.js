@@ -13,6 +13,7 @@ const RiskKeyword = require('./models/RiskKeyword');
 const PartnerCondition = require('./models/PartnerCondition');
 const TechTopic = require('./models/TechTopic');
 const Setting = require('./models/Setting');
+const BotOutbox = require('./models/BotOutbox');
 const RiskNews = require('./models/RiskNews');
 const PartnerNews = require('./models/PartnerNews');
 const TechNews = require('./models/TechNews');
@@ -30,6 +31,7 @@ const hotTopicAnalysisRouter = require('./routes/hotTopicAnalysis');
 const UserActionLog = require('./models/UserActionLog');
 const PDFGenerator = require('./services/pdfGenerator');
 const NewsClippingPdfGenerator = require('./services/newsClippingPdfGenerator');
+const botAuthMiddleware = require('./middleware/botAuth');
 
 // PDF 생성기 인스턴스
 const pdfGenerator = new PDFGenerator();
@@ -1417,6 +1419,101 @@ async function sendScheduleEmail(action, schedule, prevSchedule = null) {
     }
 }
 
+// 카카오톡 알림 큐 적재 함수
+async function enqueueScheduleKakao(action, schedule, prevSchedule = null) {
+  try {
+    // 1. kakao_rooms 설정 조회
+    const roomsSetting = await Setting.findOne({ key: 'kakao_rooms' });
+    if (!roomsSetting) {
+      console.log('kakao_rooms 설정 없음, 카톡 알림 스킵');
+      return;
+    }
+    
+    const rooms = JSON.parse(roomsSetting.value);
+    
+    // 2. enabled=true AND scheduleNotify=true 방만 필터링
+    const targetRooms = rooms.filter(room => 
+      room.enabled === true && room.scheduleNotify === true
+    );
+    
+    if (targetRooms.length === 0) {
+      console.log('알림 활성화된 방 없음, 카톡 알림 스킵');
+      return;
+    }
+    
+    // 3. 메시지 템플릿 생성
+    const message = generateScheduleMessage(action, schedule, prevSchedule);
+    
+    // 4. 각 방에 메시지 적재
+    const timestamp = Date.now();
+    const outboxDocs = targetRooms.map(room => ({
+      targetRoom: room.roomName,
+      message,
+      type: `schedule_${action}`,
+      status: 'pending',
+      priority: 0,
+      scheduleId: schedule._id,
+      dedupeKey: `schedule:${action}:${schedule._id}:${timestamp}`,
+      attempts: 0
+    }));
+    
+    // 5. 중복 체크 후 삽입
+    for (const doc of outboxDocs) {
+      try {
+        await BotOutbox.create(doc);
+        console.log(`카톡 메시지 적재: ${doc.targetRoom} - ${action}`);
+      } catch (error) {
+        if (error.code === 11000) {
+          console.log(`중복 메시지 스킵: ${doc.dedupeKey}`);
+        } else {
+          console.error('BotOutbox 저장 실패:', error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('enqueueScheduleKakao 실패:', error);
+    // 에러 발생 시에도 스케줄 저장은 성공하도록 함 (non-blocking)
+  }
+}
+
+// 스케줄 메시지 템플릿 생성 함수
+function generateScheduleMessage(action, schedule, prevSchedule) {
+  const dashboardUrl = 'https://myteamdashboard.vercel.app/index.html';
+  
+  switch (action) {
+    case 'create':
+      return `[일정 등록]
+제목: ${schedule.title}
+일시: ${formatKST(schedule.start)}
+내용: ${schedule.content || '내용 없음'}
+
+대시보드: ${dashboardUrl}`;
+
+    case 'update':
+      return `[일정 변경]
+제목: ${schedule.title}
+
+변경 전 일시: ${formatKST(prevSchedule.start)}
+변경 후 일시: ${formatKST(schedule.start)}
+
+변경 전 내용: ${prevSchedule.content || '내용 없음'}
+변경 후 내용: ${schedule.content || '내용 없음'}
+
+대시보드: ${dashboardUrl}`;
+
+    case 'delete':
+      return `[일정 취소]
+제목: ${schedule.title}
+일시: ${formatKST(schedule.start)}
+내용: ${schedule.content || '내용 없음'}
+
+대시보드: ${dashboardUrl}`;
+
+    default:
+      return `[일정 알림]\n제목: ${schedule.title}`;
+  }
+}
+
 // 일정 등록
 app.post('/api/schedules', async (req, res) => {
     try {
@@ -1431,6 +1528,7 @@ app.post('/api/schedules', async (req, res) => {
         }
         const schedule = await Schedule.create(scheduleData);
         await sendScheduleEmail('create', schedule);
+        await enqueueScheduleKakao('create', schedule);
         res.json(schedule);
     } catch (err) {
         res.status(500).json({ error: '일정 등록 실패' });
@@ -1449,6 +1547,7 @@ app.put('/api/schedules/:id', async (req, res) => {
         }
         const schedule = await Schedule.findByIdAndUpdate(req.params.id, updateData, { new: true });
         await sendScheduleEmail('update', schedule, prevSchedule);
+        await enqueueScheduleKakao('update', schedule, prevSchedule);
         res.json(schedule);
     } catch (err) {
         res.status(500).json({ error: '일정 수정 실패' });
@@ -1461,6 +1560,7 @@ app.delete('/api/schedules/:id', async (req, res) => {
         const schedule = await Schedule.findById(req.params.id);
         await Schedule.findByIdAndDelete(req.params.id);
         await sendScheduleEmail('delete', schedule);
+        await enqueueScheduleKakao('delete', schedule);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: '일정 삭제 실패' });
@@ -2625,6 +2725,392 @@ app.get('/debug/version', (req, res) => {
             filePath: appJsPath
         });
     }
+});
+
+// ========================================
+// 어드민 래퍼 API (카카오봇 관리용)
+// ========================================
+
+// 어드민 세션 토큰 관리 (메모리 기반, 서버 재시작 시 초기화)
+const adminSessions = new Map();
+const crypto = require('crypto');
+
+// 세션 생성 함수
+function createAdminSession() {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24시간 후 만료
+  adminSessions.set(token, { expiresAt });
+  return token;
+}
+
+// 세션 검증 미들웨어
+function adminAuthMiddleware(req, res, next) {
+  const token = req.headers['x-admin-token'];
+  
+  if (!token) {
+    return res.status(401).json({ error: '관리자 인증 토큰이 없습니다' });
+  }
+  
+  const session = adminSessions.get(token);
+  if (!session) {
+    return res.status(401).json({ error: '유효하지 않은 세션입니다' });
+  }
+  
+  if (Date.now() > session.expiresAt) {
+    adminSessions.delete(token);
+    return res.status(401).json({ error: '세션이 만료되었습니다' });
+  }
+  
+  next();
+}
+
+// 1. POST /api/admin/auth - 어드민 인증
+app.post('/api/admin/auth', async (req, res) => {
+  try {
+    const { password } = req.body;
+    
+    if (!password) {
+      return res.status(400).json({ error: '비밀번호가 필요합니다' });
+    }
+    
+    // 환경변수 또는 기본값으로 비밀번호 확인
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    
+    if (password !== adminPassword) {
+      return res.status(401).json({ error: '비밀번호가 일치하지 않습니다' });
+    }
+    
+    // 세션 토큰 생성
+    const token = createAdminSession();
+    
+    console.log('어드민 인증 성공');
+    res.json({ success: true, token });
+  } catch (error) {
+    console.error('어드민 인증 오류:', error);
+    res.status(500).json({ error: '인증 처리 실패' });
+  }
+});
+
+// 2. GET /api/admin/bot/config - 봇 설정 조회
+app.get('/api/admin/bot/config', adminAuthMiddleware, async (req, res) => {
+  try {
+    const roomsSetting = await Setting.findOne({ key: 'kakao_rooms' });
+    const adminsSetting = await Setting.findOne({ key: 'kakao_admins' });
+    
+    const rooms = roomsSetting ? JSON.parse(roomsSetting.value) : [];
+    const admins = adminsSetting ? JSON.parse(adminsSetting.value) : [];
+    
+    console.log('봇 설정 조회 (어드민)');
+    res.json({
+      rooms,
+      admins,
+      pollIntervalSec: 15
+    });
+  } catch (error) {
+    console.error('봇 설정 조회 오류:', error);
+    res.status(500).json({ error: '설정 조회 실패' });
+  }
+});
+
+// 3. POST /api/admin/bot/config - 봇 설정 저장
+app.post('/api/admin/bot/config', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { rooms, admins } = req.body;
+    
+    // 유효성 검증
+    if (!Array.isArray(rooms) || !Array.isArray(admins)) {
+      return res.status(400).json({ error: '잘못된 요청 형식' });
+    }
+    
+    // Setting 저장
+    await Setting.findOneAndUpdate(
+      { key: 'kakao_rooms' },
+      { value: JSON.stringify(rooms) },
+      { upsert: true }
+    );
+    
+    await Setting.findOneAndUpdate(
+      { key: 'kakao_admins' },
+      { value: JSON.stringify(admins) },
+      { upsert: true }
+    );
+    
+    console.log('봇 설정 저장 완료 (어드민)');
+    res.json({ success: true, message: '설정이 저장되었습니다' });
+  } catch (error) {
+    console.error('봇 설정 저장 오류:', error);
+    res.status(500).json({ error: '설정 저장 실패' });
+  }
+});
+
+// 4. GET /api/admin/bot/outbox/stats - Outbox 통계 조회
+app.get('/api/admin/bot/outbox/stats', adminAuthMiddleware, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    
+    // 상태별 카운트
+    const [pending, sent, failed] = await Promise.all([
+      BotOutbox.countDocuments({ status: 'pending' }),
+      BotOutbox.countDocuments({ status: 'sent' }),
+      BotOutbox.countDocuments({ status: 'failed' })
+    ]);
+    
+    // 최근 로그
+    const recentLogs = await BotOutbox.find()
+      .sort({ updatedAt: -1 })
+      .limit(limit)
+      .select('targetRoom message status sentAt type attempts lastError createdAt')
+      .lean();
+    
+    res.json({
+      pending,
+      sent,
+      failed,
+      recentLogs: recentLogs.map(log => ({
+        id: log._id.toString(),
+        targetRoom: log.targetRoom,
+        message: log.message.substring(0, 100) + (log.message.length > 100 ? '...' : ''),
+        status: log.status,
+        sentAt: log.sentAt,
+        type: log.type,
+        attempts: log.attempts,
+        lastError: log.lastError,
+        createdAt: log.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('봇 통계 조회 오류:', error);
+    res.status(500).json({ error: '통계 조회 실패' });
+  }
+});
+
+// ========================================
+// Bot API 엔드포인트
+// ========================================
+
+// 1. GET /api/bot/config - 봇 설정 조회
+app.get('/api/bot/config', botAuthMiddleware, async (req, res) => {
+  try {
+    const roomsSetting = await Setting.findOne({ key: 'kakao_rooms' });
+    const adminsSetting = await Setting.findOne({ key: 'kakao_admins' });
+    
+    const rooms = roomsSetting ? JSON.parse(roomsSetting.value) : [];
+    const admins = adminsSetting ? JSON.parse(adminsSetting.value) : [];
+    
+    res.json({
+      admins,
+      rooms,
+      pollIntervalSec: 15
+    });
+  } catch (error) {
+    console.error('Bot config 조회 오류:', error);
+    res.status(500).json({ error: '설정 조회 실패' });
+  }
+});
+
+// 2. POST /api/bot/config - 봇 설정 변경
+app.post('/api/bot/config', botAuthMiddleware, async (req, res) => {
+  try {
+    const { admins, rooms } = req.body;
+    
+    // 유효성 검증
+    if (!Array.isArray(admins) || !Array.isArray(rooms)) {
+      return res.status(400).json({ error: '잘못된 요청 형식' });
+    }
+    
+    // Setting 저장
+    await Setting.findOneAndUpdate(
+      { key: 'kakao_rooms' },
+      { value: JSON.stringify(rooms) },
+      { upsert: true }
+    );
+    
+    await Setting.findOneAndUpdate(
+      { key: 'kakao_admins' },
+      { value: JSON.stringify(admins) },
+      { upsert: true }
+    );
+    
+    console.log('Bot config 저장 완료');
+    res.json({ success: true, message: '설정이 저장되었습니다' });
+  } catch (error) {
+    console.error('Bot config 저장 오류:', error);
+    res.status(500).json({ error: '설정 저장 실패' });
+  }
+});
+
+// 3. POST /api/bot/outbox/pull - 메시지 가져오기 (폴링)
+app.post('/api/bot/outbox/pull', botAuthMiddleware, async (req, res) => {
+  try {
+    const { deviceId, limit = 20 } = req.body;
+    
+    if (!deviceId) {
+      return res.status(400).json({ error: 'deviceId 필수' });
+    }
+    
+    const now = new Date();
+    const lockExpireTime = new Date(now.getTime() - 5 * 60 * 1000); // 5분 전
+    
+    // 조회 조건:
+    // 1. status='pending'
+    // 2. attempts < 5
+    // 3. 잠금 없음 또는 잠금 만료
+    const items = await BotOutbox.find({
+      status: 'pending',
+      attempts: { $lt: 5 },
+      $or: [
+        { lockedAt: null },
+        { lockedAt: { $lt: lockExpireTime } }
+      ]
+    })
+    .sort({ priority: -1, createdAt: 1 })
+    .limit(limit)
+    .lean();
+    
+    // 지수 백오프 필터링
+    const readyItems = items.filter(item => {
+      if (item.attempts === 0) return true;
+      const waitMs = Math.pow(2, item.attempts - 1) * 60 * 1000;
+      const nextRetryTime = new Date(item.updatedAt.getTime() + waitMs);
+      return now >= nextRetryTime;
+    });
+    
+    // 잠금 설정
+    const ids = readyItems.map(item => item._id);
+    if (ids.length > 0) {
+      await BotOutbox.updateMany(
+        { _id: { $in: ids } },
+        {
+          $set: {
+            lockedAt: now,
+            lockedByDeviceId: deviceId
+          }
+        }
+      );
+    }
+    
+    // 응답 포맷
+    const response = {
+      items: readyItems.map(item => ({
+        id: item._id.toString(),
+        targetRoom: item.targetRoom,
+        message: item.message,
+        type: item.type,
+        priority: item.priority
+      }))
+    };
+    
+    if (response.items.length > 0) {
+      console.log(`Bot pull: ${response.items.length}개 메시지 전달 (device: ${deviceId})`);
+    }
+    
+    res.json(response);
+  } catch (error) {
+    console.error('Bot pull 오류:', error);
+    res.status(500).json({ error: '메시지 조회 실패' });
+  }
+});
+
+// 4. POST /api/bot/outbox/ack - 전송 결과 보고
+app.post('/api/bot/outbox/ack', botAuthMiddleware, async (req, res) => {
+  try {
+    const { deviceId, results } = req.body;
+    
+    if (!deviceId || !Array.isArray(results)) {
+      return res.status(400).json({ error: '잘못된 요청' });
+    }
+    
+    let updated = 0;
+    
+    for (const result of results) {
+      const { id, status, error } = result;
+      
+      if (status === 'sent') {
+        // 전송 성공
+        await BotOutbox.updateOne(
+          { _id: id },
+          {
+            $set: {
+              status: 'sent',
+              sentAt: new Date(),
+              lockedAt: null,
+              lockedByDeviceId: null
+            }
+          }
+        );
+        updated++;
+        console.log(`Bot ack: 전송 성공 (id: ${id})`);
+      } else if (status === 'failed') {
+        // 전송 실패
+        const item = await BotOutbox.findById(id);
+        if (item) {
+          const newAttempts = item.attempts + 1;
+          const newStatus = newAttempts >= 5 ? 'failed' : 'pending';
+          
+          await BotOutbox.updateOne(
+            { _id: id },
+            {
+              $set: {
+                status: newStatus,
+                attempts: newAttempts,
+                lastError: error || '알 수 없는 오류',
+                lockedAt: null,
+                lockedByDeviceId: null
+              }
+            }
+          );
+          updated++;
+          console.log(`Bot ack: 전송 실패 (id: ${id}, attempts: ${newAttempts}, status: ${newStatus})`);
+        }
+      }
+    }
+    
+    res.json({ success: true, updated });
+  } catch (error) {
+    console.error('Bot ack 오류:', error);
+    res.status(500).json({ error: '결과 처리 실패' });
+  }
+});
+
+// 5. GET /api/bot/outbox/stats - 통계 조회
+app.get('/api/bot/outbox/stats', botAuthMiddleware, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    
+    // 상태별 카운트
+    const [pending, sent, failed] = await Promise.all([
+      BotOutbox.countDocuments({ status: 'pending' }),
+      BotOutbox.countDocuments({ status: 'sent' }),
+      BotOutbox.countDocuments({ status: 'failed' })
+    ]);
+    
+    // 최근 로그
+    const recentLogs = await BotOutbox.find()
+      .sort({ updatedAt: -1 })
+      .limit(limit)
+      .select('targetRoom message status sentAt type attempts lastError createdAt')
+      .lean();
+    
+    res.json({
+      pending,
+      sent,
+      failed,
+      recentLogs: recentLogs.map(log => ({
+        id: log._id.toString(),
+        targetRoom: log.targetRoom,
+        message: log.message.substring(0, 100) + (log.message.length > 100 ? '...' : ''),
+        status: log.status,
+        sentAt: log.sentAt,
+        type: log.type,
+        attempts: log.attempts,
+        lastError: log.lastError,
+        createdAt: log.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('Bot stats 조회 오류:', error);
+    res.status(500).json({ error: '통계 조회 실패' });
+  }
 });
 
 const PORT = process.env.PORT || 4000;

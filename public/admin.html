@@ -212,6 +212,80 @@
                             </div>
                         </div>
 
+                        <!-- 카카오봇 관리 -->
+                        <div class="mb-4">
+                            <h6 class="mb-3">카카오봇 관리</h6>
+                            
+                            <!-- 방 관리 -->
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">방 관리</label>
+                                <div class="input-group mb-2">
+                                    <input type="text" class="form-control" id="botRoomNameInput" placeholder="새 방 이름 입력">
+                                    <button class="btn btn-outline-primary" type="button" id="addBotRoom">
+                                        <i class="fas fa-plus" aria-hidden="true"></i> 방 추가
+                                    </button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover" id="botRoomsTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>방 이름</th>
+                                                <th>활성화</th>
+                                                <th>일정알림</th>
+                                                <th>명령응답</th>
+                                                <th>삭제</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="botRoomsTableBody">
+                                            <!-- 동적으로 추가됨 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- 관리자 닉네임 관리 -->
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">관리자 닉네임</label>
+                                <div class="input-group mb-2">
+                                    <input type="text" class="form-control" id="botAdminInput" placeholder="관리자 닉네임 입력">
+                                    <button class="btn btn-outline-primary" type="button" id="addBotAdmin">
+                                        <i class="fas fa-plus" aria-hidden="true"></i> 추가
+                                    </button>
+                                </div>
+                                <div id="botAdminsList" class="d-flex flex-wrap gap-2">
+                                    <!-- 동적으로 추가됨 (칩 형태) -->
+                                </div>
+                            </div>
+
+                            <!-- 발송 현황 -->
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">발송 현황</label>
+                                <div class="d-flex gap-3 mb-2">
+                                    <div class="badge bg-secondary fs-6">대기: <span id="botPendingCount">0</span></div>
+                                    <div class="badge bg-success fs-6">전송완료: <span id="botSentCount">0</span></div>
+                                    <div class="badge bg-danger fs-6">실패: <span id="botFailedCount">0</span></div>
+                                    <button class="btn btn-sm btn-outline-primary ms-auto" id="refreshBotStats">
+                                        <i class="fas fa-sync-alt" aria-hidden="true"></i> 새로고침
+                                    </button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm" id="botLogsTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>방</th>
+                                                <th>메시지</th>
+                                                <th>상태</th>
+                                                <th>시도</th>
+                                                <th>시간</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="botLogsTableBody">
+                                            <!-- 동적으로 추가됨 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
 
                         <!-- AI API 테스트 -->
                         <div class="mb-4">
