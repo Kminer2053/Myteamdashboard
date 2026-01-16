@@ -26,6 +26,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 adminToken = data.token;
                 isAuthenticated = true;
                 passwordModal.hide();
+                // 관리자 페이지 컨텐츠 표시
+                const adminPageContent = document.getElementById('adminPageContent');
+                if (adminPageContent) {
+                    adminPageContent.style.display = '';
+                }
                 document.querySelectorAll('.input-group').forEach(group => {
                     group.style.display = 'flex';
                 });
