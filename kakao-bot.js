@@ -45,10 +45,31 @@ function extractDate(pubDate) {
 //     }
 // }
 
-// 메시지 라우팅
+// 메시지 라우팅 (/ prefix 명령어 지원)
 function routeMessage(userMessage) {
     const message = userMessage.toLowerCase().trim();
     
+    // / prefix 명령어 우선 처리
+    if (message === '/리스크') {
+        return 'risk';
+    }
+    if (message === '/제휴') {
+        return 'partner';
+    }
+    if (message === '/기술') {
+        return 'tech';
+    }
+    if (message === '/일정') {
+        return 'schedule';
+    }
+    if (message === '/뉴스') {
+        return 'all';
+    }
+    if (message === '/도움말' || message === '/헬프' || message === '/help') {
+        return 'help';
+    }
+    
+    // 기존 키워드 기반 라우팅 (하위 호환성)
     if (message.includes('스케줄공지') || message.includes('자동공지')) {
         return 'auto_announce';
     }
@@ -567,12 +588,12 @@ router.post('/message', async (req, res) => {
             }
             case 'help': {
                 await logUserAction('도움말', userId);
-                responseMessage = `📱 대시보드 봇 사용법\n\n1. 리스크 이슈 조회\n   - \"리스크\" 입력\n   - 검색 키워드 기반 필터링\n   - 오늘 등록된 뉴스만 표시\n\n2. 제휴처 탐색\n   - \"제휴\" 입력\n   - 검색 조건 기반 필터링\n   - 오늘 등록된 정보만 표시\n\n3. 신기술 동향\n   - \"기술\" 입력\n   - 검색 주제 기반 필터링\n   - 오늘 등록된 뉴스만 표시\n\n4. 일정 조회\n   - \"일정\" 입력\n   - 월간 캘린더와 일정 목록 표시\n   - 오늘 이후의 일정만 표시\n\n5. 뉴스 모니터링\n   - \"뉴스\" 입력\n   - 모든 카테고리의 오늘의 뉴스 표시\n   - 카테고리별 최신 3개 뉴스 표시\n\n6. 도움말\n   - \"도움말\" 입력\n   - 사용 가능한 명령어 목록 표시`;
+                responseMessage = `📱 대시보드 봇 사용법\n\n[일반 명령어] (/ prefix 사용)\n\n1. 리스크 이슈 조회\n   - \"/리스크\" 입력\n   - 오늘 등록된 리스크 뉴스 표시\n\n2. 제휴처 탐색\n   - \"/제휴\" 입력\n   - 오늘 등록된 제휴 정보 표시\n\n3. 신기술 동향\n   - \"/기술\" 입력\n   - 오늘 등록된 기술 뉴스 표시\n\n4. 일정 조회\n   - \"/일정\" 입력\n   - 월간 캘린더와 일정 목록 표시\n\n5. 뉴스 모니터링\n   - \"/뉴스\" 입력\n   - 모든 카테고리의 오늘의 뉴스 표시\n\n6. 도움말\n   - \"/도움말\" 입력\n   - 사용 가능한 명령어 목록 표시\n\n[관리자 명령어] (! prefix 사용)\n- !방이름 : 현재 방 이름 확인\n- !방추가 <방이름> : 방 등록\n- !방목록 : 등록된 방 목록\n- !상태 : 봇 상태 확인`;
                 break;
             }
             default: {
                 await logUserAction('기타', userId, { message: userMessage });
-                responseMessage = "안녕하세요! 대시보드 봇입니다. 👋\n\n사용 가능한 명령어:\n- 리스크\n- 제휴\n- 기술\n- 일정\n- 뉴스\n- 도움말";
+                responseMessage = "안녕하세요! 대시보드 봇입니다. 👋\n\n사용 가능한 명령어:\n- /리스크\n- /제휴\n- /기술\n- /일정\n- /뉴스\n- /도움말\n\n관리자 명령어:\n- !방이름\n- !방목록\n- !상태";
             }
         }
         
