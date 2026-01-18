@@ -2898,6 +2898,8 @@ app.get('/api/bot/config', botAuthMiddleware, async (req, res) => {
     const admins = adminsSetting ? JSON.parse(adminsSetting.value) : [];
     
     res.json({
+      serverUrl: process.env.SERVER_URL || 'https://myteamdashboard.onrender.com',
+      botToken: process.env.BOT_API_TOKEN,
       admins,
       rooms,
       pollIntervalSec: 15
