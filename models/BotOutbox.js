@@ -17,7 +17,7 @@ const botOutboxSchema = new mongoose.Schema({
   
   type: {
     type: String,
-    enum: ['schedule_create', 'schedule_update', 'schedule_delete', 'manual'],
+    enum: ['schedule_create', 'schedule_update', 'schedule_delete', 'manual', 'daily_announce'],
     required: true,
     comment: '메시지 타입'
   },
