@@ -139,6 +139,7 @@ const KEYWORDS = ['백종원', '지역개발사업'];
 const NEWS_FILE = 'news-data.json';
 
 let newsCronJob = null;
+let dailyAnnounceCronJob = null;  // 매일 자동 발송 cron job
 
 // === 공통 DB 저장 함수 ===
 async function saveNewsToDB(newsItems, model, category, keywords) {
@@ -569,6 +570,110 @@ async function scheduleNewsJob(isInit = false) {
     scheduled: true,
     timezone: "Asia/Seoul"
   });
+}
+
+// === 매일 자동 발송 cron 스케줄 등록 함수 ===
+async function scheduleDailyAnnounceJob(isInit = false) {
+  if (dailyAnnounceCronJob) {
+    console.log(`[자동발송][크론] 기존 작업 중지 후 재설정 중...`);
+    dailyAnnounceCronJob.stop();
+  }
+  
+  // 발송 시간 설정 조회
+  const setting = await Setting.findOne({ key: 'daily_announce_time' });
+  const time = (setting && setting.value) ? setting.value : null;
+  
+  if (!time) {
+    console.log(`[자동발송][크론] 발송 시간 미설정 - 자동 발송 비활성화`);
+    dailyAnnounceCronJob = null;
+    return;
+  }
+  
+  const [h, m] = time.split(':').map(Number);
+  const cronExp = `${m} ${h} * * *`;
+  console.log(`[자동발송][크론] ${cronExp} (매일 ${time})에 자동 발송 예약됨`);
+  
+  dailyAnnounceCronJob = cron.schedule(cronExp, async () => {
+    console.log(`[자동발송][크론] ${new Date().toLocaleString()} 매일 자동 발송 시작`);
+    try {
+      await sendDailyAnnounce();
+      console.log(`[자동발송][크론] ${new Date().toLocaleString()} 매일 자동 발송 완료`);
+    } catch (error) {
+      console.error(`[자동발송][크론] 발송 중 에러 발생:`, error);
+    }
+  }, {
+    scheduled: true,
+    timezone: "Asia/Seoul"
+  });
+  
+  console.log(`[자동발송][크론] 작업 상태: ${dailyAnnounceCronJob ? '활성화됨' : '비활성화됨'}`);
+}
+
+// 매일 자동 발송 실행 함수
+async function sendDailyAnnounce() {
+  try {
+    // 1. kakao_rooms 설정 조회
+    const roomsSetting = await Setting.findOne({ key: 'kakao_rooms' });
+    if (!roomsSetting) {
+      console.log('[자동발송] kakao_rooms 설정 없음, 발송 스킵');
+      return;
+    }
+    
+    const rooms = JSON.parse(roomsSetting.value);
+    
+    // 2. enabled=true AND scheduleNotify=true 방만 필터링
+    const targetRooms = rooms.filter(room => 
+      room.enabled === true && room.scheduleNotify === true
+    );
+    
+    if (targetRooms.length === 0) {
+      console.log('[자동발송] 일정알림 활성화된 방 없음, 발송 스킵');
+      return;
+    }
+    
+    console.log(`[자동발송] 대상 방 ${targetRooms.length}개: ${targetRooms.map(r => r.roomName).join(', ')}`);
+    
+    // 3. /kakao/message API 호출하여 메시지 생성
+    const baseUrl = process.env.API_BASE_URL || `http://localhost:${PORT}`;
+    const response = await axios.post(`${baseUrl}/kakao/message`, {
+      message: '스케줄공지'  // auto_announce 트리거
+    });
+    
+    if (!response.data || !response.data.message) {
+      console.log('[자동발송] 메시지 생성 실패');
+      return;
+    }
+    
+    const message = response.data.message;
+    console.log(`[자동발송] 메시지 생성 완료 (길이: ${message.length}자)`);
+    
+    // 4. 각 방에 Outbox 메시지 적재
+    const timestamp = Date.now();
+    const outboxDocs = targetRooms.map(room => ({
+      targetRoom: room.roomName,
+      message,
+      type: 'daily_announce',
+      status: 'pending',
+      priority: 0,
+      dedupeKey: `daily_announce:${timestamp}:${room.roomName}`,
+      attempts: 0
+    }));
+    
+    // 5. Outbox에 삽입
+    for (const doc of outboxDocs) {
+      const existing = await BotOutbox.findOne({ dedupeKey: doc.dedupeKey });
+      if (!existing) {
+        await BotOutbox.create(doc);
+        console.log(`[자동발송] Outbox 적재: ${doc.targetRoom}`);
+      }
+    }
+    
+    console.log(`[자동발송] ${outboxDocs.length}개 방에 메시지 적재 완료`);
+    
+  } catch (error) {
+    console.error('[자동발송] 에러:', error);
+    throw error;
+  }
 }
 
 // === AI 기반 뉴스 수집 함수들 ===
@@ -2884,6 +2989,75 @@ app.get('/api/admin/bot/outbox/stats', adminAuthMiddleware, async (req, res) => 
   }
 });
 
+// 5. GET /api/admin/daily-announce - 매일 자동 발송 설정 조회
+app.get('/api/admin/daily-announce', adminAuthMiddleware, async (req, res) => {
+  try {
+    const setting = await Setting.findOne({ key: 'daily_announce_time' });
+    const time = setting ? setting.value : null;
+    
+    res.json({
+      enabled: !!time,
+      time: time || '',
+      cronActive: !!dailyAnnounceCronJob
+    });
+  } catch (error) {
+    console.error('매일 자동 발송 설정 조회 오류:', error);
+    res.status(500).json({ error: '설정 조회 실패' });
+  }
+});
+
+// 6. POST /api/admin/daily-announce - 매일 자동 발송 설정 저장
+app.post('/api/admin/daily-announce', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { enabled, time } = req.body;
+    
+    if (enabled && time) {
+      // 시간 형식 검증 (HH:mm)
+      if (!/^\d{2}:\d{2}$/.test(time)) {
+        return res.status(400).json({ error: '잘못된 시간 형식입니다. HH:mm 형식으로 입력하세요.' });
+      }
+      
+      // 설정 저장
+      await Setting.findOneAndUpdate(
+        { key: 'daily_announce_time' },
+        { value: time },
+        { upsert: true }
+      );
+      
+      // cron 재스케줄
+      await scheduleDailyAnnounceJob();
+      
+      res.json({ success: true, message: `매일 ${time}에 자동 발송이 설정되었습니다.` });
+    } else {
+      // 비활성화 - 설정 삭제
+      await Setting.deleteOne({ key: 'daily_announce_time' });
+      
+      // cron 중지
+      if (dailyAnnounceCronJob) {
+        dailyAnnounceCronJob.stop();
+        dailyAnnounceCronJob = null;
+      }
+      
+      res.json({ success: true, message: '자동 발송이 비활성화되었습니다.' });
+    }
+  } catch (error) {
+    console.error('매일 자동 발송 설정 저장 오류:', error);
+    res.status(500).json({ error: '설정 저장 실패' });
+  }
+});
+
+// 7. POST /api/admin/daily-announce/test - 매일 자동 발송 테스트 (즉시 발송)
+app.post('/api/admin/daily-announce/test', adminAuthMiddleware, async (req, res) => {
+  try {
+    console.log('[자동발송][테스트] 관리자 요청에 의한 즉시 발송 시작');
+    await sendDailyAnnounce();
+    res.json({ success: true, message: '테스트 발송이 완료되었습니다. 카카오톡을 확인하세요.' });
+  } catch (error) {
+    console.error('매일 자동 발송 테스트 오류:', error);
+    res.status(500).json({ error: '테스트 발송 실패: ' + error.message });
+  }
+});
+
 // ========================================
 // Bot API 엔드포인트
 // ========================================
@@ -3142,7 +3316,14 @@ app.listen(PORT, async () => {
     if (!newsCronJob) {  // 크론 작업이 없을 때만 초기화
       await scheduleNewsJob(true);
     } else {
-      console.log(`[서버] 크론 작업이 이미 등록되어 있어 초기화를 건너뜁니다.`);
+      console.log(`[서버] 뉴스 수집 크론 작업이 이미 등록되어 있어 초기화를 건너뜁니다.`);
+    }
+    
+    // 매일 자동 발송 크론 작업 초기화
+    if (!dailyAnnounceCronJob) {
+      await scheduleDailyAnnounceJob(true);
+    } else {
+      console.log(`[서버] 자동 발송 크론 작업이 이미 등록되어 있어 초기화를 건너뜁니다.`);
     }
   } catch (error) {
     console.error(`[서버] 초기화 중 오류 발생:`, error);

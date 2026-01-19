@@ -240,6 +240,41 @@
                                 </div>
                             </div>
 
+                            <!-- 매일 자동 발송 설정 -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">📢 매일 자동 발송</label>
+                                <div class="card bg-light">
+                                    <div class="card-body py-2">
+                                        <div class="row align-items-center">
+                                            <div class="col-auto">
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" id="dailyAnnounceEnabled">
+                                                    <label class="form-check-label" for="dailyAnnounceEnabled">활성화</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-auto">
+                                                <div class="input-group input-group-sm" style="width: 150px;">
+                                                    <span class="input-group-text">발송시간</span>
+                                                    <input type="time" class="form-control" id="dailyAnnounceTime" value="08:30" disabled>
+                                                </div>
+                                            </div>
+                                            <div class="col-auto">
+                                                <span id="dailyAnnounceCronStatus" class="badge bg-secondary">비활성화</span>
+                                            </div>
+                                            <div class="col-auto ms-auto">
+                                                <button class="btn btn-sm btn-primary me-1" id="saveDailyAnnounce">
+                                                    <i class="fas fa-save" aria-hidden="true"></i> 저장
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-warning" id="testDailyAnnounce">
+                                                    <i class="fas fa-paper-plane" aria-hidden="true"></i> 테스트 발송
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <small class="text-muted mt-1 d-block">일정알림(🔔)이 활성화된 방에 매일 일정+뉴스를 자동 발송합니다.</small>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- 발송 현황 -->
                             <div class="mb-3">
                                 <label class="form-label fw-bold">발송 현황</label>

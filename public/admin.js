@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 카카오봇 설정 로드
                 loadBotConfig();
                 loadBotStats();
+                loadDailyAnnounce();
             } else {
                 alert('비밀번호가 일치하지 않습니다.');
                 passwordInput.value = '';
@@ -1082,5 +1083,147 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!isAuthenticated) return;
             loadBotStats();
         });
+    }
+
+    // ========================================
+    // 매일 자동 발송 설정
+    // ========================================
+    
+    // 매일 자동 발송 설정 로드
+    async function loadDailyAnnounce() {
+        if (!adminToken) return;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/admin/daily-announce`, {
+                headers: { 'X-ADMIN-TOKEN': adminToken }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                const enabledCheckbox = document.getElementById('dailyAnnounceEnabled');
+                const timeInput = document.getElementById('dailyAnnounceTime');
+                const statusBadge = document.getElementById('dailyAnnounceCronStatus');
+                
+                if (enabledCheckbox) enabledCheckbox.checked = data.enabled;
+                if (timeInput) timeInput.value = data.time || '08:30';
+                if (statusBadge) {
+                    statusBadge.textContent = data.cronActive ? '활성화' : '비활성화';
+                    statusBadge.className = `badge ${data.cronActive ? 'bg-success' : 'bg-secondary'}`;
+                }
+                
+                // 시간 입력 활성화/비활성화
+                if (timeInput) timeInput.disabled = !data.enabled;
+            }
+        } catch (error) {
+            console.error('매일 자동 발송 설정 로드 오류:', error);
+        }
+    }
+    
+    // 매일 자동 발송 설정 저장
+    async function saveDailyAnnounce() {
+        if (!adminToken) return;
+        
+        const enabledCheckbox = document.getElementById('dailyAnnounceEnabled');
+        const timeInput = document.getElementById('dailyAnnounceTime');
+        
+        const enabled = enabledCheckbox ? enabledCheckbox.checked : false;
+        const time = timeInput ? timeInput.value : '';
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/admin/daily-announce`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-ADMIN-TOKEN': adminToken
+                },
+                body: JSON.stringify({ enabled, time })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                alert(data.message);
+                loadDailyAnnounce();
+                logUserAction('카카오봇_자동발송설정', { enabled, time });
+            } else {
+                alert('저장 실패: ' + (data.error || '알 수 없는 오류'));
+            }
+        } catch (error) {
+            console.error('매일 자동 발송 설정 저장 오류:', error);
+            alert('저장 중 오류가 발생했습니다.');
+        }
+    }
+    
+    // 매일 자동 발송 테스트
+    async function testDailyAnnounce() {
+        if (!adminToken) return;
+        
+        if (!confirm('즉시 테스트 발송하시겠습니까?\n일정알림이 활성화된 모든 방에 메시지가 전송됩니다.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/admin/daily-announce/test`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-ADMIN-TOKEN': adminToken
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                alert(data.message);
+                loadBotStats();
+                logUserAction('카카오봇_자동발송테스트', {});
+            } else {
+                alert('테스트 실패: ' + (data.error || '알 수 없는 오류'));
+            }
+        } catch (error) {
+            console.error('매일 자동 발송 테스트 오류:', error);
+            alert('테스트 중 오류가 발생했습니다.');
+        }
+    }
+    
+    // 자동 발송 활성화 체크박스 이벤트
+    const dailyAnnounceEnabledCheckbox = document.getElementById('dailyAnnounceEnabled');
+    if (dailyAnnounceEnabledCheckbox) {
+        dailyAnnounceEnabledCheckbox.addEventListener('change', function() {
+            const timeInput = document.getElementById('dailyAnnounceTime');
+            if (timeInput) timeInput.disabled = !this.checked;
+        });
+    }
+    
+    // 자동 발송 저장 버튼 이벤트
+    const saveDailyAnnounceBtn = document.getElementById('saveDailyAnnounce');
+    if (saveDailyAnnounceBtn) {
+        saveDailyAnnounceBtn.addEventListener('click', function() {
+            if (!isAuthenticated) return;
+            saveDailyAnnounce();
+        });
+    }
+    
+    // 자동 발송 테스트 버튼 이벤트
+    const testDailyAnnounceBtn = document.getElementById('testDailyAnnounce');
+    if (testDailyAnnounceBtn) {
+        testDailyAnnounceBtn.addEventListener('click', function() {
+            if (!isAuthenticated) return;
+            testDailyAnnounce();
+        });
+    }
+    
+    // 인증 후 자동 발송 설정도 로드
+    const originalPasswordSubmit = document.getElementById('submitPassword');
+    if (originalPasswordSubmit) {
+        const originalOnClick = originalPasswordSubmit.onclick;
+        // loadBotConfig 호출 후 loadDailyAnnounce도 호출되도록 함
+        // 이미 loadBotConfig가 호출되는 곳에서 loadDailyAnnounce도 호출
+    }
+    
+    // 페이지 로드 시 인증 상태면 자동 발송 설정도 로드
+    if (adminToken) {
+        loadDailyAnnounce();
     }
 }); 
