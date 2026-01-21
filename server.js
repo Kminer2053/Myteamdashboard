@@ -612,19 +612,34 @@ async function scheduleDailyAnnounceJob(isInit = false) {
 // 매일 자동 발송 실행 함수
 async function sendDailyAnnounce() {
   try {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:613',message:'sendDailyAnnounce 시작',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     // 1. kakao_rooms 설정 조회
     const roomsSetting = await Setting.findOne({ key: 'kakao_rooms' });
     if (!roomsSetting) {
       console.log('[자동발송] kakao_rooms 설정 없음, 발송 스킵');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:618',message:'kakao_rooms 설정 없음',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       return;
     }
     
     const rooms = JSON.parse(roomsSetting.value);
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:622',message:'전체 방 목록 조회',data:{totalRooms:rooms.length,rooms:rooms.map(r=>({name:r.roomName,enabled:r.enabled,scheduleNotify:r.scheduleNotify}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     // 2. enabled=true AND scheduleNotify=true 방만 필터링
     const targetRooms = rooms.filter(room => 
       room.enabled === true && room.scheduleNotify === true
     );
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:625',message:'대상 방 필터링 결과',data:{targetCount:targetRooms.length,targetRooms:targetRooms.map(r=>r.roomName)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     
     if (targetRooms.length === 0) {
       console.log('[자동발송] 일정알림 활성화된 방 없음, 발송 스킵');
@@ -641,6 +656,9 @@ async function sendDailyAnnounce() {
     
     if (!response.data || !response.data.message) {
       console.log('[자동발송] 메시지 생성 실패');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:642',message:'메시지 생성 실패',data:{responseData:response.data},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       return;
     }
     
@@ -659,19 +677,48 @@ async function sendDailyAnnounce() {
       attempts: 0
     }));
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:652',message:'Outbox 문서 생성',data:{docCount:outboxDocs.length,docs:outboxDocs.map(d=>({targetRoom:d.targetRoom,dedupeKey:d.dedupeKey}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     // 5. Outbox에 삽입
+    let createdCount = 0;
+    let skippedCount = 0;
     for (const doc of outboxDocs) {
-      const existing = await BotOutbox.findOne({ dedupeKey: doc.dedupeKey });
-      if (!existing) {
-        await BotOutbox.create(doc);
-        console.log(`[자동발송] Outbox 적재: ${doc.targetRoom}`);
+      try {
+        const existing = await BotOutbox.findOne({ dedupeKey: doc.dedupeKey });
+        if (!existing) {
+          await BotOutbox.create(doc);
+          createdCount++;
+          console.log(`[자동발송] Outbox 적재: ${doc.targetRoom}`);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:666',message:'Outbox 메시지 생성 성공',data:{targetRoom:doc.targetRoom,dedupeKey:doc.dedupeKey},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+        } else {
+          skippedCount++;
+          console.log(`[자동발송] 중복 메시지 스킵: ${doc.targetRoom} (dedupeKey: ${doc.dedupeKey})`);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:670',message:'중복 메시지 스킵',data:{targetRoom:doc.targetRoom,dedupeKey:doc.dedupeKey,existingId:existing._id.toString()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+        }
+      } catch (error) {
+        console.error(`[자동발송] Outbox 적재 실패: ${doc.targetRoom}`, error);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:675',message:'Outbox 적재 실패',data:{targetRoom:doc.targetRoom,error:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
       }
     }
     
-    console.log(`[자동발송] ${outboxDocs.length}개 방에 메시지 적재 완료`);
+    console.log(`[자동발송] ${createdCount}개 생성, ${skippedCount}개 스킵 (총 ${outboxDocs.length}개 방)`);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:680',message:'sendDailyAnnounce 완료',data:{createdCount,skippedCount,totalDocs:outboxDocs.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     
   } catch (error) {
     console.error('[자동발송] 에러:', error);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:683',message:'sendDailyAnnounce 에러',data:{error:String(error),stack:error.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     throw error;
   }
 }
@@ -2796,6 +2843,118 @@ app.delete('/api/emails/:email', async (req, res) => {
 
 app.use('/kakao', kakaoBotRouter);
 console.log('카카오 라우터 등록됨');
+
+// === 점심 추천 서비스 라우트 (/lunch/*) ===
+const GOOGLE_APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL;
+const LUNCH_API_KEY = process.env.LUNCH_API_KEY;
+const LUNCH_WEB_URL = process.env.LUNCH_WEB_URL || '';
+
+// Apps Script 호출 헬퍼 함수
+async function callAppsScript(endpoint, method = 'GET', body = null) {
+  if (!GOOGLE_APPS_SCRIPT_URL) {
+    throw new Error('GOOGLE_APPS_SCRIPT_URL이 설정되지 않았습니다');
+  }
+  if (!LUNCH_API_KEY) {
+    throw new Error('LUNCH_API_KEY가 설정되지 않았습니다');
+  }
+
+  const config = {
+    method,
+    url: `${GOOGLE_APPS_SCRIPT_URL}${endpoint}`,
+    headers: {
+      'x-api-key': LUNCH_API_KEY,
+      'Content-Type': 'application/json'
+    },
+    timeout: 30000 // 30초 타임아웃
+  };
+
+  if (body && (method === 'POST' || method === 'PUT')) {
+    config.data = body;
+  }
+
+  try {
+    const response = await axios(config);
+    return response.data;
+  } catch (error) {
+    console.error(`Apps Script 호출 실패 (${endpoint}):`, error.message);
+    if (error.response) {
+      throw new Error(`Apps Script 오류: ${error.response.data?.error || error.response.statusText}`);
+    }
+    throw error;
+  }
+}
+
+// GET /lunch/places - 장소 목록 조회
+app.get('/lunch/places', async (req, res) => {
+  try {
+    const result = await callAppsScript('/places', 'GET');
+    res.json(result);
+  } catch (error) {
+    console.error('장소 목록 조회 실패:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || '장소 목록 조회 실패' 
+    });
+  }
+});
+
+// POST /lunch/places - 새 장소 등록
+app.post('/lunch/places', async (req, res) => {
+  try {
+    const result = await callAppsScript('/places', 'POST', req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('장소 등록 실패:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || '장소 등록 실패' 
+    });
+  }
+});
+
+// POST /lunch/reviews - 리뷰 등록
+app.post('/lunch/reviews', async (req, res) => {
+  try {
+    const result = await callAppsScript('/reviews', 'POST', req.body);
+    res.json(result);
+  } catch (error) {
+    console.error('리뷰 등록 실패:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || '리뷰 등록 실패' 
+    });
+  }
+});
+
+// POST /lunch/recommend - 점심 추천 요청
+app.post('/lunch/recommend', async (req, res) => {
+  try {
+    const { text, preset = [], exclude = [] } = req.body;
+    
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'text 필드는 필수이며 비어있을 수 없습니다' 
+      });
+    }
+
+    const result = await callAppsScript('/recommend', 'POST', {
+      text: text.trim(),
+      preset: Array.isArray(preset) ? preset : [],
+      exclude: Array.isArray(exclude) ? exclude : []
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('추천 요청 실패:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || '추천 요청 실패' 
+    });
+  }
+});
+
+console.log('점심 추천 서비스 라우트 등록됨 (/lunch/*)');
 
 app.get('/', (req, res) => {
   res.send('API 서버가 정상적으로 실행 중입니다.');
