@@ -1605,23 +1605,45 @@ async function enqueueScheduleKakao(action, schedule, prevSchedule = null) {
       status: 'pending',
       priority: 0,
       scheduleId: schedule._id,
-      dedupeKey: `schedule:${action}:${schedule._id}:${timestamp}`,
+      dedupeKey: `schedule:${action}:${schedule._id}:${room.roomName}:${timestamp}`,
       attempts: 0
     }));
     
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1600',message:'enqueueScheduleKakao - Outbox 문서 생성',data:{action,targetRooms:targetRooms.map(r=>r.roomName),docCount:outboxDocs.length,docs:outboxDocs.map(d=>({targetRoom:d.targetRoom,dedupeKey:d.dedupeKey}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     // 5. 중복 체크 후 삽입
+    let createdCount = 0;
+    let skippedCount = 0;
     for (const doc of outboxDocs) {
       try {
         await BotOutbox.create(doc);
+        createdCount++;
         console.log(`카톡 메시지 적재: ${doc.targetRoom} - ${action}`);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1616',message:'Outbox 메시지 생성 성공',data:{targetRoom:doc.targetRoom,action,dedupeKey:doc.dedupeKey},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
       } catch (error) {
         if (error.code === 11000) {
+          skippedCount++;
           console.log(`중복 메시지 스킵: ${doc.dedupeKey}`);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1620',message:'중복 메시지 스킵',data:{targetRoom:doc.targetRoom,action,dedupeKey:doc.dedupeKey,errorCode:11000},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
         } else {
           console.error('BotOutbox 저장 실패:', error);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1623',message:'BotOutbox 저장 실패',data:{targetRoom:doc.targetRoom,action,error:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
         }
       }
     }
+    
+    console.log(`[일정알림] ${createdCount}개 생성, ${skippedCount}개 스킵 (총 ${outboxDocs.length}개 방)`);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:1630',message:'enqueueScheduleKakao 완료',data:{action,createdCount,skippedCount,totalDocs:outboxDocs.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
   } catch (error) {
     console.error('enqueueScheduleKakao 실패:', error);
     // 에러 발생 시에도 스케줄 저장은 성공하도록 함 (non-blocking)
