@@ -1110,9 +1110,22 @@ document.addEventListener('DOMContentLoaded', function() {
     // 통계 새로고침 버튼
     const refreshBotStatsBtn = document.getElementById('refreshBotStats');
     if (refreshBotStatsBtn) {
-        refreshBotStatsBtn.addEventListener('click', function() {
+        refreshBotStatsBtn.addEventListener('click', async function() {
             if (!isAuthenticated) return;
-            loadBotStats();
+            
+            refreshBotStatsBtn.disabled = true;
+            const spinner = refreshBotStatsBtn.querySelector('.spinner-border');
+            const icon = refreshBotStatsBtn.querySelector('.fa-sync-alt');
+            if (spinner) spinner.classList.remove('d-none');
+            if (icon) icon.classList.add('d-none');
+            
+            try {
+                await loadBotStats();
+            } finally {
+                refreshBotStatsBtn.disabled = false;
+                if (spinner) spinner.classList.add('d-none');
+                if (icon) icon.classList.remove('d-none');
+            }
         });
     }
 
