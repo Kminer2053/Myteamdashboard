@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>오늘 점심, 여기</title>
+    <link rel="stylesheet" href="lunch.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 헤더 -->
+        <header class="header">
+            <h1>🍽️ 오늘 점심, 여기</h1>
+        </header>
+
+        <!-- 메인 콘텐츠 -->
+        <main class="main-content">
+            <!-- 추천 탭 -->
+            <div class="tab-content active" id="recommend-tab">
+                <div class="recommend-section">
+                    <div class="input-group">
+                        <label for="recommend-text">어떤 점심을 원하시나요?</label>
+                        <textarea 
+                            id="recommend-text" 
+                            placeholder="예: 가까운 곳에서 혼밥 가능한 곳"
+                            rows="3"
+                        ></textarea>
+                    </div>
+
+                    <div class="preset-chips">
+                        <div class="chip-label">프리셋 선택 (선택사항)</div>
+                        <div class="chips">
+                            <button class="chip" data-preset="solo_ok">혼밥</button>
+                            <button class="chip" data-preset="group_ok">단체</button>
+                            <button class="chip" data-preset="indoor_ok">실내</button>
+                        </div>
+                    </div>
+
+                    <button class="btn-primary" id="recommend-btn">추천 받기</button>
+
+                    <div id="recommend-results" class="results-container"></div>
+                </div>
+            </div>
+
+            <!-- 목록 탭 -->
+            <div class="tab-content" id="list-tab">
+                <div class="list-section">
+                    <div class="search-filter">
+                        <input 
+                            type="text" 
+                            id="search-input" 
+                            placeholder="검색..."
+                            class="search-input"
+                        >
+                    </div>
+                    <div id="places-list" class="places-list"></div>
+                </div>
+            </div>
+
+            <!-- 등록 탭 -->
+            <div class="tab-content" id="register-tab">
+                <div class="register-section">
+                    <form id="place-form">
+                        <div class="form-group">
+                            <label for="place-name">식당 이름 *</label>
+                            <input type="text" id="place-name" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="place-address">주소 *</label>
+                            <input type="text" id="place-address" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="place-map-url">네이버 지도 URL</label>
+                            <input type="url" id="place-map-url" placeholder="https://map.naver.com/...">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="place-category">카테고리</label>
+                            <select id="place-category">
+                                <option value="">선택</option>
+                                <option value="한식">한식</option>
+                                <option value="중식">중식</option>
+                                <option value="일식">일식</option>
+                                <option value="양식">양식</option>
+                                <option value="분식">분식</option>
+                                <option value="기타">기타</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="place-price">가격대</label>
+                            <select id="place-price">
+                                <option value="">선택</option>
+                                <option value="저">저</option>
+                                <option value="중">중</option>
+                                <option value="고">고</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="place-walk">도보 시간 (분)</label>
+                            <input type="number" id="place-walk" min="0" value="0">
+                        </div>
+
+                        <div class="form-group">
+                            <label>옵션</label>
+                            <div class="checkboxes">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="place-solo"> 혼밥 가능
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="place-group"> 단체 가능
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="place-indoor"> 실내 가능
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="place-tags">태그 (쉼표로 구분)</label>
+                            <input type="text" id="place-tags" placeholder="예: 가성비,맛집">
+                        </div>
+
+                        <button type="submit" class="btn-primary">등록하기</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+
+        <!-- 하단 탭바 -->
+        <nav class="tab-bar">
+            <button class="tab-btn active" data-tab="recommend-tab">
+                <span class="tab-icon">🔍</span>
+                <span class="tab-label">추천</span>
+            </button>
+            <button class="tab-btn" data-tab="list-tab">
+                <span class="tab-icon">📋</span>
+                <span class="tab-label">목록</span>
+            </button>
+            <button class="tab-btn" data-tab="register-tab">
+                <span class="tab-icon">➕</span>
+                <span class="tab-label">등록</span>
+            </button>
+        </nav>
+
+        <!-- 로딩 오버레이 -->
+        <div id="loading-overlay" class="loading-overlay" style="display: none;">
+            <div class="spinner"></div>
+            <p>처리 중...</p>
+        </div>
+
+        <!-- 토스트 메시지 -->
+        <div id="toast" class="toast"></div>
+    </div>
+
+    <script src="lunch.js"></script>
+</body>
+</html>

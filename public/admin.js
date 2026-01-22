@@ -219,6 +219,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        saveTokenLimitsBtn.disabled = true;
+        const spinner = saveTokenLimitsBtn.querySelector('.spinner-border');
+        if (spinner) spinner.classList.remove('d-none');
+        
         try {
             const response = await fetch(`${API_BASE_URL}/api/token-limits`, {
                 method: 'POST',
@@ -237,6 +241,9 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('토큰 제한 설정 저장 실패:', error);
             showToast('토큰 제한 설정 저장 중 오류가 발생했습니다.');
+        } finally {
+            saveTokenLimitsBtn.disabled = false;
+            if (spinner) spinner.classList.add('d-none');
         }
     });
 
@@ -676,6 +683,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         btn.disabled = true;
+        const spinner = btn.querySelector('.spinner-border');
+        if (spinner) spinner.classList.remove('d-none');
         try {
             const res = await fetch(`${API_BASE_URL}/api/prompt/${category}` , {
                 method: 'POST',
@@ -692,6 +701,7 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('저장 중 오류: ' + e.message);
         } finally {
             btn.disabled = false;
+            if (spinner) spinner.classList.add('d-none');
         }
     }
     // 진입 시 불러오기
@@ -1018,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 방 추가 버튼
     const addBotRoomBtn = document.getElementById('addBotRoom');
     if (addBotRoomBtn) {
-        addBotRoomBtn.addEventListener('click', function() {
+        addBotRoomBtn.addEventListener('click', async function() {
             if (!isAuthenticated) return;
             
             const input = document.getElementById('botRoomNameInput');
@@ -1035,24 +1045,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            botRooms.push({
-                roomName: roomName,
-                enabled: true,
-                scheduleNotify: true,
-                commandsEnabled: true
-            });
+            addBotRoomBtn.disabled = true;
+            const spinner = addBotRoomBtn.querySelector('.spinner-border');
+            if (spinner) spinner.classList.remove('d-none');
             
-            input.value = '';
-            renderBotRooms();
-            saveBotConfig();
-            logUserAction('카카오봇_방추가', { roomName });
+            try {
+                botRooms.push({
+                    roomName: roomName,
+                    enabled: true,
+                    scheduleNotify: true,
+                    commandsEnabled: true
+                });
+                
+                input.value = '';
+                renderBotRooms();
+                await saveBotConfig();
+                showToast('방이 추가되었습니다.');
+                logUserAction('카카오봇_방추가', { roomName });
+            } finally {
+                addBotRoomBtn.disabled = false;
+                if (spinner) spinner.classList.add('d-none');
+            }
         });
     }
 
     // 관리자 추가 버튼
     const addBotAdminBtn = document.getElementById('addBotAdmin');
     if (addBotAdminBtn) {
-        addBotAdminBtn.addEventListener('click', function() {
+        addBotAdminBtn.addEventListener('click', async function() {
             if (!isAuthenticated) return;
             
             const input = document.getElementById('botAdminInput');
@@ -1069,10 +1089,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            botAdmins.push(adminName);
-            input.value = '';
-            renderBotAdmins();
-            saveBotConfig();
+            addBotAdminBtn.disabled = true;
+            const spinner = addBotAdminBtn.querySelector('.spinner-border');
+            if (spinner) spinner.classList.remove('d-none');
+            
+            try {
+                botAdmins.push(adminName);
+                input.value = '';
+                renderBotAdmins();
+                await saveBotConfig();
+                showToast('관리자가 추가되었습니다.');
+                logUserAction('카카오봇_관리자추가', { adminName });
+            } finally {
+                addBotAdminBtn.disabled = false;
+                if (spinner) spinner.classList.add('d-none');
+            }
         });
     }
 
@@ -1126,9 +1157,16 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const enabledCheckbox = document.getElementById('dailyAnnounceEnabled');
         const timeInput = document.getElementById('dailyAnnounceTime');
+        const saveBtn = document.getElementById('saveDailyAnnounce');
         
         const enabled = enabledCheckbox ? enabledCheckbox.checked : false;
         const time = timeInput ? timeInput.value : '';
+        
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            const spinner = saveBtn.querySelector('.spinner-border');
+            if (spinner) spinner.classList.remove('d-none');
+        }
         
         try {
             const response = await fetch(`${API_BASE_URL}/api/admin/daily-announce`, {
@@ -1143,7 +1181,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (response.ok) {
-                alert(data.message);
+                showToast(data.message);
                 loadDailyAnnounce();
                 logUserAction('카카오봇_자동발송설정', { enabled, time });
             } else {
@@ -1152,6 +1190,12 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('매일 자동 발송 설정 저장 오류:', error);
             alert('저장 중 오류가 발생했습니다.');
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                const spinner = saveBtn.querySelector('.spinner-border');
+                if (spinner) spinner.classList.add('d-none');
+            }
         }
     }
     
@@ -1161,6 +1205,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!confirm('즉시 테스트 발송하시겠습니까?\n일정알림이 활성화된 모든 방에 메시지가 전송됩니다.')) {
             return;
+        }
+        
+        const testBtn = document.getElementById('testDailyAnnounce');
+        if (testBtn) {
+            testBtn.disabled = true;
+            const spinner = testBtn.querySelector('.spinner-border');
+            if (spinner) spinner.classList.remove('d-none');
         }
         
         try {
@@ -1175,7 +1226,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (response.ok) {
-                alert(data.message);
+                showToast(data.message);
                 loadBotStats();
                 logUserAction('카카오봇_자동발송테스트', {});
             } else {
@@ -1184,6 +1235,12 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('매일 자동 발송 테스트 오류:', error);
             alert('테스트 중 오류가 발생했습니다.');
+        } finally {
+            if (testBtn) {
+                testBtn.disabled = false;
+                const spinner = testBtn.querySelector('.spinner-border');
+                if (spinner) spinner.classList.add('d-none');
+            }
         }
     }
     

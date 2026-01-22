@@ -69,6 +69,11 @@ function routeMessage(userMessage) {
         return 'help';
     }
     
+    // 점심 추천 명령어 처리
+    if (message.startsWith('/점심') || message.startsWith('/추천')) {
+        return 'lunch_recommend';
+    }
+    
     // 기존 키워드 기반 라우팅 (하위 호환성)
     if (message.includes('스케줄공지') || message.includes('자동공지')) {
         return 'auto_announce';
@@ -586,14 +591,87 @@ router.post('/message', async (req, res) => {
                 }
                 break;
             }
+            case 'lunch_recommend': {
+                await logUserAction('점심추천', userId);
+                try {
+                    // 명령어에서 자연어 텍스트 추출
+                    const originalMessage = userMessage.trim();
+                    let requestText = '';
+                    
+                    if (originalMessage.startsWith('/점심')) {
+                        requestText = originalMessage.replace('/점심', '').trim();
+                    } else if (originalMessage.startsWith('/추천')) {
+                        requestText = originalMessage.replace('/추천', '').trim();
+                    }
+                    
+                    // 자연어 텍스트가 없으면 기본 메시지
+                    if (!requestText) {
+                        requestText = '점심 추천해줘';
+                    }
+                    
+                    // 추천 API 호출
+                    const baseUrl = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 4000}`;
+                    const recommendResponse = await axios.post(`${baseUrl}/lunch/recommend`, {
+                        text: requestText,
+                        preset: [],
+                        exclude: []
+                    }, {
+                        timeout: 30000 // 30초 타임아웃
+                    });
+                    
+                    if (recommendResponse.data.success && recommendResponse.data.data && recommendResponse.data.data.length > 0) {
+                        const recommendations = recommendResponse.data.data;
+                        responseMessage = '🍽️ 점심 추천 결과\n\n';
+                        
+                        recommendations.forEach((item, index) => {
+                            const emoji = index === 0 ? '1️⃣' : index === 1 ? '2️⃣' : '3️⃣';
+                            responseMessage += `${emoji} ${item.name || '이름 없음'}\n`;
+                            
+                            if (item.reason) {
+                                responseMessage += `📍 이유: ${item.reason}\n`;
+                            }
+                            
+                            if (item.address_text) {
+                                responseMessage += `📍 주소: ${item.address_text}\n`;
+                            }
+                            
+                            if (item.naver_map_url) {
+                                responseMessage += `🗺️ 지도: ${item.naver_map_url}\n`;
+                            }
+                            
+                            if (item.category) {
+                                responseMessage += `🏷️ 카테고리: ${item.category}\n`;
+                            }
+                            
+                            if (item.walk_min) {
+                                responseMessage += `🚶 도보: ${item.walk_min}분\n`;
+                            }
+                            
+                            responseMessage += '\n';
+                        });
+                        
+                        // 웹페이지 링크 추가
+                        const lunchWebUrl = process.env.LUNCH_WEB_URL;
+                        if (lunchWebUrl) {
+                            responseMessage += `💻 더 많은 기능: ${lunchWebUrl}\n`;
+                        }
+                    } else {
+                        responseMessage = '😔 추천 결과를 찾을 수 없습니다.\n\n다른 조건으로 다시 시도해보세요!';
+                    }
+                } catch (error) {
+                    console.error('점심 추천 실패:', error);
+                    responseMessage = '❌ 점심 추천 중 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.';
+                }
+                break;
+            }
             case 'help': {
                 await logUserAction('도움말', userId);
-                responseMessage = `📱 대시보드 봇 사용법\n\n[일반 명령어] (/ prefix 사용)\n\n1. 리스크 이슈 조회\n   - \"/리스크\" 입력\n   - 오늘 등록된 리스크 뉴스 표시\n\n2. 제휴처 탐색\n   - \"/제휴\" 입력\n   - 오늘 등록된 제휴 정보 표시\n\n3. 신기술 동향\n   - \"/기술\" 입력\n   - 오늘 등록된 기술 뉴스 표시\n\n4. 일정 조회\n   - \"/일정\" 입력\n   - 월간 캘린더와 일정 목록 표시\n\n5. 뉴스 모니터링\n   - \"/뉴스\" 입력\n   - 모든 카테고리의 오늘의 뉴스 표시\n\n6. 도움말\n   - \"/도움말\" 입력\n   - 사용 가능한 명령어 목록 표시\n\n[관리자 명령어] (! prefix 사용)\n- !방이름 : 현재 방 이름 확인\n- !방추가 <방이름> : 방 등록\n- !방목록 : 등록된 방 목록\n- !상태 : 봇 상태 확인`;
+                responseMessage = `📱 대시보드 봇 사용법\n\n[일반 명령어] (/ prefix 사용)\n\n1. 리스크 이슈 조회\n   - \"/리스크\" 입력\n   - 오늘 등록된 리스크 뉴스 표시\n\n2. 제휴처 탐색\n   - \"/제휴\" 입력\n   - 오늘 등록된 제휴 정보 표시\n\n3. 신기술 동향\n   - \"/기술\" 입력\n   - 오늘 등록된 기술 뉴스 표시\n\n4. 일정 조회\n   - \"/일정\" 입력\n   - 월간 캘린더와 일정 목록 표시\n\n5. 뉴스 모니터링\n   - \"/뉴스\" 입력\n   - 모든 카테고리의 오늘의 뉴스 표시\n\n6. 점심 추천\n   - \"/점심 [요청]\" 입력\n   - 예: \"/점심 가까운 곳에서 혼밥 가능한 곳\"\n\n7. 도움말\n   - \"/도움말\" 입력\n   - 사용 가능한 명령어 목록 표시\n\n[관리자 명령어] (! prefix 사용)\n- !방이름 : 현재 방 이름 확인\n- !방추가 <방이름> : 방 등록\n- !방삭제 <방이름> : 방 삭제\n- !방업데이트 : 방 이름 변경 시 자동 업데이트\n- !방목록 : 등록된 방 목록\n- !상태 : 봇 상태 확인`;
                 break;
             }
             default: {
                 await logUserAction('기타', userId, { message: userMessage });
-                responseMessage = "안녕하세요! 대시보드 봇입니다. 👋\n\n사용 가능한 명령어:\n- /리스크\n- /제휴\n- /기술\n- /일정\n- /뉴스\n- /도움말\n\n관리자 명령어:\n- !방이름\n- !방목록\n- !상태";
+                responseMessage = "안녕하세요! 대시보드 봇입니다. 👋\n\n사용 가능한 명령어:\n- /리스크\n- /제휴\n- /기술\n- /일정\n- /뉴스\n- /점심 [요청]\n- /도움말\n\n관리자 명령어:\n- !방이름\n- !방추가\n- !방삭제\n- !방업데이트\n- !방목록\n- !상태";
             }
         }
         

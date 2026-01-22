@@ -60,7 +60,10 @@
                             <!-- 리스크 이슈 프롬프트 입력 -->
                             <label for="promptInputRisk" class="form-label mt-2">리스크 이슈 AI 프롬프트</label>
                             <textarea class="form-control mb-2" id="promptInputRisk" rows="2" placeholder="이 카테고리의 AI 요약 프롬프트를 입력하세요"></textarea>
-                            <button class="btn btn-sm btn-primary mb-2" id="savePromptRisk">저장</button>
+                            <button class="btn btn-sm btn-primary mb-2" id="savePromptRisk">
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                저장
+                            </button>
                         </div>
 
                         <!-- 제휴처 탐색 조건 관리 -->
@@ -76,7 +79,10 @@
                             <!-- 제휴처 탐색 프롬프트 입력 -->
                             <label for="promptInputPartner" class="form-label mt-2">제휴처 탐색 AI 프롬프트</label>
                             <textarea class="form-control mb-2" id="promptInputPartner" rows="2" placeholder="이 카테고리의 AI 요약 프롬프트를 입력하세요"></textarea>
-                            <button class="btn btn-sm btn-primary mb-2" id="savePromptPartner">저장</button>
+                            <button class="btn btn-sm btn-primary mb-2" id="savePromptPartner">
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                저장
+                            </button>
                         </div>
 
                         <!-- 신기술 동향 주제 관리 -->
@@ -92,7 +98,10 @@
                             <!-- 신기술 동향 프롬프트 입력 -->
                             <label for="promptInputTech" class="form-label mt-2">신기술 동향 AI 프롬프트</label>
                             <textarea class="form-control mb-2" id="promptInputTech" rows="2" placeholder="이 카테고리의 AI 요약 프롬프트를 입력하세요"></textarea>
-                            <button class="btn btn-sm btn-primary mb-2" id="savePromptTech">저장</button>
+                            <button class="btn btn-sm btn-primary mb-2" id="savePromptTech">
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                저장
+                            </button>
                         </div>
 
                         <!-- 토큰 제한 설정 -->
@@ -124,7 +133,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <button class="btn btn-sm btn-primary mt-2" id="saveTokenLimits">토큰 제한 저장</button>
+                            <button class="btn btn-sm btn-primary mt-2" id="saveTokenLimits">
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                토큰 제한 저장
+                            </button>
                             <small class="form-text text-muted">토큰 제한이 부족하면 자동으로 2배로 늘려서 재시도합니다.</small>
                         </div>
 
@@ -222,6 +234,7 @@
                                 <div class="input-group mb-2">
                                     <input type="text" class="form-control" id="botRoomNameInput" placeholder="새 방 이름 입력">
                                     <button class="btn btn-outline-primary" type="button" id="addBotRoom">
+                                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                         <i class="fas fa-plus" aria-hidden="true"></i> 방 추가
                                     </button>
                                 </div>
@@ -249,6 +262,7 @@
                                 <div class="input-group mb-2">
                                     <input type="text" class="form-control" id="botAdminInput" placeholder="관리자 닉네임 입력">
                                     <button class="btn btn-outline-primary" type="button" id="addBotAdmin">
+                                        <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                         <i class="fas fa-plus" aria-hidden="true"></i> 추가
                                     </button>
                                 </div>
@@ -280,9 +294,11 @@
                                             </div>
                                             <div class="col-auto ms-auto">
                                                 <button class="btn btn-sm btn-primary me-1" id="saveDailyAnnounce">
+                                                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                                     <i class="fas fa-save"></i> 저장
                                                 </button>
                                                 <button class="btn btn-sm btn-outline-warning" id="testDailyAnnounce">
+                                                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                                                     <i class="fas fa-paper-plane"></i> 테스트 발송
                                                 </button>
                                             </div>
