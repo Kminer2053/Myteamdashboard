@@ -572,6 +572,83 @@ async function scheduleNewsJob(isInit = false) {
   });
 }
 
+// === 공휴일 체크 관련 함수들 ===
+// 연도별 공휴일 데이터 가져오기 (Nager.Date API)
+let holidayCache = {}; // 연도별 공휴일 캐시
+
+async function fetchHolidays(year) {
+  try {
+    // 캐시 확인
+    if (holidayCache[year]) {
+      return holidayCache[year];
+    }
+    
+    // Nager.Date API - 한국 공휴일 정보 (API 키 불필요, Rate limit 없음)
+    // https://date.nager.at/API
+    const url = `https://date.nager.at/api/v3/PublicHolidays/${year}/KR`;
+    const response = await axios.get(url);
+    const data = response.data;
+    
+    // Nager.Date API 응답 형식: 직접 배열
+    if (Array.isArray(data) && data.length > 0) {
+      const holidays = data
+        .filter(holiday => holiday.types && holiday.types.includes('Public')) // 공휴일만 필터링
+        .map(holiday => ({
+          date: holiday.date, // 이미 YYYY-MM-DD 형식
+          title: holiday.localName || holiday.name // 한국어 이름 우선, 없으면 영어 이름
+        }));
+      
+      // 캐시에 저장
+      holidayCache[year] = holidays;
+      return holidays;
+    }
+    return [];
+  } catch (error) {
+    console.error('[자동발송] 공휴일 데이터를 가져오는데 실패했습니다:', error);
+    return [];
+  }
+}
+
+// 특정 날짜가 공휴일인지 확인
+async function isHoliday(date) {
+  try {
+    const year = date.getFullYear();
+    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD 형식
+    
+    const holidays = await fetchHolidays(year);
+    return holidays.some(holiday => holiday.date === dateStr);
+  } catch (error) {
+    console.error('[자동발송] 공휴일 체크 중 오류:', error);
+    return false;
+  }
+}
+
+// 오늘이 주말 또는 공휴일인지 확인
+async function shouldSkipToday() {
+  try {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=일요일, 6=토요일
+    
+    // 주말 체크
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return { skip: true, reason: dayOfWeek === 0 ? '일요일' : '토요일' };
+    }
+    
+    // 공휴일 체크
+    const isHolidayToday = await isHoliday(today);
+    if (isHolidayToday) {
+      const holidays = await fetchHolidays(today.getFullYear());
+      const holiday = holidays.find(h => h.date === today.toISOString().split('T')[0]);
+      return { skip: true, reason: holiday ? holiday.title : '공휴일' };
+    }
+    
+    return { skip: false };
+  } catch (error) {
+    console.error('[자동발송] 주말/공휴일 체크 중 오류:', error);
+    return { skip: false }; // 오류 시 발송 진행
+  }
+}
+
 // === 매일 자동 발송 cron 스케줄 등록 함수 ===
 async function scheduleDailyAnnounceJob(isInit = false) {
   if (dailyAnnounceCronJob) {
@@ -615,6 +692,21 @@ async function sendDailyAnnounce() {
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:613',message:'sendDailyAnnounce 시작',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
     // #endregion
+    
+    // 0. 주말 및 공휴일 제외 체크
+    const excludeSetting = await Setting.findOne({ key: 'daily_announce_exclude_weekends_holidays' });
+    const excludeWeekendsHolidays = excludeSetting && excludeSetting.value === 'true';
+    
+    if (excludeWeekendsHolidays) {
+      const skipCheck = await shouldSkipToday();
+      if (skipCheck.skip) {
+        console.log(`[자동발송] ${skipCheck.reason}이므로 발송 스킵`);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/86fcf8fb-2266-42d6-9b83-89778f1b6a43',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:690',message:'주말/공휴일로 인한 발송 스킵',data:{reason:skipCheck.reason},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        return;
+      }
+    }
     
     // 1. kakao_rooms 설정 조회
     const roomsSetting = await Setting.findOne({ key: 'kakao_rooms' });
@@ -3176,9 +3268,13 @@ app.get('/api/admin/daily-announce', adminAuthMiddleware, async (req, res) => {
     const setting = await Setting.findOne({ key: 'daily_announce_time' });
     const time = setting ? setting.value : null;
     
+    const excludeSetting = await Setting.findOne({ key: 'daily_announce_exclude_weekends_holidays' });
+    const excludeWeekendsHolidays = excludeSetting && excludeSetting.value === 'true';
+    
     res.json({
       enabled: !!time,
       time: time || '',
+      excludeWeekendsHolidays: excludeWeekendsHolidays,
       cronActive: !!dailyAnnounceCronJob
     });
   } catch (error) {
@@ -3190,7 +3286,7 @@ app.get('/api/admin/daily-announce', adminAuthMiddleware, async (req, res) => {
 // 6. POST /api/admin/daily-announce - 매일 자동 발송 설정 저장
 app.post('/api/admin/daily-announce', adminAuthMiddleware, async (req, res) => {
   try {
-    const { enabled, time } = req.body;
+    const { enabled, time, excludeWeekendsHolidays } = req.body;
     
     if (enabled && time) {
       // 시간 형식 검증 (HH:mm)
@@ -3205,10 +3301,18 @@ app.post('/api/admin/daily-announce', adminAuthMiddleware, async (req, res) => {
         { upsert: true }
       );
       
+      // 주말 및 공휴일 제외 설정 저장
+      await Setting.findOneAndUpdate(
+        { key: 'daily_announce_exclude_weekends_holidays' },
+        { value: excludeWeekendsHolidays ? 'true' : 'false' },
+        { upsert: true }
+      );
+      
       // cron 재스케줄
       await scheduleDailyAnnounceJob();
       
-      res.json({ success: true, message: `매일 ${time}에 자동 발송이 설정되었습니다.` });
+      const excludeMsg = excludeWeekendsHolidays ? ' (주말 및 공휴일 제외)' : '';
+      res.json({ success: true, message: `매일 ${time}에 자동 발송이 설정되었습니다.${excludeMsg}` });
     } else {
       // 비활성화 - 설정 삭제
       await Setting.deleteOne({ key: 'daily_announce_time' });

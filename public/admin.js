@@ -1148,6 +1148,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const enabledCheckbox = document.getElementById('dailyAnnounceEnabled');
                 const timeInput = document.getElementById('dailyAnnounceTime');
                 const statusBadge = document.getElementById('dailyAnnounceCronStatus');
+                const excludeCheckbox = document.getElementById('dailyAnnounceExcludeWeekendsHolidays');
                 
                 if (enabledCheckbox) enabledCheckbox.checked = data.enabled;
                 if (timeInput) timeInput.value = data.time || '08:30';
@@ -1155,6 +1156,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusBadge.textContent = data.cronActive ? '활성화' : '비활성화';
                     statusBadge.className = `badge ${data.cronActive ? 'bg-success' : 'bg-secondary'}`;
                 }
+                if (excludeCheckbox) excludeCheckbox.checked = data.excludeWeekendsHolidays || false;
                 
                 // 시간 입력 활성화/비활성화
                 if (timeInput) timeInput.disabled = !data.enabled;
@@ -1170,10 +1172,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const enabledCheckbox = document.getElementById('dailyAnnounceEnabled');
         const timeInput = document.getElementById('dailyAnnounceTime');
+        const excludeCheckbox = document.getElementById('dailyAnnounceExcludeWeekendsHolidays');
         const saveBtn = document.getElementById('saveDailyAnnounce');
         
         const enabled = enabledCheckbox ? enabledCheckbox.checked : false;
         const time = timeInput ? timeInput.value : '';
+        const excludeWeekendsHolidays = excludeCheckbox ? excludeCheckbox.checked : false;
         
         if (saveBtn) {
             saveBtn.disabled = true;
@@ -1188,7 +1192,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'Content-Type': 'application/json',
                     'X-ADMIN-TOKEN': adminToken
                 },
-                body: JSON.stringify({ enabled, time })
+                body: JSON.stringify({ enabled, time, excludeWeekendsHolidays })
             });
             
             const data = await response.json();
@@ -1196,7 +1200,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (response.ok) {
                 showToast(data.message);
                 loadDailyAnnounce();
-                logUserAction('카카오봇_자동발송설정', { enabled, time });
+                logUserAction('카카오봇_자동발송설정', { enabled, time, excludeWeekendsHolidays });
             } else {
                 alert('저장 실패: ' + (data.error || '알 수 없는 오류'));
             }
