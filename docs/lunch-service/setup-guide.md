@@ -91,9 +91,13 @@
 GOOGLE_APPS_SCRIPT_URL=https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec
 LUNCH_API_KEY=your-lunch-api-key-here-min-32-chars
 LUNCH_WEB_URL=https://your-lunch-service.vercel.app
+NAVER_CLIENT_ID=your-naver-client-id
+NAVER_CLIENT_SECRET=your-naver-client-secret
 ```
 
 **중요**: `LUNCH_API_KEY`는 Apps Script의 `API_KEY` 스크립트 속성과 동일해야 합니다!
+
+**등록 검색 기능**: 등록 탭에서 "이름/주소 검색 후 목록 선택"을 사용하려면 네이버 개발자센터에서 애플리케이션을 등록하고 **검색 API**를 사용 설정한 뒤 `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`을 발급받아 위와 같이 설정하세요.
 
 ### 7. 배포 확인
 

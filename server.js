@@ -2969,17 +2969,22 @@ const KORAIL_HQ_LNG = 126.9065;
 
 /**
  * 네이버 지도 URL에서 place ID 추출
- * 지원: map.naver.com/v5/search/place/ID, map.naver.com/p/entry/place/ID, naver.me (리다이렉트 후 파싱)
+ * 지원: map.naver.com, m.map.naver.com, place.naver.com, naver.me(리다이렉트 후 파싱)
  */
 function extractNaverPlaceId(url) {
   if (!url || typeof url !== 'string') return null;
-  let u = url.trim();
-  // naver.me 단축 URL은 리다이렉트 따라가서 실제 URL 확보 (호출 측에서 처리)
-  // map.naver.com/v5/search/place/1234567890 또는 /v5/entry/place/1234567890
-  const match = u.match(/map\.naver\.com(?:\/v5)?(?:\/p)?\/?(?:search\/place|entry\/place)\/(\d+)/i)
-    || u.match(/place\.naver\.com\/place\/code\/(\d+)/i)
-    || u.match(/[\?&]id=(\d+)/i);
-  return match ? match[1] : null;
+  const u = url.trim();
+  const patterns = [
+    /(?:map|m\.map)\.naver\.com(?:\/v5)?(?:\/p)?\/?(?:search\/place|entry\/place)\/(\d+)/i,
+    /place\.naver\.com\/place\/code\/(\d+)/i,
+    /[\?&]id=(\d+)/i,
+    /(?:map|m\.map)\.naver\.com\/[^/]+\/place\/(\d+)/i
+  ];
+  for (const re of patterns) {
+    const m = u.match(re);
+    if (m && m[1]) return m[1];
+  }
+  return null;
 }
 
 /**
@@ -2997,6 +3002,18 @@ function walkMinutesFromHaversine(lat1, lng1, lat2, lng2) {
   const distanceKm = R * c * 1.3; // 우회 계수
   const walkMin = Math.round(distanceKm * 15); // 15분/km
   return Math.max(0, Math.min(120, walkMin)); // 0~120분 클램프
+}
+
+/** 네이버 지역검색 API mapx/mapy (EPSG:3857) -> WGS84 lat, lng */
+function naverMapxyToWgs84(mapx, mapy) {
+  const x = Number(mapx);
+  const y = Number(mapy);
+  if (Number.isNaN(x) || Number.isNaN(y)) return { lat: null, lng: null };
+  const halfEarth = 20037508.34;
+  const lng = (x / halfEarth) * 180;
+  const latRad = 2 * Math.atan(Math.exp((y / halfEarth) * (Math.PI / 180))) - Math.PI / 2;
+  const lat = (latRad * 180) / Math.PI;
+  return { lat, lng };
 }
 
 // Apps Script 호출 헬퍼 함수 (웹 앱은 쿼리 파라미터 path, method 사용)
@@ -3065,6 +3082,65 @@ app.post('/lunch/places', async (req, res) => {
   }
 });
 
+// POST /lunch/search-place - 네이버 공식 지역검색 API 프록시 (이름/주소 검색 → 목록 선택용)
+app.post('/lunch/search-place', async (req, res) => {
+  try {
+    const { query } = req.body || {};
+    const q = typeof query === 'string' ? query.trim() : '';
+    if (!q) {
+      return res.status(400).json({ success: false, error: 'query가 필요합니다.' });
+    }
+    if (!NAVER_CLIENT_ID || !NAVER_CLIENT_SECRET) {
+      return res.status(503).json({
+        success: false,
+        error: '네이버 검색 API 설정이 없습니다. NAVER_CLIENT_ID, NAVER_CLIENT_SECRET 환경변수를 확인하세요.'
+      });
+    }
+    const apiUrl = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(q)}&display=20&start=1&sort=random`;
+    const apiRes = await axios.get(apiUrl, {
+      timeout: 10000,
+      headers: {
+        'X-Naver-Client-Id': NAVER_CLIENT_ID,
+        'X-Naver-Client-Secret': NAVER_CLIENT_SECRET
+      },
+      validateStatus: (s) => s === 200 || s >= 400
+    });
+    if (apiRes.status !== 200) {
+      const errMsg = apiRes.data?.errorMessage || apiRes.statusText || '네이버 검색 API 오류';
+      return res.status(apiRes.status === 403 ? 503 : apiRes.status).json({
+        success: false,
+        error: errMsg
+      });
+    }
+    const items = apiRes.data?.items || [];
+    const stripHtml = (s) => (s == null ? '' : String(s).replace(/<[^>]+>/g, '').trim());
+    const data = items.map((item) => {
+      const { lat, lng } = naverMapxyToWgs84(item.mapx, item.mapy);
+      let walk_min = 0;
+      if (lat != null && lng != null) {
+        walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
+      }
+      return {
+        name: stripHtml(item.title),
+        category: stripHtml(item.category),
+        address_text: item.roadAddress || item.address || '',
+        road_address: item.roadAddress || '',
+        mapx: item.mapx,
+        mapy: item.mapy,
+        naver_map_url: item.link || '',
+        walk_min
+      };
+    });
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error('[search-place] 실패:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.message || '검색 중 오류가 발생했습니다.'
+    });
+  }
+});
+
 // POST /lunch/reviews - 리뷰 등록
 app.post('/lunch/reviews', async (req, res) => {
   try {
@@ -3079,8 +3155,9 @@ app.post('/lunch/reviews', async (req, res) => {
   }
 });
 
-// POST /lunch/scrape-naver - 네이버 지도 URL로 식당 정보 크롤링 (코레일유통 본사 기준 도보시간 포함)
+// POST /lunch/scrape-naver - 네이버 지도 URL로 식당 정보 조회 (비공개 summary API 사용, 불안정할 수 있음)
 app.post('/lunch/scrape-naver', async (req, res) => {
+  const logCtx = { url: (req.body && req.body.naverMapUrl) ? String(req.body.naverMapUrl).slice(0, 80) : '' };
   try {
     const { naverMapUrl } = req.body || {};
     if (!naverMapUrl || typeof naverMapUrl !== 'string') {
@@ -3103,30 +3180,50 @@ app.post('/lunch/scrape-naver', async (req, res) => {
         break;
       }
     }
+    logCtx.resolvedUrl = resolvedUrl.slice(0, 100);
     const placeId = extractNaverPlaceId(resolvedUrl);
     if (!placeId) {
+      console.warn('[scrape-naver] placeId 추출 실패:', logCtx);
       return res.status(400).json({
         success: false,
         error: '지원하는 네이버 지도 URL이 아닙니다. map.naver.com 또는 naver.me 링크를 입력해 주세요.',
         manualEntry: true
       });
     }
+    logCtx.placeId = placeId;
     const summaryUrl = `https://map.naver.com/v5/api/sites/summary/${placeId}`;
     const apiRes = await axios.get(summaryUrl, {
       timeout: 10000,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json',
+        'Accept-Language': 'ko-KR,ko;q=0.9',
         'Referer': 'https://map.naver.com/'
       },
-      validateStatus: (s) => s === 200
+      validateStatus: (s) => s === 200 || s === 404 || s === 403
     });
+    if (apiRes.status === 404) {
+      console.warn('[scrape-naver] 장소 없음 (404):', logCtx);
+      return res.json({
+        success: false,
+        error: '해당 장소를 찾을 수 없습니다. 네이버 지도에 등록된 식당인지 확인하거나 수동 입력을 이용해 주세요.',
+        manualEntry: true
+      });
+    }
+    if (apiRes.status === 403) {
+      console.warn('[scrape-naver] 접근 거부 (403). 네이버 측 제한 가능:', logCtx);
+      return res.json({
+        success: false,
+        error: '일시적으로 네이버 지도 정보를 가져올 수 없습니다. 수동 입력을 이용해 주세요.',
+        manualEntry: true
+      });
+    }
     const raw = apiRes.data;
-    const name = raw.name || raw.title || raw.bizName || '';
-    const address = raw.address || raw.roadAddress || raw.addr || '';
-    const category = raw.category || raw.categoryName || raw.type || '';
-    const x = raw.x != null ? parseFloat(raw.x) : (raw.lng != null ? parseFloat(raw.lng) : null);
-    const y = raw.y != null ? parseFloat(raw.y) : (raw.lat != null ? parseFloat(raw.lat) : null);
+    const name = raw.name || raw.title || raw.bizName || (raw.business && raw.business.name) || '';
+    const address = raw.address || raw.roadAddress || raw.addr || (raw.business && raw.business.address) || '';
+    const category = raw.category || raw.categoryName || raw.type || (raw.business && raw.business.category) || '';
+    const x = raw.x != null ? parseFloat(raw.x) : (raw.lng != null ? parseFloat(raw.lng) : (raw.business && raw.business.x) != null ? parseFloat(raw.business.x) : null);
+    const y = raw.y != null ? parseFloat(raw.y) : (raw.lat != null ? parseFloat(raw.lat) : (raw.business && raw.business.y) != null ? parseFloat(raw.business.y) : null);
     const placeUrl = raw.url || raw.placeUrl || `https://map.naver.com/v5/search/place/${placeId}`;
     let walk_min = 0;
     if (typeof x === 'number' && typeof y === 'number' && !Number.isNaN(x) && !Number.isNaN(y)) {
@@ -3146,14 +3243,23 @@ app.post('/lunch/scrape-naver', async (req, res) => {
     };
     return res.json({ success: true, data });
   } catch (error) {
-    if (error.response?.status === 404 || error.response?.data?.message === 'not found') {
+    const status = error.response?.status;
+    const body = error.response?.data;
+    console.error('[scrape-naver] 실패:', logCtx, 'status=', status, 'message=', error.message, body != null ? JSON.stringify(body).slice(0, 200) : '');
+    if (status === 404 || (body && (body.message === 'not found' || body.error === 'not found'))) {
       return res.json({
         success: false,
         error: '해당 장소를 찾을 수 없습니다. 네이버 지도에 등록된 식당인지 확인하거나 수동 입력을 이용해 주세요.',
         manualEntry: true
       });
     }
-    console.error('네이버 지도 크롤링 실패:', error.message);
+    if (status === 403) {
+      return res.json({
+        success: false,
+        error: '일시적으로 네이버 지도 정보를 가져올 수 없습니다. 수동 입력을 이용해 주세요.',
+        manualEntry: true
+      });
+    }
     return res.status(500).json({
       success: false,
       error: error.message || '정보를 가져오는데 실패했습니다. 수동 입력을 이용해 주세요.',
