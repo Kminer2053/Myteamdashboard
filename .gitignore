@@ -27,6 +27,9 @@ Thumbs.db
 build/ 
 .vercel
 
+# 점심 추천 서비스 (별도 리포지토리: lunch-service)
+lunch-service/
+
 # News Clipping (별도 리포지토리로 관리)
 news_clipping/
 reports/
