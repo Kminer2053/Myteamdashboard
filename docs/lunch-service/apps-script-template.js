@@ -212,10 +212,12 @@ function calculateScore(place, preset, reviewStats) {
 }
 
 // POST /recommend - 점심 추천
+// requestData.fastOnly === true 이면 LLM 건너뛰고 규칙 기반 상위 3곳만 반환 (봇용)
 function recommendLunch(requestData) {
   const text = requestData.text || '';
   const preset = requestData.preset || [];
   const exclude = requestData.exclude || [];
+  const fastOnly = requestData.fastOnly === true;
   
   if (!text) {
     return {
@@ -247,10 +249,10 @@ function recommendLunch(requestData) {
     .sort((a, b) => b.score - a.score)
     .slice(0, 50);
   
-  // 5. LLM 호출 (키가 있으면)
+  // 5. LLM 호출 (fastOnly가 아니고, 키가 있으면)
   const perplexityKey = getPerplexityApiKey();
   
-  if (perplexityKey && shortlist.length > 0) {
+  if (!fastOnly && perplexityKey && shortlist.length > 0) {
     try {
       const llmResult = callPerplexityAPI(text, shortlist, perplexityKey);
       if (llmResult && llmResult.length > 0) {

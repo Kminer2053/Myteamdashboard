@@ -3044,9 +3044,10 @@ app.post('/lunch/reviews', async (req, res) => {
 });
 
 // POST /lunch/recommend - 점심 추천 요청
+// fastOnly: true 이면 LLM 건너뛰고 규칙 기반 상위 3곳만 반환 (봇 등 응답 지연 방지)
 app.post('/lunch/recommend', async (req, res) => {
   try {
-    const { text, preset = [], exclude = [] } = req.body;
+    const { text, preset = [], exclude = [], fastOnly = false } = req.body;
     
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return res.status(400).json({ 
@@ -3058,7 +3059,8 @@ app.post('/lunch/recommend', async (req, res) => {
     const result = await callAppsScript('/recommend', 'POST', {
       text: text.trim(),
       preset: Array.isArray(preset) ? preset : [],
-      exclude: Array.isArray(exclude) ? exclude : []
+      exclude: Array.isArray(exclude) ? exclude : [],
+      fastOnly: !!fastOnly
     });
     
     res.json(result);
