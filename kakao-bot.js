@@ -346,14 +346,21 @@ const logUserAction = async (action, userId = '', meta = {}) => {
 };
 
 // 메시지 처리 엔드포인트
+// 메신저봇R에서 / 또는 ! 로 시작하는 메시지를 모두 이 URL로 전달하는 방식 지원
 router.post('/message', async (req, res) => {
     try {
-        // 요청 로그 추가
         console.log('[카카오봇] /kakao/message 요청:', req.body);
-        const userMessage = req.body.userRequest?.utterance || req.body.message || '';
+        // body 형식 다양하게 수신 (메신저봇R: text/message, 카카오 오픈빌더: userRequest.utterance 등)
+        const userMessage = (
+            req.body.userRequest?.utterance ||
+            req.body.message ||
+            req.body.text ||
+            req.body.content ||
+            ''
+        ).trim();
         const action = routeMessage(userMessage);
         let responseMessage = '';
-        const userId = req.body.userRequest?.user?.id || '';
+        const userId = req.body.userRequest?.user?.id || req.body.userId || req.body.user_id || '';
         
         switch (action) {
             case 'auto_announce': {
@@ -677,16 +684,18 @@ router.post('/message', async (req, res) => {
             }
             default: {
                 await logUserAction('기타', userId, { message: userMessage });
-                responseMessage = "안녕하세요! 대시보드 봇입니다. 👋\n\n사용 가능한 명령어:\n- /리스크\n- /제휴\n- /기술\n- /일정\n- /뉴스\n- /점심 [요청]\n- /도움말\n\n관리자 명령어:\n- !방이름\n- !방추가\n- !방삭제\n- !방업데이트\n- !방목록\n- !상태";
+                const isPrefixCommand = /^[\/!]/.test(userMessage);
+                responseMessage = isPrefixCommand
+                    ? "해당하는 명령이 없습니다. 아래 명령어를 참고해 주세요.\n\n사용 가능한 명령어:\n- /리스크\n- /제휴\n- /기술\n- /일정\n- /뉴스\n- /점심 [요청]\n- /도움말\n\n관리자 명령어:\n- !방이름\n- !방추가\n- !방삭제\n- !방업데이트\n- !방목록\n- !상태"
+                    : "안녕하세요! 대시보드 봇입니다. 👋\n\n사용 가능한 명령어:\n- /리스크\n- /제휴\n- /기술\n- /일정\n- /뉴스\n- /점심 [요청]\n- /도움말\n\n관리자 명령어:\n- !방이름\n- !방추가\n- !방삭제\n- !방업데이트\n- !방목록\n- !상태";
             }
         }
         
-        // 메시지 반환만 수행
-        // 모든 응답 메시지 마지막에 대시보드 링크 추가
         if (typeof responseMessage === 'string') {
             responseMessage += "\n\n대시보드 바로가기: https://myteamdashboard.vercel.app/index.html";
         }
-        res.json({ message: responseMessage });
+        // message와 response 둘 다 반환 (메신저봇R 등에서 response 필드를 쓰는 경우 대응)
+        res.json({ message: responseMessage, response: responseMessage });
     } catch (error) {
         console.error('메시지 처리 실패:', error);
         res.status(500).json({ error: '메시지 처리 실패' });
