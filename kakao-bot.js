@@ -609,8 +609,10 @@ router.post('/message', async (req, res) => {
                         requestText = '점심 추천해줘';
                     }
                     
-                    // 추천 API 호출
-                    const baseUrl = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 4000}`;
+                    // 추천 API 호출 (Render에서는 API_BASE_URL 또는 RENDER_EXTERNAL_URL 사용)
+                    const baseUrl = process.env.API_BASE_URL ||
+                        process.env.RENDER_EXTERNAL_URL ||
+                        `http://localhost:${process.env.PORT || 4000}`;
                     const recommendResponse = await axios.post(`${baseUrl}/lunch/recommend`, {
                         text: requestText,
                         preset: [],
@@ -659,8 +661,12 @@ router.post('/message', async (req, res) => {
                         responseMessage = '😔 추천 결과를 찾을 수 없습니다.\n\n다른 조건으로 다시 시도해보세요!';
                     }
                 } catch (error) {
-                    console.error('점심 추천 실패:', error);
+                    console.error('점심 추천 실패:', error.response?.data || error.message);
+                    const detail = error.response?.data?.error || error.message || '';
                     responseMessage = '❌ 점심 추천 중 오류가 발생했습니다.\n\n잠시 후 다시 시도해주세요.';
+                    if (detail && detail.length < 80) {
+                        responseMessage += `\n(${detail})`;
+                    }
                 }
                 break;
             }
