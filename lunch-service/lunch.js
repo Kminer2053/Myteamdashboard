@@ -239,13 +239,94 @@ function filterPlaces(query) {
     displayPlaces(filtered);
 }
 
-// 등록 기능 초기화
+// 등록 기능 초기화 (2단계: URL 자동 채우기 -> 확인/수정 후 등록)
 function initRegister() {
     const form = document.getElementById('place-form');
-    
+    const step1 = document.getElementById('register-step1');
+    const step2 = document.getElementById('register-step2');
+    const btnAutoFill = document.getElementById('btn-auto-fill');
+    const btnManualEntry = document.getElementById('btn-manual-entry');
+    const inputNaverUrl = document.getElementById('place-naver-url');
+
+    btnAutoFill.addEventListener('click', () => scrapeNaverAndFillForm());
+    btnManualEntry.addEventListener('click', () => {
+        step1.style.display = 'none';
+        step2.style.display = 'block';
+        clearPlaceForm();
+    });
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         await submitPlace();
+    });
+}
+
+// 네이버 지도 URL로 정보 크롤링 후 폼 채우기
+async function scrapeNaverAndFillForm() {
+    const urlInput = document.getElementById('place-naver-url');
+    const url = (urlInput && urlInput.value) ? urlInput.value.trim() : '';
+    if (!url) {
+        showToast('네이버 지도 URL을 입력해 주세요.');
+        return;
+    }
+    if (!url.includes('naver') && !url.includes('map.naver')) {
+        showToast('네이버 지도 URL을 입력해 주세요.');
+        return;
+    }
+    showLoading(true);
+    try {
+        const response = await fetch(`${API_BASE_URL}/lunch/scrape-naver`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ naverMapUrl: url })
+        });
+        const result = await response.json();
+        if (result.success && result.data) {
+            fillPlaceForm(result.data);
+            document.getElementById('place-map-url').value = result.data.naver_map_url || url;
+            document.getElementById('register-step1').style.display = 'none';
+            document.getElementById('register-step2').style.display = 'block';
+            showToast('정보를 불러왔습니다. 확인 후 등록하세요.');
+        } else {
+            showToast(result.error || '정보를 가져오지 못했습니다.');
+            if (result.manualEntry) {
+                document.getElementById('btn-manual-entry').click();
+            }
+        }
+    } catch (err) {
+        console.error('scrape-naver error:', err);
+        showToast('연결에 실패했습니다. 수동 입력을 이용해 주세요.');
+        document.getElementById('btn-manual-entry').click();
+    } finally {
+        showLoading(false);
+    }
+}
+
+function fillPlaceForm(data) {
+    const set = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.value = value != null ? value : '';
+    };
+    const setCheck = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.checked = !!value;
+    };
+    set('place-name', data.name);
+    set('place-address', data.address_text);
+    set('place-map-url', data.naver_map_url);
+    set('place-category', data.category || '');
+    set('place-price', data.price_level || '');
+    set('place-walk', data.walk_min != null ? data.walk_min : 0);
+    set('place-tags', data.tags || '');
+    setCheck('place-solo', data.solo_ok);
+    setCheck('place-group', data.group_ok);
+    setCheck('place-indoor', data.indoor_ok);
+}
+
+function clearPlaceForm() {
+    fillPlaceForm({
+        name: '', address_text: '', naver_map_url: '', category: '', price_level: '',
+        walk_min: 0, tags: '', solo_ok: false, group_ok: false, indoor_ok: false
     });
 }
 
@@ -285,11 +366,16 @@ async function submitPlace() {
         if (data.success) {
             showToast('장소가 등록되었습니다.');
             document.getElementById('place-form').reset();
-            
-            // 목록 새로고침
+            // 등록 탭 2단계 -> 1단계로 초기화
+            const step1 = document.getElementById('register-step1');
+            const step2 = document.getElementById('register-step2');
+            const urlInput = document.getElementById('place-naver-url');
+            if (step1 && step2) {
+                step1.style.display = 'block';
+                step2.style.display = 'none';
+            }
+            if (urlInput) urlInput.value = '';
             loadPlaces();
-            
-            // 목록 탭으로 전환
             document.querySelector('[data-tab="list-tab"]').click();
         } else {
             showToast('등록에 실패했습니다: ' + (data.error || '알 수 없는 오류'));

@@ -2963,6 +2963,42 @@ const GOOGLE_APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL;
 const LUNCH_API_KEY = process.env.LUNCH_API_KEY;
 const LUNCH_WEB_URL = process.env.LUNCH_WEB_URL || '';
 
+// 코레일유통 본사 (도보 거리 산정 기준)
+const KORAIL_HQ_LAT = 37.5245;
+const KORAIL_HQ_LNG = 126.9065;
+
+/**
+ * 네이버 지도 URL에서 place ID 추출
+ * 지원: map.naver.com/v5/search/place/ID, map.naver.com/p/entry/place/ID, naver.me (리다이렉트 후 파싱)
+ */
+function extractNaverPlaceId(url) {
+  if (!url || typeof url !== 'string') return null;
+  let u = url.trim();
+  // naver.me 단축 URL은 리다이렉트 따라가서 실제 URL 확보 (호출 측에서 처리)
+  // map.naver.com/v5/search/place/1234567890 또는 /v5/entry/place/1234567890
+  const match = u.match(/map\.naver\.com(?:\/v5)?(?:\/p)?\/?(?:search\/place|entry\/place)\/(\d+)/i)
+    || u.match(/place\.naver\.com\/place\/code\/(\d+)/i)
+    || u.match(/[\?&]id=(\d+)/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * Haversine 직선거리(km) -> 도보 시간(분) 추정. 도로 우회 계수 1.3 적용, 15분/km 기준
+ */
+function walkMinutesFromHaversine(lat1, lng1, lat2, lng2) {
+  const R = 6371; // Earth radius km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distanceKm = R * c * 1.3; // 우회 계수
+  const walkMin = Math.round(distanceKm * 15); // 15분/km
+  return Math.max(0, Math.min(120, walkMin)); // 0~120분 클램프
+}
+
 // Apps Script 호출 헬퍼 함수 (웹 앱은 쿼리 파라미터 path, method 사용)
 async function callAppsScript(endpoint, method = 'GET', body = null) {
   if (!GOOGLE_APPS_SCRIPT_URL) {
@@ -3043,11 +3079,93 @@ app.post('/lunch/reviews', async (req, res) => {
   }
 });
 
+// POST /lunch/scrape-naver - 네이버 지도 URL로 식당 정보 크롤링 (코레일유통 본사 기준 도보시간 포함)
+app.post('/lunch/scrape-naver', async (req, res) => {
+  try {
+    const { naverMapUrl } = req.body || {};
+    if (!naverMapUrl || typeof naverMapUrl !== 'string') {
+      return res.status(400).json({ success: false, error: 'naverMapUrl이 필요합니다.' });
+    }
+    let resolvedUrl = naverMapUrl.trim();
+    if (resolvedUrl.startsWith('https://naver.me/') || resolvedUrl.startsWith('http://naver.me/')) {
+      for (let i = 0; i < 5; i++) {
+        const redir = await axios.get(resolvedUrl, {
+          maxRedirects: 0,
+          timeout: 10000,
+          validateStatus: (s) => s >= 200 && s < 400,
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+        });
+        const loc = redir.headers?.location;
+        if (redir.status >= 300 && loc) {
+          resolvedUrl = loc.startsWith('http') ? loc : new URL(loc, resolvedUrl).href;
+          continue;
+        }
+        break;
+      }
+    }
+    const placeId = extractNaverPlaceId(resolvedUrl);
+    if (!placeId) {
+      return res.status(400).json({
+        success: false,
+        error: '지원하는 네이버 지도 URL이 아닙니다. map.naver.com 또는 naver.me 링크를 입력해 주세요.',
+        manualEntry: true
+      });
+    }
+    const summaryUrl = `https://map.naver.com/v5/api/sites/summary/${placeId}`;
+    const apiRes = await axios.get(summaryUrl, {
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Referer': 'https://map.naver.com/'
+      },
+      validateStatus: (s) => s === 200
+    });
+    const raw = apiRes.data;
+    const name = raw.name || raw.title || raw.bizName || '';
+    const address = raw.address || raw.roadAddress || raw.addr || '';
+    const category = raw.category || raw.categoryName || raw.type || '';
+    const x = raw.x != null ? parseFloat(raw.x) : (raw.lng != null ? parseFloat(raw.lng) : null);
+    const y = raw.y != null ? parseFloat(raw.y) : (raw.lat != null ? parseFloat(raw.lat) : null);
+    const placeUrl = raw.url || raw.placeUrl || `https://map.naver.com/v5/search/place/${placeId}`;
+    let walk_min = 0;
+    if (typeof x === 'number' && typeof y === 'number' && !Number.isNaN(x) && !Number.isNaN(y)) {
+      walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, y, x);
+    }
+    const data = {
+      name: name || undefined,
+      address_text: address || undefined,
+      category: category || undefined,
+      naver_map_url: placeUrl,
+      walk_min,
+      price_level: '',
+      tags: '',
+      solo_ok: false,
+      group_ok: false,
+      indoor_ok: false
+    };
+    return res.json({ success: true, data });
+  } catch (error) {
+    if (error.response?.status === 404 || error.response?.data?.message === 'not found') {
+      return res.json({
+        success: false,
+        error: '해당 장소를 찾을 수 없습니다. 네이버 지도에 등록된 식당인지 확인하거나 수동 입력을 이용해 주세요.',
+        manualEntry: true
+      });
+    }
+    console.error('네이버 지도 크롤링 실패:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.message || '정보를 가져오는데 실패했습니다. 수동 입력을 이용해 주세요.',
+      manualEntry: true
+    });
+  }
+});
+
 // POST /lunch/recommend - 점심 추천 요청
-// fastOnly: true 이면 LLM 건너뛰고 규칙 기반 상위 3곳만 반환 (봇 등 응답 지연 방지)
 app.post('/lunch/recommend', async (req, res) => {
   try {
-    const { text, preset = [], exclude = [], fastOnly = false } = req.body;
+    const { text, preset = [], exclude = [] } = req.body;
     
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return res.status(400).json({ 
@@ -3059,8 +3177,7 @@ app.post('/lunch/recommend', async (req, res) => {
     const result = await callAppsScript('/recommend', 'POST', {
       text: text.trim(),
       preset: Array.isArray(preset) ? preset : [],
-      exclude: Array.isArray(exclude) ? exclude : [],
-      fastOnly: !!fastOnly
+      exclude: Array.isArray(exclude) ? exclude : []
     });
     
     res.json(result);
