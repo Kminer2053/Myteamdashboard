@@ -23,9 +23,10 @@ function getPerplexityApiKey() {
   return props.getProperty('PERPLEXITY_API_KEY') || '';
 }
 
-// x-api-key 검증
+// api_key 검증 (웹 앱은 헤더 미지원 → 쿼리/parameter 사용)
 function validateApiKey(request) {
-  const apiKey = request.headers['x-api-key'] || request.headers['X-Api-Key'];
+  const apiKey = (request.parameter && request.parameter.api_key) ||
+    (request.headers && (request.headers['x-api-key'] || request.headers['X-Api-Key']));
   const expectedKey = getApiKey();
   
   if (!expectedKey || apiKey !== expectedKey) {

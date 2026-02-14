@@ -2973,13 +2973,13 @@ async function callAppsScript(endpoint, method = 'GET', body = null) {
   }
 
   const path = endpoint.replace(/^\//, ''); // '/places' -> 'places'
-  const url = `${GOOGLE_APPS_SCRIPT_URL}?path=${encodeURIComponent(path)}&method=${method}`;
+  // Apps Script 웹 앱은 헤더를 읽을 수 없어 api_key를 쿼리로 전달
+  const url = `${GOOGLE_APPS_SCRIPT_URL}?path=${encodeURIComponent(path)}&method=${method}&api_key=${encodeURIComponent(LUNCH_API_KEY)}`;
 
   const config = {
     method,
     url,
     headers: {
-      'x-api-key': LUNCH_API_KEY,
       'Content-Type': 'application/json'
     },
     timeout: 30000 // 30초 타임아웃
