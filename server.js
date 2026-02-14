@@ -2963,7 +2963,7 @@ const GOOGLE_APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL;
 const LUNCH_API_KEY = process.env.LUNCH_API_KEY;
 const LUNCH_WEB_URL = process.env.LUNCH_WEB_URL || '';
 
-// Apps Script 호출 헬퍼 함수
+// Apps Script 호출 헬퍼 함수 (웹 앱은 쿼리 파라미터 path, method 사용)
 async function callAppsScript(endpoint, method = 'GET', body = null) {
   if (!GOOGLE_APPS_SCRIPT_URL) {
     throw new Error('GOOGLE_APPS_SCRIPT_URL이 설정되지 않았습니다');
@@ -2972,9 +2972,12 @@ async function callAppsScript(endpoint, method = 'GET', body = null) {
     throw new Error('LUNCH_API_KEY가 설정되지 않았습니다');
   }
 
+  const path = endpoint.replace(/^\//, ''); // '/places' -> 'places'
+  const url = `${GOOGLE_APPS_SCRIPT_URL}?path=${encodeURIComponent(path)}&method=${method}`;
+
   const config = {
     method,
-    url: `${GOOGLE_APPS_SCRIPT_URL}${endpoint}`,
+    url,
     headers: {
       'x-api-key': LUNCH_API_KEY,
       'Content-Type': 'application/json'

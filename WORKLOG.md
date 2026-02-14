@@ -7,6 +7,11 @@
 - [완료] TASKS.md 작성 및 작업 배분
 - [완료] WORKLOG.md 초기화
 - [완료] 코더1, 코더2 작업 검토
+- [완료] 통합 테스트 및 배포 준비
+  - [완료] lunch-service/vercel.json 생성
+  - [완료] Vercel 프론트엔드 배포 완료
+    - URL: https://lunch-service.vercel.app
+  - [완료] CORS 설정 확인 (vercel.app 패턴 자동 허용)
 
 ### 작업 요약
 이번 프로젝트는 이미 대부분의 코드가 구현되어 있었으며, 검토 결과 다음과 같이 확인됨:

@@ -101,8 +101,13 @@
 - [x] WORKLOG.md 초기화
 - [x] 각 코더 작업 진행 상황 모니터링
 - [x] 코드 리뷰 및 품질 검증
-- [ ] 통합 테스트
-- [ ] 배포 관리
+- [x] 통합 테스트
+  - [x] lunch-service/vercel.json 생성
+  - [x] 프론트엔드 Vercel 배포 완료 (https://lunch-service.vercel.app)
+  - [x] CORS 설정 확인 완료
+- [x] 배포 관리
+  - [x] 프론트엔드: Vercel (https://lunch-service.vercel.app)
+  - [대기] 백엔드: Render 환경변수 설정 필요 (LUNCH_WEB_URL)
 
 ---
 
