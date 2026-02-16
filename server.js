@@ -2989,16 +2989,32 @@ function mapCategory(rawCategory) {
 
 /** Google Directions API로 정확한 도보 시간(분) 조회. 실패 시 null 반환 */
 async function getWalkingMinutesFromGoogle(destLat, destLng) {
-  if (!GOOGLE_MAPS_API_KEY) return null;
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.log('[google-directions] GOOGLE_MAPS_API_KEY가 설정되지 않음');
+    return null;
+  }
   try {
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${KORAIL_HQ_LAT},${KORAIL_HQ_LNG}&destination=${destLat},${destLng}&mode=walking&key=${GOOGLE_MAPS_API_KEY}`;
+    console.log(`[google-directions] API 호출: ${url.replace(GOOGLE_MAPS_API_KEY, '***')}`);
     const res = await axios.get(url, { timeout: 8000 });
+    console.log(`[google-directions] 응답 상태: ${res.data?.status}`);
     if (res.data?.status === 'OK' && res.data.routes?.[0]?.legs?.[0]?.duration?.value) {
-      return Math.round(res.data.routes[0].legs[0].duration.value / 60);
+      const minutes = Math.round(res.data.routes[0].legs[0].duration.value / 60);
+      console.log(`[google-directions] 성공: ${minutes}분`);
+      return minutes;
+    } else {
+      console.log(`[google-directions] 실패: status=${res.data?.status}, error_message=${res.data?.error_message || 'N/A'}`);
+      if (res.data?.error_message) {
+        console.log(`[google-directions] 에러 메시지: ${res.data.error_message}`);
+      }
     }
     return null;
   } catch (e) {
-    console.error('[google-directions] 실패:', e.message);
+    console.error('[google-directions] 예외 발생:', e.message);
+    if (e.response) {
+      console.error('[google-directions] 응답 상태 코드:', e.response.status);
+      console.error('[google-directions] 응답 데이터:', JSON.stringify(e.response.data).slice(0, 500));
+    }
     return null;
   }
 }
@@ -3222,20 +3238,28 @@ app.post('/lunch/geocode-address', async (req, res) => {
         error: '좌표를 확인할 수 없습니다.'
       });
     }
+    console.log(`[geocode-address] 지오코딩 성공: 주소=${addr}, 좌표=(${lat}, ${lng})`);
     let walk_min = null;
     let walk_source = 'estimate';
     
     // Google Maps API 키가 있으면 Google Directions API 사용
     if (GOOGLE_MAPS_API_KEY) {
+      console.log(`[geocode-address] Google Directions API 호출 시도: origin=(${KORAIL_HQ_LAT},${KORAIL_HQ_LNG}), destination=(${lat},${lng})`);
       walk_min = await getWalkingMinutesFromGoogle(lat, lng);
       if (walk_min != null) {
         walk_source = 'google';
+        console.log(`[geocode-address] Google Directions API 성공: ${walk_min}분`);
+      } else {
+        console.log(`[geocode-address] Google Directions API 실패 또는 결과 없음`);
       }
+    } else {
+      console.log(`[geocode-address] GOOGLE_MAPS_API_KEY가 설정되지 않음`);
     }
     
     // Google API 실패하거나 키가 없으면 직선거리 추정
     if (walk_min == null) {
       walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
+      console.log(`[geocode-address] 직선거리 추정 사용: ${walk_min}분`);
     }
     const naver_map_url = `https://map.naver.com/v5/?c=${lng},${lat},17,0,0,0,dh`;
     return res.json({
