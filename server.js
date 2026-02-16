@@ -3222,11 +3222,20 @@ app.post('/lunch/geocode-address', async (req, res) => {
         error: '좌표를 확인할 수 없습니다.'
       });
     }
-    let walk_min = await getWalkingMinutesFromGoogle(lat, lng);
-    let walk_source = 'google';
+    let walk_min = null;
+    let walk_source = 'estimate';
+    
+    // Google Maps API 키가 있으면 Google Directions API 사용
+    if (GOOGLE_MAPS_API_KEY) {
+      walk_min = await getWalkingMinutesFromGoogle(lat, lng);
+      if (walk_min != null) {
+        walk_source = 'google';
+      }
+    }
+    
+    // Google API 실패하거나 키가 없으면 직선거리 추정
     if (walk_min == null) {
       walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
-      walk_source = 'estimate';
     }
     const naver_map_url = `https://map.naver.com/v5/?c=${lng},${lat},17,0,0,0,dh`;
     return res.json({
@@ -3409,7 +3418,7 @@ app.get('/lunch/static-map', async (req, res) => {
     }
     const width = Math.min(Math.max(parseInt(w) || 300, 50), 1024);
     const height = Math.min(Math.max(parseInt(h) || 200, 50), 1024);
-    const mapUrl = `https://naveropenapi.apigw.ntruss.com/map-static/v2/raster?center=${lng},${lat}&level=16&w=${width}&h=${height}&markers=type:d|size:mid|pos:${lng}%20${lat}&format=png&scale=2`;
+    const mapUrl = `https://maps.apigw.ntruss.com/map-static/v2/raster?center=${lng},${lat}&level=16&w=${width}&h=${height}&markers=type:d|size:mid|pos:${lng}%20${lat}&format=png&scale=2`;
     const mapRes = await axios.get(mapUrl, {
       timeout: 10000,
       responseType: 'arraybuffer',
