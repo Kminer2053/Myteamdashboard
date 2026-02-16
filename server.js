@@ -3239,32 +3239,15 @@ app.post('/lunch/geocode-address', async (req, res) => {
       });
     }
     console.log(`[geocode-address] 지오코딩 성공: 주소=${addr}, 좌표=(${lat}, ${lng})`);
-    let walk_min = null;
-    let walk_source = 'estimate';
-    let google_api_attempted = false;
     
-    // Google Maps API 키가 있으면 Google Directions API 사용
-    if (GOOGLE_MAPS_API_KEY) {
-      console.log(`[geocode-address] Google Directions API 호출 시도: origin=(${KORAIL_HQ_LAT},${KORAIL_HQ_LNG}), destination=(${lat},${lng})`);
-      google_api_attempted = true;
-      walk_min = await getWalkingMinutesFromGoogle(lat, lng);
-      if (walk_min != null) {
-        walk_source = 'google';
-        console.log(`[geocode-address] Google Directions API 성공: ${walk_min}분`);
-      } else {
-        console.log(`[geocode-address] Google Directions API 실패 또는 결과 없음 (ZERO_RESULTS 등)`);
-        // Google API를 시도했지만 실패한 경우에도 표시
-        walk_source = 'google_fallback';
-      }
-    } else {
-      console.log(`[geocode-address] GOOGLE_MAPS_API_KEY가 설정되지 않음`);
-    }
+    // Google Directions API는 한국에서 walking 모드를 지원하지 않음
+    // (available_travel_modes에 TRANSIT만 있고 WALKING이 없음)
+    // 따라서 직선거리 추정만 사용
+    const walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
+    const walk_source = 'estimate';
     
-    // Google API 실패하거나 키가 없으면 직선거리 추정
-    if (walk_min == null) {
-      walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
-      console.log(`[geocode-address] 직선거리 추정 사용: ${walk_min}분`);
-    }
+    console.log(`[geocode-address] 직선거리 추정 사용: ${walk_min}분`);
+    console.log(`[geocode-address] 참고: Google Directions API는 한국에서 walking 모드를 지원하지 않아 직선거리로 추정합니다.`);
     const naver_map_url = `https://map.naver.com/v5/?c=${lng},${lat},17,0,0,0,dh`;
     return res.json({
       success: true,
