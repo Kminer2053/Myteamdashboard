@@ -3140,11 +3140,13 @@ async function callAppsScript(endpoint, method = 'GET', body = null) {
   }
 
   const path = endpoint.replace(/^\//, ''); // '/places' -> 'places'
-  // Apps Script 웹 앱은 헤더를 읽을 수 없어 api_key를 쿼리로 전달
+  // Apps Script 웹 앱은 GET/POST만 지원하므로 PUT/DELETE를 POST로 변환
+  // method는 쿼리 파라미터로 전달하여 Apps Script에서 구분
+  const httpMethod = (method === 'PUT' || method === 'DELETE') ? 'POST' : method;
   const url = `${GOOGLE_APPS_SCRIPT_URL}?path=${encodeURIComponent(path)}&method=${method}&api_key=${encodeURIComponent(LUNCH_API_KEY)}`;
 
   const config = {
-    method,
+    method: httpMethod, // PUT/DELETE는 POST로 변환
     url,
     headers: {
       'Content-Type': 'application/json'
@@ -3152,7 +3154,8 @@ async function callAppsScript(endpoint, method = 'GET', body = null) {
     timeout: 30000 // 30초 타임아웃
   };
 
-  if (body && (method === 'POST' || method === 'PUT')) {
+  // POST로 변환된 PUT/DELETE도 body를 전달해야 함
+  if (body && (httpMethod === 'POST')) {
     config.data = body;
   }
 

@@ -156,15 +156,21 @@ function updatePlace(placeId, requestData) {
                       'image_url', 'naver_map_url', 'lat', 'lng'];
       
       fields.forEach(field => {
-        const colIdx = headers.indexOf(field);
-        if (colIdx !== -1) {
-          let value = requestData[field];
-          if (value === undefined) value = '';
-          if (field === 'solo_ok' || field === 'group_ok' || field === 'indoor_ok') {
-            value = value === true || value === 'true' || value === 'TRUE' || value === 1 || value === '1';
-          }
-          sheet.getRange(row, colIdx + 1).setValue(value);
+        let colIdx = headers.indexOf(field);
+        
+        // 필드가 시트에 없으면 컬럼 추가
+        if (colIdx === -1) {
+          colIdx = headers.length;
+          sheet.getRange(1, colIdx + 1).setValue(field);
+          headers.push(field);
         }
+        
+        let value = requestData[field];
+        if (value === undefined) value = '';
+        if (field === 'solo_ok' || field === 'group_ok' || field === 'indoor_ok') {
+          value = value === true || value === 'true' || value === 'TRUE' || value === 1 || value === '1';
+        }
+        sheet.getRange(row, colIdx + 1).setValue(value);
       });
       
       // updated_at 갱신
@@ -238,10 +244,13 @@ function uploadImage(requestData) {
       folder = folders.next();
     } else {
       folder = DriveApp.createFolder('lunch-images');
+      // 폴더도 공유 설정 (파일 접근을 위해)
+      folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     }
     var decoded = Utilities.base64Decode(base64);
     var blob = Utilities.newBlob(decoded, 'image/jpeg', filename);
     var file = folder.createFile(blob);
+    // 파일 공유 설정 (링크가 있는 사람은 볼 수 있음)
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     var fileId = file.getId();
     var imageUrl = 'https://drive.google.com/uc?id=' + fileId;
