@@ -2966,6 +2966,7 @@ const NCP_APIGW_API_KEY_ID = process.env.NCP_APIGW_API_KEY_ID;
 const NCP_APIGW_API_KEY = process.env.NCP_APIGW_API_KEY;
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+const TMAP_API_KEY = process.env.TMAP_API_KEY;
 
 // 코레일유통 본사 (도보 거리 산정 기준)
 const KORAIL_HQ_LAT = 37.5245;
@@ -2987,33 +2988,79 @@ function mapCategory(rawCategory) {
   return '기타';
 }
 
-/** Google Directions API로 정확한 도보 시간(분) 조회. 실패 시 null 반환 */
-async function getWalkingMinutesFromGoogle(destLat, destLng) {
-  if (!GOOGLE_MAPS_API_KEY) {
-    console.log('[google-directions] GOOGLE_MAPS_API_KEY가 설정되지 않음');
+/** TMAP API로 정확한 도보 시간(분) 조회. 실패 시 null 반환 */
+async function getWalkingMinutesFromTmap(destLat, destLng) {
+  if (!TMAP_API_KEY) {
+    console.log('[tmap-directions] TMAP_API_KEY가 설정되지 않음');
     return null;
   }
   try {
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${KORAIL_HQ_LAT},${KORAIL_HQ_LNG}&destination=${destLat},${destLng}&mode=walking&key=${GOOGLE_MAPS_API_KEY}`;
-    console.log(`[google-directions] API 호출: ${url.replace(GOOGLE_MAPS_API_KEY, '***')}`);
-    const res = await axios.get(url, { timeout: 8000 });
-    console.log(`[google-directions] 응답 상태: ${res.data?.status}`);
-    if (res.data?.status === 'OK' && res.data.routes?.[0]?.legs?.[0]?.duration?.value) {
-      const minutes = Math.round(res.data.routes[0].legs[0].duration.value / 60);
-      console.log(`[google-directions] 성공: ${minutes}분`);
-      return minutes;
-    } else {
-      console.log(`[google-directions] 실패: status=${res.data?.status}, error_message=${res.data?.error_message || 'N/A'}`);
-      if (res.data?.error_message) {
-        console.log(`[google-directions] 에러 메시지: ${res.data.error_message}`);
+    const url = 'https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1&format=json';
+    const requestBody = {
+      startX: KORAIL_HQ_LNG,
+      startY: KORAIL_HQ_LAT,
+      endX: destLng,
+      endY: destLat,
+      startName: '코레일 본사',
+      endName: '목적지',
+      reqCoordType: 'WGS84GEO',
+      resCoordType: 'WGS84GEO'
+    };
+    
+    console.log(`[tmap-directions] API 호출: ${url}`);
+    console.log(`[tmap-directions] 출발지: (${KORAIL_HQ_LAT}, ${KORAIL_HQ_LNG}), 도착지: (${destLat}, ${destLng})`);
+    
+    const res = await axios.post(url, requestBody, {
+      headers: {
+        'appKey': TMAP_API_KEY,
+        'content-type': 'application/json',
+        'accept': 'application/json'
+      },
+      timeout: 10000
+    });
+    
+    // TMAP API 응답은 GeoJSON 형식
+    // features 배열의 각 feature에서 duration을 합산하거나
+    // 응답의 최상위 레벨에 totalTime이 있을 수 있음
+    if (res.data && res.data.features && Array.isArray(res.data.features)) {
+      let totalDurationSeconds = 0;
+      
+      // features 배열을 순회하며 duration 합산
+      for (const feature of res.data.features) {
+        if (feature.properties && feature.properties.duration) {
+          totalDurationSeconds += parseInt(feature.properties.duration) || 0;
+        }
+      }
+      
+      // 또는 응답의 최상위 레벨에 totalTime이 있는지 확인
+      if (res.data.properties && res.data.properties.totalTime) {
+        totalDurationSeconds = parseInt(res.data.properties.totalTime) || totalDurationSeconds;
+      }
+      
+      if (totalDurationSeconds > 0) {
+        const minutes = Math.round(totalDurationSeconds / 60);
+        console.log(`[tmap-directions] 성공: ${minutes}분 (${totalDurationSeconds}초)`);
+        return minutes;
       }
     }
+    
+    // totalDistance를 사용하여 추정 (fallback)
+    if (res.data && res.data.properties && res.data.properties.totalDistance) {
+      const distanceMeters = parseInt(res.data.properties.totalDistance);
+      // 보행 속도: 4km/h = 66.67m/min
+      const estimatedMinutes = Math.round(distanceMeters / 66.67);
+      console.log(`[tmap-directions] duration 없음, 거리로 추정: ${estimatedMinutes}분 (${distanceMeters}m)`);
+      return estimatedMinutes;
+    }
+    
+    console.log(`[tmap-directions] 실패: 응답에 duration 또는 distance 정보가 없음`);
+    console.log(`[tmap-directions] 응답 구조:`, JSON.stringify(res.data).slice(0, 500));
     return null;
   } catch (e) {
-    console.error('[google-directions] 예외 발생:', e.message);
+    console.error('[tmap-directions] 예외 발생:', e.message);
     if (e.response) {
-      console.error('[google-directions] 응답 상태 코드:', e.response.status);
-      console.error('[google-directions] 응답 데이터:', JSON.stringify(e.response.data).slice(0, 500));
+      console.error('[tmap-directions] HTTP 상태 코드:', e.response.status);
+      console.error('[tmap-directions] 응답 데이터:', JSON.stringify(e.response.data).slice(0, 500));
     }
     return null;
   }
@@ -3240,14 +3287,28 @@ app.post('/lunch/geocode-address', async (req, res) => {
     }
     console.log(`[geocode-address] 지오코딩 성공: 주소=${addr}, 좌표=(${lat}, ${lng})`);
     
-    // Google Directions API는 한국에서 walking 모드를 지원하지 않음
-    // (available_travel_modes에 TRANSIT만 있고 WALKING이 없음)
-    // 따라서 직선거리 추정만 사용
-    const walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
-    const walk_source = 'estimate';
+    let walk_min = null;
+    let walk_source = 'estimate';
     
-    console.log(`[geocode-address] 직선거리 추정 사용: ${walk_min}분`);
-    console.log(`[geocode-address] 참고: Google Directions API는 한국에서 walking 모드를 지원하지 않아 직선거리로 추정합니다.`);
+    // TMAP API로 도보 경로 계산 시도
+    if (TMAP_API_KEY) {
+      console.log(`[geocode-address] TMAP API 호출 시도: origin=(${KORAIL_HQ_LAT},${KORAIL_HQ_LNG}), destination=(${lat},${lng})`);
+      walk_min = await getWalkingMinutesFromTmap(lat, lng);
+      if (walk_min != null) {
+        walk_source = 'tmap';
+        console.log(`[geocode-address] TMAP API 성공: ${walk_min}분`);
+      } else {
+        console.log(`[geocode-address] TMAP API 실패 또는 결과 없음`);
+      }
+    } else {
+      console.log(`[geocode-address] TMAP_API_KEY가 설정되지 않음`);
+    }
+    
+    // TMAP API 실패하거나 키가 없으면 직선거리 추정
+    if (walk_min == null) {
+      walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
+      console.log(`[geocode-address] 직선거리 추정 사용: ${walk_min}분`);
+    }
     const naver_map_url = `https://map.naver.com/v5/?c=${lng},${lat},17,0,0,0,dh`;
     return res.json({
       success: true,
