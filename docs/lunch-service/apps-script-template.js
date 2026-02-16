@@ -135,6 +135,50 @@ function createPlace(requestData) {
   };
 }
 
+// PUT /places/:id - 장소 수정
+function updatePlace(placeId, requestData) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('places');
+  if (!sheet) return { success: false, error: 'places 시트를 찾을 수 없습니다.' };
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idCol = headers.indexOf('place_id');
+  if (idCol === -1) return { success: false, error: 'place_id 컬럼을 찾을 수 없습니다.' };
+  
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][idCol] === placeId) {
+      const row = i + 1;
+      const now = new Date().toISOString();
+      
+      // 모든 필드 업데이트
+      const fields = ['name', 'address_text', 'category', 'price_level', 'walk_min', 
+                      'keywords', 'tags', 'solo_ok', 'group_ok', 'indoor_ok', 
+                      'image_url', 'naver_map_url', 'lat', 'lng'];
+      
+      fields.forEach(field => {
+        const colIdx = headers.indexOf(field);
+        if (colIdx !== -1) {
+          let value = requestData[field];
+          if (value === undefined) value = '';
+          if (field === 'solo_ok' || field === 'group_ok' || field === 'indoor_ok') {
+            value = value === true || value === 'true' || value === 'TRUE' || value === 1 || value === '1';
+          }
+          sheet.getRange(row, colIdx + 1).setValue(value);
+        }
+      });
+      
+      // updated_at 갱신
+      const updatedAtCol = headers.indexOf('updated_at');
+      if (updatedAtCol !== -1) {
+        sheet.getRange(row, updatedAtCol + 1).setValue(now);
+      }
+      
+      return { success: true, data: { place_id: placeId, updated_at: now } };
+    }
+  }
+  return { success: false, error: '해당 장소를 찾을 수 없습니다.' };
+}
+
 // DELETE /places/:id - 장소 삭제
 function deletePlace(placeId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -591,6 +635,10 @@ function handleRequest(e) {
     } else if (path === 'places' && method === 'POST') {
       const requestData = e.postData ? JSON.parse(e.postData.contents) : {};
       result = createPlace(requestData);
+    } else if (path.startsWith('places/') && method === 'PUT') {
+      const placeId = path.replace('places/', '');
+      const requestData = e.postData ? JSON.parse(e.postData.contents) : {};
+      result = updatePlace(placeId, requestData);
     } else if (path.startsWith('places/') && method === 'DELETE') {
       const placeId = path.replace('places/', '');
       result = deletePlace(placeId);

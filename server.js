@@ -3223,13 +3223,15 @@ app.post('/lunch/geocode-address', async (req, res) => {
       });
     }
     let walk_min = await getWalkingMinutesFromGoogle(lat, lng);
+    let walk_source = 'google';
     if (walk_min == null) {
       walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
+      walk_source = 'estimate';
     }
     const naver_map_url = `https://map.naver.com/v5/?c=${lng},${lat},17,0,0,0,dh`;
     return res.json({
       success: true,
-      data: { walk_min, lat, lng, naver_map_url }
+      data: { walk_min, lat, lng, naver_map_url, walk_source }
     });
   } catch (error) {
     console.error('[geocode-address] 실패:', error.message);
@@ -3529,6 +3531,17 @@ app.post('/lunch/admin/generate-daily', async (req, res) => {
     return res.json(result);
   } catch (error) {
     console.error('[admin/generate-daily] 실패:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /lunch/admin/places/:id - 장소 수정
+app.put('/lunch/admin/places/:id', async (req, res) => {
+  try {
+    const result = await callAppsScript(`/places/${req.params.id}`, 'PUT', req.body);
+    return res.json(result);
+  } catch (error) {
+    console.error('[admin/places PUT] 실패:', error.message);
     return res.status(500).json({ success: false, error: error.message });
   }
 });
