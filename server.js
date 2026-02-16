@@ -2962,6 +2962,8 @@ console.log('카카오 라우터 등록됨');
 const GOOGLE_APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL;
 const LUNCH_API_KEY = process.env.LUNCH_API_KEY;
 const LUNCH_WEB_URL = process.env.LUNCH_WEB_URL || '';
+const NCP_APIGW_API_KEY_ID = process.env.NCP_APIGW_API_KEY_ID;
+const NCP_APIGW_API_KEY = process.env.NCP_APIGW_API_KEY;
 
 // 코레일유통 본사 (도보 거리 산정 기준)
 const KORAIL_HQ_LAT = 37.5245;
@@ -3114,29 +3116,79 @@ app.post('/lunch/search-place', async (req, res) => {
     }
     const items = apiRes.data?.items || [];
     const stripHtml = (s) => (s == null ? '' : String(s).replace(/<[^>]+>/g, '').trim());
-    const data = items.map((item) => {
-      const { lat, lng } = naverMapxyToWgs84(item.mapx, item.mapy);
-      let walk_min = 0;
-      if (lat != null && lng != null) {
-        walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
-      }
-      return {
-        name: stripHtml(item.title),
-        category: stripHtml(item.category),
-        address_text: item.roadAddress || item.address || '',
-        road_address: item.roadAddress || '',
-        mapx: item.mapx,
-        mapy: item.mapy,
-        naver_map_url: item.link || '',
-        walk_min
-      };
-    });
+    const data = items.map((item) => ({
+      name: stripHtml(item.title),
+      category: stripHtml(item.category),
+      address_text: item.roadAddress || item.address || ''
+    }));
     return res.json({ success: true, data });
   } catch (error) {
     console.error('[search-place] 실패:', error.message);
     return res.status(500).json({
       success: false,
       error: error.message || '검색 중 오류가 발생했습니다.'
+    });
+  }
+});
+
+// POST /lunch/geocode-address - 주소로 NCP Geocoding 호출 후 walk_min, naver_map_url 반환
+app.post('/lunch/geocode-address', async (req, res) => {
+  try {
+    const { address } = req.body || {};
+    const addr = typeof address === 'string' ? address.trim() : '';
+    if (!addr) {
+      return res.status(400).json({ success: false, error: 'address가 필요합니다.' });
+    }
+    if (!NCP_APIGW_API_KEY_ID || !NCP_APIGW_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: 'NCP Maps API 설정이 없습니다. NCP_APIGW_API_KEY_ID, NCP_APIGW_API_KEY 환경변수를 확인하세요.'
+      });
+    }
+    const geoUrl = `https://maps.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(addr)}&count=1`;
+    const geoRes = await axios.get(geoUrl, {
+      timeout: 10000,
+      headers: {
+        'x-ncp-apigw-api-key-id': NCP_APIGW_API_KEY_ID,
+        'x-ncp-apigw-api-key': NCP_APIGW_API_KEY,
+        'Accept': 'application/json'
+      },
+      validateStatus: (s) => s === 200 || s >= 400
+    });
+    if (geoRes.status !== 200 || geoRes.data?.status !== 'OK') {
+      const errMsg = geoRes.data?.errorMessage || geoRes.statusText || '지오코딩 실패';
+      return res.status(geoRes.status === 400 ? 400 : 503).json({
+        success: false,
+        error: errMsg
+      });
+    }
+    const addresses = geoRes.data?.addresses || [];
+    if (addresses.length === 0) {
+      return res.json({
+        success: false,
+        error: '해당 주소로 좌표를 찾을 수 없습니다.'
+      });
+    }
+    const first = addresses[0];
+    const lng = first.x != null ? parseFloat(first.x) : null;
+    const lat = first.y != null ? parseFloat(first.y) : null;
+    if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
+      return res.json({
+        success: false,
+        error: '좌표를 확인할 수 없습니다.'
+      });
+    }
+    const walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
+    const naver_map_url = `https://map.naver.com/v5/?c=${lng},${lat},17,0,0,0,dh`;
+    return res.json({
+      success: true,
+      data: { walk_min, lat, lng, naver_map_url }
+    });
+  } catch (error) {
+    console.error('[geocode-address] 실패:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.message || '주소 변환 중 오류가 발생했습니다.'
     });
   }
 });
