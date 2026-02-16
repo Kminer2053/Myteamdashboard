@@ -2991,7 +2991,6 @@ function mapCategory(rawCategory) {
 /** TMAP API로 정확한 도보 시간(분) 조회. 실패 시 null 반환 */
 async function getWalkingMinutesFromTmap(destLat, destLng) {
   if (!TMAP_API_KEY) {
-    console.log('[tmap-directions] TMAP_API_KEY가 설정되지 않음');
     return null;
   }
   try {
@@ -3006,9 +3005,6 @@ async function getWalkingMinutesFromTmap(destLat, destLng) {
       reqCoordType: 'WGS84GEO',
       resCoordType: 'WGS84GEO'
     };
-    
-    console.log(`[tmap-directions] API 호출: ${url}`);
-    console.log(`[tmap-directions] 출발지: (${KORAIL_HQ_LAT}, ${KORAIL_HQ_LNG}), 도착지: (${destLat}, ${destLng})`);
     
     const res = await axios.post(url, requestBody, {
       headers: {
@@ -3028,8 +3024,6 @@ async function getWalkingMinutesFromTmap(destLat, destLng) {
         const totalDurationSeconds = parseInt(firstFeature.properties.totalTime);
         if (totalDurationSeconds > 0) {
           const minutes = Math.round(totalDurationSeconds / 60);
-          const totalDistance = firstFeature.properties.totalDistance || 0;
-          console.log(`[tmap-directions] 성공: ${minutes}분 (${totalDurationSeconds}초, ${totalDistance}m)`);
           return minutes;
         }
       }
@@ -3040,8 +3034,6 @@ async function getWalkingMinutesFromTmap(destLat, destLng) {
           const totalDurationSeconds = parseInt(feature.properties.totalTime);
           if (totalDurationSeconds > 0) {
             const minutes = Math.round(totalDurationSeconds / 60);
-            const totalDistance = feature.properties.totalDistance || 0;
-            console.log(`[tmap-directions] 성공 (다른 feature에서 발견): ${minutes}분 (${totalDurationSeconds}초, ${totalDistance}m)`);
             return minutes;
           }
         }
@@ -3053,7 +3045,6 @@ async function getWalkingMinutesFromTmap(destLat, destLng) {
         if (distanceMeters > 0) {
           // 보행 속도: 4km/h = 66.67m/min
           const estimatedMinutes = Math.round(distanceMeters / 66.67);
-          console.log(`[tmap-directions] totalTime 없음, 거리로 추정: ${estimatedMinutes}분 (${distanceMeters}m)`);
           return estimatedMinutes;
         }
       }
@@ -3065,7 +3056,6 @@ async function getWalkingMinutesFromTmap(destLat, destLng) {
         const totalDurationSeconds = parseInt(res.data.properties.totalTime);
         if (totalDurationSeconds > 0) {
           const minutes = Math.round(totalDurationSeconds / 60);
-          console.log(`[tmap-directions] 성공 (최상위 properties): ${minutes}분 (${totalDurationSeconds}초)`);
           return minutes;
         }
       }
@@ -3073,7 +3063,6 @@ async function getWalkingMinutesFromTmap(destLat, destLng) {
         const distanceMeters = parseInt(res.data.properties.totalDistance);
         if (distanceMeters > 0) {
           const estimatedMinutes = Math.round(distanceMeters / 66.67);
-          console.log(`[tmap-directions] 거리로 추정 (최상위 properties): ${estimatedMinutes}분 (${distanceMeters}m)`);
           return estimatedMinutes;
         }
       }
@@ -3311,29 +3300,20 @@ app.post('/lunch/geocode-address', async (req, res) => {
         error: '좌표를 확인할 수 없습니다.'
       });
     }
-    console.log(`[geocode-address] 지오코딩 성공: 주소=${addr}, 좌표=(${lat}, ${lng})`);
-    
     let walk_min = null;
     let walk_source = 'estimate';
     
     // TMAP API로 도보 경로 계산 시도
     if (TMAP_API_KEY) {
-      console.log(`[geocode-address] TMAP API 호출 시도: origin=(${KORAIL_HQ_LAT},${KORAIL_HQ_LNG}), destination=(${lat},${lng})`);
       walk_min = await getWalkingMinutesFromTmap(lat, lng);
       if (walk_min != null) {
         walk_source = 'tmap';
-        console.log(`[geocode-address] TMAP API 성공: ${walk_min}분`);
-      } else {
-        console.log(`[geocode-address] TMAP API 실패 또는 결과 없음`);
       }
-    } else {
-      console.log(`[geocode-address] TMAP_API_KEY가 설정되지 않음`);
     }
     
     // TMAP API 실패하거나 키가 없으면 직선거리 추정
     if (walk_min == null) {
       walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
-      console.log(`[geocode-address] 직선거리 추정 사용: ${walk_min}분`);
     }
     const naver_map_url = `https://map.naver.com/v5/?c=${lng},${lat},17,0,0,0,dh`;
     return res.json({
