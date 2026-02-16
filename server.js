@@ -3020,37 +3020,63 @@ async function getWalkingMinutesFromTmap(destLat, destLng) {
     });
     
     // TMAP API 응답은 GeoJSON 형식
-    // features 배열의 각 feature에서 duration을 합산하거나
-    // 응답의 최상위 레벨에 totalTime이 있을 수 있음
-    if (res.data && res.data.features && Array.isArray(res.data.features)) {
-      let totalDurationSeconds = 0;
-      
-      // features 배열을 순회하며 duration 합산
-      for (const feature of res.data.features) {
-        if (feature.properties && feature.properties.duration) {
-          totalDurationSeconds += parseInt(feature.properties.duration) || 0;
+    // 첫 번째 feature의 properties에 전체 경로의 totalTime과 totalDistance가 포함됨
+    if (res.data && res.data.features && Array.isArray(res.data.features) && res.data.features.length > 0) {
+      // 첫 번째 feature의 properties에서 전체 경로 정보 확인
+      const firstFeature = res.data.features[0];
+      if (firstFeature.properties && firstFeature.properties.totalTime) {
+        const totalDurationSeconds = parseInt(firstFeature.properties.totalTime);
+        if (totalDurationSeconds > 0) {
+          const minutes = Math.round(totalDurationSeconds / 60);
+          const totalDistance = firstFeature.properties.totalDistance || 0;
+          console.log(`[tmap-directions] 성공: ${minutes}분 (${totalDurationSeconds}초, ${totalDistance}m)`);
+          return minutes;
         }
       }
       
-      // 또는 응답의 최상위 레벨에 totalTime이 있는지 확인
-      if (res.data.properties && res.data.properties.totalTime) {
-        totalDurationSeconds = parseInt(res.data.properties.totalTime) || totalDurationSeconds;
+      // 다른 feature에서도 totalTime 찾기 시도
+      for (const feature of res.data.features) {
+        if (feature.properties && feature.properties.totalTime) {
+          const totalDurationSeconds = parseInt(feature.properties.totalTime);
+          if (totalDurationSeconds > 0) {
+            const minutes = Math.round(totalDurationSeconds / 60);
+            const totalDistance = feature.properties.totalDistance || 0;
+            console.log(`[tmap-directions] 성공 (다른 feature에서 발견): ${minutes}분 (${totalDurationSeconds}초, ${totalDistance}m)`);
+            return minutes;
+          }
+        }
       }
       
-      if (totalDurationSeconds > 0) {
-        const minutes = Math.round(totalDurationSeconds / 60);
-        console.log(`[tmap-directions] 성공: ${minutes}분 (${totalDurationSeconds}초)`);
-        return minutes;
+      // totalTime이 없으면 totalDistance로 추정
+      if (firstFeature.properties && firstFeature.properties.totalDistance) {
+        const distanceMeters = parseInt(firstFeature.properties.totalDistance);
+        if (distanceMeters > 0) {
+          // 보행 속도: 4km/h = 66.67m/min
+          const estimatedMinutes = Math.round(distanceMeters / 66.67);
+          console.log(`[tmap-directions] totalTime 없음, 거리로 추정: ${estimatedMinutes}분 (${distanceMeters}m)`);
+          return estimatedMinutes;
+        }
       }
     }
     
-    // totalDistance를 사용하여 추정 (fallback)
-    if (res.data && res.data.properties && res.data.properties.totalDistance) {
-      const distanceMeters = parseInt(res.data.properties.totalDistance);
-      // 보행 속도: 4km/h = 66.67m/min
-      const estimatedMinutes = Math.round(distanceMeters / 66.67);
-      console.log(`[tmap-directions] duration 없음, 거리로 추정: ${estimatedMinutes}분 (${distanceMeters}m)`);
-      return estimatedMinutes;
+    // 응답의 최상위 레벨 properties 확인 (fallback)
+    if (res.data && res.data.properties) {
+      if (res.data.properties.totalTime) {
+        const totalDurationSeconds = parseInt(res.data.properties.totalTime);
+        if (totalDurationSeconds > 0) {
+          const minutes = Math.round(totalDurationSeconds / 60);
+          console.log(`[tmap-directions] 성공 (최상위 properties): ${minutes}분 (${totalDurationSeconds}초)`);
+          return minutes;
+        }
+      }
+      if (res.data.properties.totalDistance) {
+        const distanceMeters = parseInt(res.data.properties.totalDistance);
+        if (distanceMeters > 0) {
+          const estimatedMinutes = Math.round(distanceMeters / 66.67);
+          console.log(`[tmap-directions] 거리로 추정 (최상위 properties): ${estimatedMinutes}분 (${distanceMeters}m)`);
+          return estimatedMinutes;
+        }
+      }
     }
     
     console.log(`[tmap-directions] 실패: 응답에 duration 또는 distance 정보가 없음`);
