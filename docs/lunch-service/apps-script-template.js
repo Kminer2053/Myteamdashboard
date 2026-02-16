@@ -117,6 +117,9 @@ function createPlace(requestData) {
     solo_ok: requestData.solo_ok || false,
     group_ok: requestData.group_ok || false,
     indoor_ok: requestData.indoor_ok || false,
+    image_url: requestData.image_url || '',
+    lat: requestData.lat || '',
+    lng: requestData.lng || '',
     created_at: now,
     updated_at: now
   };
@@ -130,6 +133,161 @@ function createPlace(requestData) {
       created_at: now
     }
   };
+}
+
+// DELETE /places/:id - 장소 삭제
+function deletePlace(placeId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('places');
+  if (!sheet) return { success: false, error: 'places 시트를 찾을 수 없습니다.' };
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idCol = headers.indexOf('place_id');
+  if (idCol === -1) return { success: false, error: 'place_id 컬럼을 찾을 수 없습니다.' };
+  for (let i = data.length - 1; i >= 1; i--) {
+    if (data[i][idCol] === placeId) {
+      sheet.deleteRow(i + 1);
+      return { success: true };
+    }
+  }
+  return { success: false, error: '해당 장소를 찾을 수 없습니다.' };
+}
+
+// GET /config - 설정 조회
+function getConfig() {
+  const configs = getSheetData('config');
+  return { success: true, data: configs };
+}
+
+// POST /config - 설정 저장/업데이트
+function updateConfig(requestData) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('config');
+  if (!sheet) {
+    sheet = ss.insertSheet('config');
+    sheet.getRange(1, 1, 1, 2).setValues([['key', 'value']]);
+  }
+  const key = requestData.key;
+  const value = requestData.value;
+  if (!key) return { success: false, error: 'key가 필요합니다.' };
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === key) {
+      sheet.getRange(i + 1, 2).setValue(value);
+      return { success: true, data: { key: key, value: value } };
+    }
+  }
+  sheet.appendRow([key, value]);
+  return { success: true, data: { key: key, value: value } };
+}
+
+// POST /upload-image - Google Drive에 이미지 업로드
+function uploadImage(requestData) {
+  const base64 = requestData.image_base64;
+  const filename = requestData.filename || 'place_image.jpg';
+  const placeId = requestData.place_id || '';
+  if (!base64) return { success: false, error: 'image_base64가 필요합니다.' };
+  try {
+    var folders = DriveApp.getFoldersByName('lunch-images');
+    var folder;
+    if (folders.hasNext()) {
+      folder = folders.next();
+    } else {
+      folder = DriveApp.createFolder('lunch-images');
+    }
+    var decoded = Utilities.base64Decode(base64);
+    var blob = Utilities.newBlob(decoded, 'image/jpeg', filename);
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var fileId = file.getId();
+    var imageUrl = 'https://drive.google.com/uc?id=' + fileId;
+    if (placeId) {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheet = ss.getSheetByName('places');
+      if (sheet) {
+        var data = sheet.getDataRange().getValues();
+        var headers = data[0];
+        var idCol = headers.indexOf('place_id');
+        var imgCol = headers.indexOf('image_url');
+        if (imgCol === -1) {
+          imgCol = headers.length;
+          sheet.getRange(1, imgCol + 1).setValue('image_url');
+        }
+        if (idCol !== -1) {
+          for (var i = 1; i < data.length; i++) {
+            if (data[i][idCol] === placeId) {
+              sheet.getRange(i + 1, imgCol + 1).setValue(imageUrl);
+              break;
+            }
+          }
+        }
+      }
+    }
+    return { success: true, data: { image_url: imageUrl, file_id: fileId } };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+// GET /daily-recommendations - 오늘의 추천 조회
+function getDailyRecommendations() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('daily_recommendations');
+  if (!sheet) return { success: true, data: null };
+  var today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return { success: true, data: null };
+  var headers = data[0];
+  var dateCol = headers.indexOf('date');
+  var jsonCol = headers.indexOf('recommendations_json');
+  if (dateCol === -1 || jsonCol === -1) return { success: true, data: null };
+  for (var i = data.length - 1; i >= 1; i--) {
+    var rowDate = data[i][dateCol];
+    if (typeof rowDate === 'object' && rowDate.getTime) {
+      rowDate = Utilities.formatDate(rowDate, 'Asia/Seoul', 'yyyy-MM-dd');
+    }
+    if (String(rowDate) === today) {
+      try {
+        var recs = JSON.parse(data[i][jsonCol]);
+        return { success: true, data: recs };
+      } catch (e) {
+        return { success: true, data: null };
+      }
+    }
+  }
+  return { success: true, data: null };
+}
+
+// POST /generate-daily - 일일 추천 생성
+function generateDaily(requestData) {
+  var result = recommendLunch(requestData || { text: '오늘의 점심 추천', preset: [], exclude: [] });
+  if (!result.success || !result.data) return result;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('daily_recommendations');
+  if (!sheet) {
+    sheet = ss.insertSheet('daily_recommendations');
+    sheet.getRange(1, 1, 1, 3).setValues([['date', 'recommendations_json', 'created_at']]);
+  }
+  var today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd');
+  var data = sheet.getDataRange().getValues();
+  var dateCol = 0;
+  var replaced = false;
+  for (var i = 1; i < data.length; i++) {
+    var rowDate = data[i][dateCol];
+    if (typeof rowDate === 'object' && rowDate.getTime) {
+      rowDate = Utilities.formatDate(rowDate, 'Asia/Seoul', 'yyyy-MM-dd');
+    }
+    if (String(rowDate) === today) {
+      sheet.getRange(i + 1, 2).setValue(JSON.stringify(result.data));
+      sheet.getRange(i + 1, 3).setValue(new Date().toISOString());
+      replaced = true;
+      break;
+    }
+  }
+  if (!replaced) {
+    sheet.appendRow([today, JSON.stringify(result.data), new Date().toISOString()]);
+  }
+  return { success: true, data: result.data };
 }
 
 // POST /reviews - 리뷰 등록
@@ -212,12 +370,10 @@ function calculateScore(place, preset, reviewStats) {
 }
 
 // POST /recommend - 점심 추천
-// requestData.fastOnly === true 이면 LLM 건너뛰고 규칙 기반 상위 3곳만 반환 (봇용)
 function recommendLunch(requestData) {
   const text = requestData.text || '';
   const preset = requestData.preset || [];
   const exclude = requestData.exclude || [];
-  const fastOnly = requestData.fastOnly === true;
   
   if (!text) {
     return {
@@ -249,10 +405,10 @@ function recommendLunch(requestData) {
     .sort((a, b) => b.score - a.score)
     .slice(0, 50);
   
-  // 5. LLM 호출 (fastOnly가 아니고, 키가 있으면)
+  // 5. LLM 호출 (키가 있으면)
   const perplexityKey = getPerplexityApiKey();
   
-  if (!fastOnly && perplexityKey && shortlist.length > 0) {
+  if (perplexityKey && shortlist.length > 0) {
     try {
       const llmResult = callPerplexityAPI(text, shortlist, perplexityKey);
       if (llmResult && llmResult.length > 0) {
@@ -435,12 +591,28 @@ function handleRequest(e) {
     } else if (path === 'places' && method === 'POST') {
       const requestData = e.postData ? JSON.parse(e.postData.contents) : {};
       result = createPlace(requestData);
+    } else if (path.startsWith('places/') && method === 'DELETE') {
+      const placeId = path.replace('places/', '');
+      result = deletePlace(placeId);
     } else if (path === 'reviews' && method === 'POST') {
       const requestData = e.postData ? JSON.parse(e.postData.contents) : {};
       result = createReview(requestData);
     } else if (path === 'recommend' && method === 'POST') {
       const requestData = e.postData ? JSON.parse(e.postData.contents) : {};
       result = recommendLunch(requestData);
+    } else if (path === 'config' && method === 'GET') {
+      result = getConfig();
+    } else if (path === 'config' && method === 'POST') {
+      const requestData = e.postData ? JSON.parse(e.postData.contents) : {};
+      result = updateConfig(requestData);
+    } else if (path === 'upload-image' && method === 'POST') {
+      const requestData = e.postData ? JSON.parse(e.postData.contents) : {};
+      result = uploadImage(requestData);
+    } else if (path === 'daily-recommendations' && method === 'GET') {
+      result = getDailyRecommendations();
+    } else if (path === 'generate-daily' && method === 'POST') {
+      const requestData = e.postData ? JSON.parse(e.postData.contents) : {};
+      result = generateDaily(requestData);
     } else {
       result = {
         success: false,

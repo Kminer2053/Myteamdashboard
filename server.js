@@ -2965,9 +2965,43 @@ const LUNCH_WEB_URL = process.env.LUNCH_WEB_URL || '';
 const NCP_APIGW_API_KEY_ID = process.env.NCP_APIGW_API_KEY_ID;
 const NCP_APIGW_API_KEY = process.env.NCP_APIGW_API_KEY;
 
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+
 // 코레일유통 본사 (도보 거리 산정 기준)
 const KORAIL_HQ_LAT = 37.5245;
 const KORAIL_HQ_LNG = 126.9065;
+
+// 카테고리 매핑: 네이버 지역검색 API 카테고리 -> 앱 카테고리
+const CATEGORY_KEYWORDS = {
+  '한식': '한식', '중식': '중식', '중국식': '중식', '일식': '일식', '일본식': '일식',
+  '양식': '양식', '분식': '분식', '카페': '카페', '디저트': '카페', '베이커리': '카페',
+  '패스트푸드': '기타', '치킨': '기타', '피자': '양식'
+};
+function mapCategory(rawCategory) {
+  if (!rawCategory) return '';
+  const top = rawCategory.split('>')[0].replace(/<[^>]+>/g, '').trim();
+  if (CATEGORY_KEYWORDS[top]) return CATEGORY_KEYWORDS[top];
+  for (const [kw, cat] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (rawCategory.includes(kw)) return cat;
+  }
+  return '기타';
+}
+
+/** Google Directions API로 정확한 도보 시간(분) 조회. 실패 시 null 반환 */
+async function getWalkingMinutesFromGoogle(destLat, destLng) {
+  if (!GOOGLE_MAPS_API_KEY) return null;
+  try {
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${KORAIL_HQ_LAT},${KORAIL_HQ_LNG}&destination=${destLat},${destLng}&mode=walking&key=${GOOGLE_MAPS_API_KEY}`;
+    const res = await axios.get(url, { timeout: 8000 });
+    if (res.data?.status === 'OK' && res.data.routes?.[0]?.legs?.[0]?.duration?.value) {
+      return Math.round(res.data.routes[0].legs[0].duration.value / 60);
+    }
+    return null;
+  } catch (e) {
+    console.error('[google-directions] 실패:', e.message);
+    return null;
+  }
+}
 
 /**
  * 네이버 지도 URL에서 place ID 추출
@@ -3116,11 +3150,21 @@ app.post('/lunch/search-place', async (req, res) => {
     }
     const items = apiRes.data?.items || [];
     const stripHtml = (s) => (s == null ? '' : String(s).replace(/<[^>]+>/g, '').trim());
-    const data = items.map((item) => ({
-      name: stripHtml(item.title),
-      category: stripHtml(item.category),
-      address_text: item.roadAddress || item.address || ''
-    }));
+    const data = items.map((item) => {
+      const rawCat = stripHtml(item.category);
+      const mapped = mapCategory(rawCat);
+      const linkUrl = item.link || '';
+      const isNaverLink = linkUrl && (linkUrl.includes('map.naver.com') || linkUrl.includes('place.naver.com') || linkUrl.includes('naver.me'));
+      return {
+        name: stripHtml(item.title),
+        category: rawCat,
+        category_mapped: mapped,
+        address_text: item.roadAddress || item.address || '',
+        mapx: item.mapx || '',
+        mapy: item.mapy || '',
+        naver_link: isNaverLink ? linkUrl : ''
+      };
+    });
     return res.json({ success: true, data });
   } catch (error) {
     console.error('[search-place] 실패:', error.message);
@@ -3178,7 +3222,10 @@ app.post('/lunch/geocode-address', async (req, res) => {
         error: '좌표를 확인할 수 없습니다.'
       });
     }
-    const walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
+    let walk_min = await getWalkingMinutesFromGoogle(lat, lng);
+    if (walk_min == null) {
+      walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
+    }
     const naver_map_url = `https://map.naver.com/v5/?c=${lng},${lat},17,0,0,0,dh`;
     return res.json({
       success: true,
@@ -3347,6 +3394,195 @@ app.post('/lunch/recommend', async (req, res) => {
     });
   }
 });
+
+// GET /lunch/static-map - NCP Static Map 프록시 (지도 미리보기 이미지)
+app.get('/lunch/static-map', async (req, res) => {
+  try {
+    const { lat, lng, w = 300, h = 200 } = req.query;
+    if (!lat || !lng) {
+      return res.status(400).json({ success: false, error: 'lat, lng 파라미터가 필요합니다.' });
+    }
+    if (!NCP_APIGW_API_KEY_ID || !NCP_APIGW_API_KEY) {
+      return res.status(503).json({ success: false, error: 'NCP Maps API 설정이 없습니다.' });
+    }
+    const width = Math.min(Math.max(parseInt(w) || 300, 50), 1024);
+    const height = Math.min(Math.max(parseInt(h) || 200, 50), 1024);
+    const mapUrl = `https://naveropenapi.apigw.ntruss.com/map-static/v2/raster?center=${lng},${lat}&level=16&w=${width}&h=${height}&markers=type:d|size:mid|pos:${lng}%20${lat}&format=png&scale=2`;
+    const mapRes = await axios.get(mapUrl, {
+      timeout: 10000,
+      responseType: 'arraybuffer',
+      headers: {
+        'x-ncp-apigw-api-key-id': NCP_APIGW_API_KEY_ID,
+        'x-ncp-apigw-api-key': NCP_APIGW_API_KEY
+      }
+    });
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=86400');
+    return res.send(Buffer.from(mapRes.data));
+  } catch (error) {
+    console.error('[static-map] 실패:', error.message);
+    return res.status(500).json({ success: false, error: '지도 이미지를 가져올 수 없습니다.' });
+  }
+});
+
+// POST /lunch/upload-image - Google Drive에 이미지 업로드 (Apps Script 프록시)
+app.post('/lunch/upload-image', async (req, res) => {
+  try {
+    const { image_base64, filename, place_id } = req.body || {};
+    if (!image_base64) {
+      return res.status(400).json({ success: false, error: 'image_base64가 필요합니다.' });
+    }
+    const result = await callAppsScript('/upload-image', 'POST', {
+      image_base64, filename: filename || 'place_image.jpg', place_id: place_id || ''
+    });
+    return res.json(result);
+  } catch (error) {
+    console.error('[upload-image] 실패:', error.message);
+    return res.status(500).json({ success: false, error: error.message || '이미지 업로드 실패' });
+  }
+});
+
+// POST /lunch/verify-register-password - 장소 등록 암호 검증
+app.post('/lunch/verify-register-password', async (req, res) => {
+  try {
+    const { password } = req.body || {};
+    if (!password) {
+      return res.status(400).json({ success: false, error: '암호를 입력하세요.' });
+    }
+    const result = await callAppsScript('/config', 'GET');
+    const configs = result?.data || result || [];
+    const configArr = Array.isArray(configs) ? configs : [];
+    const pwRow = configArr.find(c => c.key === 'register_password');
+    const correctPw = pwRow ? pwRow.value : '1234';
+    if (password === correctPw) {
+      return res.json({ success: true });
+    }
+    return res.json({ success: false, error: '암호가 일치하지 않습니다.' });
+  } catch (error) {
+    console.error('[verify-register-password] 실패:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /lunch/daily-recommendations - 오늘의 추천 조회
+app.get('/lunch/daily-recommendations', async (req, res) => {
+  try {
+    const result = await callAppsScript('/daily-recommendations', 'GET');
+    return res.json(result);
+  } catch (error) {
+    console.error('[daily-recommendations] 실패:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /lunch/admin/verify - 관리자 비밀번호 확인
+app.post('/lunch/admin/verify', async (req, res) => {
+  try {
+    const { password } = req.body || {};
+    if (!password) {
+      return res.status(400).json({ success: false, error: '비밀번호를 입력하세요.' });
+    }
+    const result = await callAppsScript('/config', 'GET');
+    const configs = result?.data || result || [];
+    const configArr = Array.isArray(configs) ? configs : [];
+    const pwRow = configArr.find(c => c.key === 'admin_password');
+    const correctPw = pwRow ? pwRow.value : 'admin1234';
+    if (password === correctPw) {
+      return res.json({ success: true });
+    }
+    return res.json({ success: false, error: '비밀번호가 일치하지 않습니다.' });
+  } catch (error) {
+    console.error('[admin/verify] 실패:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /lunch/admin/config - 관리자 설정 조회
+app.get('/lunch/admin/config', async (req, res) => {
+  try {
+    const result = await callAppsScript('/config', 'GET');
+    return res.json(result);
+  } catch (error) {
+    console.error('[admin/config GET] 실패:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /lunch/admin/config - 관리자 설정 변경
+app.post('/lunch/admin/config', async (req, res) => {
+  try {
+    const result = await callAppsScript('/config', 'POST', req.body);
+    return res.json(result);
+  } catch (error) {
+    console.error('[admin/config POST] 실패:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /lunch/admin/generate-daily - 수동 일일 추천 생성
+app.post('/lunch/admin/generate-daily', async (req, res) => {
+  try {
+    const result = await callAppsScript('/generate-daily', 'POST', {
+      text: req.body?.text || '오늘의 점심 추천',
+      preset: req.body?.preset || []
+    });
+    return res.json(result);
+  } catch (error) {
+    console.error('[admin/generate-daily] 실패:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// DELETE /lunch/admin/places/:id - 장소 삭제
+app.delete('/lunch/admin/places/:id', async (req, res) => {
+  try {
+    const result = await callAppsScript(`/places/${req.params.id}`, 'DELETE');
+    return res.json(result);
+  } catch (error) {
+    console.error('[admin/places DELETE] 실패:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// === Cron: 매일 일일 추천 자동 생성 ===
+const nodeCron = require('node-cron');
+let dailyCronJob = null;
+
+function startDailyCron(cronTime = '0 10 * * 1-5') {
+  if (dailyCronJob) dailyCronJob.stop();
+  if (!nodeCron.validate(cronTime)) {
+    console.error('[cron] 잘못된 cron 표현식:', cronTime);
+    return;
+  }
+  dailyCronJob = nodeCron.schedule(cronTime, async () => {
+    console.log('[cron] 일일 추천 생성 시작:', new Date().toISOString());
+    try {
+      await callAppsScript('/generate-daily', 'POST', {
+        text: '오늘의 점심 추천', preset: []
+      });
+      console.log('[cron] 일일 추천 생성 완료');
+    } catch (err) {
+      console.error('[cron] 일일 추천 생성 실패:', err.message);
+    }
+  }, { timezone: 'Asia/Seoul' });
+  console.log(`[cron] 일일 추천 스케줄 등록: ${cronTime} (Asia/Seoul)`);
+}
+
+// 서버 시작 시 config에서 cron_time 읽어 스케줄 등록
+(async () => {
+  try {
+    if (GOOGLE_APPS_SCRIPT_URL && LUNCH_API_KEY) {
+      const result = await callAppsScript('/config', 'GET');
+      const configs = result?.data || result || [];
+      const configArr = Array.isArray(configs) ? configs : [];
+      const cronRow = configArr.find(c => c.key === 'cron_time');
+      startDailyCron(cronRow ? cronRow.value : '0 10 * * 1-5');
+    }
+  } catch (e) {
+    console.log('[cron] config 조회 실패, 기본 스케줄 사용:', e.message);
+    startDailyCron('0 10 * * 1-5');
+  }
+})();
 
 console.log('점심 추천 서비스 라우트 등록됨 (/lunch/*)');
 

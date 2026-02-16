@@ -93,11 +93,39 @@ LUNCH_API_KEY=your-lunch-api-key-here-min-32-chars
 LUNCH_WEB_URL=https://your-lunch-service.vercel.app
 NAVER_CLIENT_ID=your-naver-client-id
 NAVER_CLIENT_SECRET=your-naver-client-secret
+NCP_APIGW_API_KEY_ID=your-ncp-api-key-id
+NCP_APIGW_API_KEY=your-ncp-api-key
+GOOGLE_MAPS_API_KEY=your-google-maps-api-key
 ```
 
 **중요**: `LUNCH_API_KEY`는 Apps Script의 `API_KEY` 스크립트 속성과 동일해야 합니다!
 
 **등록 검색 기능**: 등록 탭에서 "이름/주소 검색 후 목록 선택"을 사용하려면 네이버 개발자센터에서 애플리케이션을 등록하고 **검색 API**를 사용 설정한 뒤 `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`을 발급받아 위와 같이 설정하세요.
+
+**도보 시간(Google Directions API)**: 장소 선택 시 Google Directions API `walking` 모드로 정확한 도보 시간을 계산합니다. Google Cloud Console에서 **Directions API**를 활성화하고 API 키를 발급받아 `GOOGLE_MAPS_API_KEY`를 설정하세요. 미설정 시 Haversine 추정값으로 폴백합니다.
+
+**지도 미리보기(NCP Static Map)**: 등록 폼에서 지도 미리보기 이미지를 표시합니다. NCP 콘솔에서 Application > Maps > **Static Map** API를 사용 설정하세요. `NCP_APIGW_API_KEY_ID`, `NCP_APIGW_API_KEY`는 Geocoding과 공유합니다.
+
+**이미지 업로드(Google Drive)**: 식당 대표 이미지를 Google Drive에 저장합니다. Apps Script에서 DriveApp 권한을 허용해야 합니다. 이미지는 `lunch-images` 폴더에 저장되며, 공개 URL이 places 시트의 `image_url` 컬럼에 기록됩니다.
+
+### 6.1 Google Sheets 스키마 업데이트
+
+기존 `places` 시트에 다음 컬럼을 추가하세요:
+- `image_url` - 대표 이미지 Google Drive URL
+- `lat` - 위도
+- `lng` - 경도
+
+`config` 시트에 다음 키-값을 추가하세요:
+| key | value | 설명 |
+|-----|-------|------|
+| register_password | 1234 | 장소 등록 암호 (기본값) |
+| admin_password | admin1234 | 관리자 비밀번호 (기본값) |
+| cron_time | 0 10 * * 1-5 | 일일 추천 생성 cron (평일 10시) |
+
+`daily_recommendations` 시트를 새로 생성하세요 (또는 첫 실행 시 자동 생성):
+| date | recommendations_json | created_at |
+|------|---------------------|------------|
+| | | |
 
 ### 7. 배포 확인
 
