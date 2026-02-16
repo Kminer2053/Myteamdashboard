@@ -3600,6 +3600,17 @@ app.get('/lunch/admin/config', async (req, res) => {
   }
 });
 
+// POST /lunch/verify-register-password - 등록 비밀번호 검증
+app.post('/lunch/verify-register-password', async (req, res) => {
+  try {
+    const result = await callAppsScript('/verify-register-password', 'POST', req.body);
+    return res.json(result);
+  } catch (error) {
+    console.error('[verify-register-password] 실패:', error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // POST /lunch/admin/config - 관리자 설정 변경
 app.post('/lunch/admin/config', async (req, res) => {
   try {
