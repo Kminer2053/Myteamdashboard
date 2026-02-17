@@ -3176,14 +3176,13 @@ app.post('/lunch/recommend', async (req, res) => {
     return res.status(503).json({ success: false, error: 'GOOGLE_APPS_SCRIPT_URL이 설정되지 않았습니다.' });
   }
   const { text, preset = [], exclude = [] } = req.body || {};
-  if (!text) {
-    return res.status(400).json({ success: false, error: 'text 필드는 필수입니다.' });
-  }
+  // text는 선택사항 (없으면 빈 문자열로 전달하여 TOP3 반환)
+  const textValue = text !== undefined ? text : '';
   const apiUrl = `${scriptUrl}?path=recommend&method=POST`;
   const headers = { 'Content-Type': 'application/json' };
   if (LUNCH_API_KEY) headers['x-api-key'] = LUNCH_API_KEY;
   try {
-    const response = await axios.post(apiUrl, { text, preset, exclude }, { headers, timeout: 30000 });
+    const response = await axios.post(apiUrl, { text: textValue, preset, exclude }, { headers, timeout: 30000 });
     res.status(response.status || 200).json(response.data);
   } catch (error) {
     const status = error.response?.status || 500;
