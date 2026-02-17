@@ -3169,6 +3169,35 @@ function appsScriptProxy(req, res) {
 app.get('/lunch/api/apps-script', appsScriptProxy);
 app.post('/lunch/api/apps-script', appsScriptProxy);
 
+// POST /lunch/recommend - Apps Script 추천 프록시 (카카오봇용)
+app.post('/lunch/recommend', async (req, res) => {
+  const scriptUrl = GOOGLE_APPS_SCRIPT_URL;
+  if (!scriptUrl) {
+    return res.status(503).json({ success: false, error: 'GOOGLE_APPS_SCRIPT_URL이 설정되지 않았습니다.' });
+  }
+  const { text, preset = [], exclude = [] } = req.body || {};
+  if (!text) {
+    return res.status(400).json({ success: false, error: 'text 필드는 필수입니다.' });
+  }
+  const apiUrl = `${scriptUrl}?path=recommend&method=POST`;
+  const headers = { 'Content-Type': 'application/json' };
+  if (LUNCH_API_KEY) headers['x-api-key'] = LUNCH_API_KEY;
+  try {
+    const response = await axios.post(apiUrl, { text, preset, exclude }, { headers, timeout: 30000 });
+    res.status(response.status || 200).json(response.data);
+  } catch (error) {
+    const status = error.response?.status || 500;
+    const data = error.response?.data;
+    if (data && typeof data === 'object' && !Buffer.isBuffer(data)) {
+      return res.status(status).json(data);
+    }
+    res.status(status).json({
+      success: false,
+      error: error.message || 'Apps Script 호출 중 오류가 발생했습니다.'
+    });
+  }
+});
+
 // POST /lunch/search-place - 네이버 공식 지역검색 API 프록시 (이름/주소 검색 → 목록 선택용)
 app.post('/lunch/search-place', async (req, res) => {
   try {
@@ -3332,7 +3361,7 @@ app.get('/lunch/static-map', async (req, res) => {
   }
 });
 
-console.log('점심 추천 서비스 라우트 등록됨 (/lunch/*) - Apps Script 프록시: /lunch/api/apps-script, 외부 API: search-place, geocode-address, static-map');
+console.log('점심 추천 서비스 라우트 등록됨 (/lunch/*) - Apps Script 프록시: /lunch/api/apps-script, /lunch/recommend, 외부 API: search-place, geocode-address, static-map');
 
 app.get('/', (req, res) => {
   res.send('API 서버가 정상적으로 실행 중입니다.');
