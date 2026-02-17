@@ -360,6 +360,7 @@ router.post('/message', async (req, res) => {
         ).trim();
         const action = routeMessage(userMessage);
         let responseMessage = '';
+        let isLunchResponse = false; // 점심 추천 응답인지 추적
         const userId = req.body.userRequest?.user?.id || req.body.userId || req.body.user_id || '';
         
         switch (action) {
@@ -599,6 +600,7 @@ router.post('/message', async (req, res) => {
                 break;
             }
             case 'lunch_recommend': {
+                isLunchResponse = true; // 점심 추천 응답 플래그 설정
                 await logUserAction('점심추천', userId);
                 try {
                     // 명령어에서 자연어 텍스트 추출
@@ -660,8 +662,14 @@ router.post('/message', async (req, res) => {
                         // 웹페이지 링크 추가
                         const lunchWebUrl = process.env.LUNCH_WEB_URL;
                         if (lunchWebUrl) {
-                            responseMessage += `💻 더 많은 기능: ${lunchWebUrl}\n`;
+                            responseMessage += `💻 더 많은 기능(목록, 후기): ${lunchWebUrl}\n`;
                         }
+                        
+                        // 점심기능 사용법 안내 추가
+                        responseMessage += '\n📌 점심 추천 사용법\n';
+                        responseMessage += '· /점심 → 오늘 추천 TOP 3\n';
+                        responseMessage += '· /점심 [메뉴·기분] → 요청에 맞는 추천 1곳\n';
+                        responseMessage += '  예: /점심 매콤한거 /점심 가벼운 샐러드';
                     } else {
                         responseMessage = '😔 추천 결과를 찾을 수 없습니다.\n\n다른 조건으로 다시 시도해보세요!';
                     }
@@ -689,7 +697,8 @@ router.post('/message', async (req, res) => {
             }
         }
         
-        if (typeof responseMessage === 'string') {
+        // 점심 추천 응답이 아닌 경우에만 대시보드 바로가기 추가
+        if (typeof responseMessage === 'string' && !isLunchResponse) {
             responseMessage += "\n\n대시보드 바로가기: https://myteamdashboard.vercel.app/index.html";
         }
         // message와 response 둘 다 반환 (메신저봇R 등에서 response 필드를 쓰는 경우 대응)
