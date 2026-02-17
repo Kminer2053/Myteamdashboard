@@ -611,17 +611,15 @@ router.post('/message', async (req, res) => {
                         requestText = originalMessage.replace('/추천', '').trim();
                     }
                     
-                    // 자연어 텍스트가 없으면 기본 메시지
-                    if (!requestText) {
-                        requestText = '점심 추천해줘';
-                    }
+                    // 자연어 텍스트가 없으면 빈 문자열로 전달 (TOP3 반환을 위해)
+                    // requestText가 빈 문자열이면 recommendLunch에서 TOP3 반환
                     
                     // 추천 API 호출 (Render에서는 API_BASE_URL 또는 RENDER_EXTERNAL_URL 사용)
                     const baseUrl = process.env.API_BASE_URL ||
                         process.env.RENDER_EXTERNAL_URL ||
                         `http://localhost:${process.env.PORT || 4000}`;
                     const recommendResponse = await axios.post(`${baseUrl}/lunch/recommend`, {
-                        text: requestText,
+                        text: requestText || '', // 빈 문자열이면 빈 문자열로 전달
                         preset: [],
                         exclude: []
                     }, {
