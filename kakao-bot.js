@@ -659,17 +659,17 @@ router.post('/message', async (req, res) => {
                             responseMessage += '\n';
                         });
                         
-                        // 웹페이지 링크 추가
-                        const lunchWebUrl = process.env.LUNCH_WEB_URL;
-                        if (lunchWebUrl) {
-                            responseMessage += `💻 더 많은 기능(목록, 후기): ${lunchWebUrl}\n`;
-                        }
-                        
                         // 점심기능 사용법 안내 추가
                         responseMessage += '\n📌 점심 추천 사용법\n';
                         responseMessage += '· /점심 → 오늘 추천 TOP 3\n';
-                        responseMessage += '· /점심 [메뉴·기분] → 요청에 맞는 추천 1곳\n';
-                        responseMessage += '  예: /점심 매콤한거 /점심 가벼운 샐러드';
+                        responseMessage += '· /점심 [메뉴·기분] → 맞춤 1곳\n';
+                        responseMessage += '  예: /점심 매콤한거 /점심 가벼운 샐러드\n';
+                        
+                        // 웹페이지 링크 추가 (가장 마지막)
+                        const lunchWebUrl = process.env.LUNCH_WEB_URL;
+                        if (lunchWebUrl) {
+                            responseMessage += `\n💻 더 많은 기능(목록, 후기): ${lunchWebUrl}`;
+                        }
                     } else {
                         responseMessage = '😔 추천 결과를 찾을 수 없습니다.\n\n다른 조건으로 다시 시도해보세요!';
                     }
