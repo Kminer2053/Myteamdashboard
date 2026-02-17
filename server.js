@@ -2958,10 +2958,10 @@ app.delete('/api/emails/:email', async (req, res) => {
 app.use('/kakao', kakaoBotRouter);
 console.log('카카오 라우터 등록됨');
 
-// === 점심 추천 서비스 라우트 (/lunch/*) ===
-const GOOGLE_APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL;
-const LUNCH_API_KEY = process.env.LUNCH_API_KEY;
+// === 점심 추천 서비스 라우트 (/lunch/*) - 외부 API 프록시 + Apps Script 프록시(CORS 회피) ===
 const LUNCH_WEB_URL = process.env.LUNCH_WEB_URL || '';
+const GOOGLE_APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL || '';
+const LUNCH_API_KEY = process.env.LUNCH_API_KEY || '';
 const NCP_APIGW_API_KEY_ID = process.env.NCP_APIGW_API_KEY_ID;
 const NCP_APIGW_API_KEY = process.env.NCP_APIGW_API_KEY;
 
@@ -3130,74 +3130,44 @@ function naverMapxyToWgs84(mapx, mapy) {
   return { lat, lng };
 }
 
-// Apps Script 호출 헬퍼 함수 (웹 앱은 쿼리 파라미터 path, method 사용)
-async function callAppsScript(endpoint, method = 'GET', body = null) {
-  if (!GOOGLE_APPS_SCRIPT_URL) {
-    throw new Error('GOOGLE_APPS_SCRIPT_URL이 설정되지 않았습니다');
+// GET/POST /lunch/api/apps-script - Apps Script 프록시 (브라우저 CORS 회피: Vercel → Render → Apps Script)
+function appsScriptProxy(req, res) {
+  const scriptUrl = GOOGLE_APPS_SCRIPT_URL;
+  if (!scriptUrl) {
+    return res.status(503).json({ success: false, error: 'GOOGLE_APPS_SCRIPT_URL이 설정되지 않았습니다.' });
   }
-  if (!LUNCH_API_KEY) {
-    throw new Error('LUNCH_API_KEY가 설정되지 않았습니다');
+  const path = (req.query.path && String(req.query.path).trim()) || '';
+  const method = (req.query.method && String(req.query.method).toUpperCase()) || 'GET';
+  if (!path) {
+    return res.status(400).json({ success: false, error: 'path 쿼리 파라미터가 필요합니다.' });
   }
-
-  const path = endpoint.replace(/^\//, ''); // '/places' -> 'places'
-  // Apps Script 웹 앱은 GET/POST만 지원하므로 PUT/DELETE를 POST로 변환
-  // method는 쿼리 파라미터로 전달하여 Apps Script에서 구분
+  const cleanPath = path.replace(/^\//, '');
   const httpMethod = (method === 'PUT' || method === 'DELETE') ? 'POST' : method;
-  const url = `${GOOGLE_APPS_SCRIPT_URL}?path=${encodeURIComponent(path)}&method=${method}&api_key=${encodeURIComponent(LUNCH_API_KEY)}`;
-
-  const config = {
-    method: httpMethod, // PUT/DELETE는 POST로 변환
-    url,
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    timeout: 30000 // 30초 타임아웃
-  };
-
-  // POST로 변환된 PUT/DELETE도 body를 전달해야 함
-  if (body && (httpMethod === 'POST')) {
-    config.data = body;
+  const apiUrl = `${scriptUrl}?path=${encodeURIComponent(cleanPath)}&method=${method}`;
+  const headers = { 'Content-Type': 'application/json' };
+  if (LUNCH_API_KEY) headers['x-api-key'] = LUNCH_API_KEY;
+  const opts = { method: httpMethod, headers, timeout: 30000 };
+  if (req.body && httpMethod === 'POST' && Object.keys(req.body).length > 0) {
+    opts.data = req.body;
   }
-
-  try {
-    const response = await axios(config);
-    return response.data;
-  } catch (error) {
-    console.error(`Apps Script 호출 실패 (${endpoint}):`, error.message);
-    if (error.response) {
-      throw new Error(`Apps Script 오류: ${error.response.data?.error || error.response.statusText}`);
-    }
-    throw error;
-  }
+  axios(apiUrl, opts)
+    .then((axRes) => {
+      res.status(axRes.status || 200).json(axRes.data);
+    })
+    .catch((err) => {
+      const status = err.response?.status || 500;
+      const data = err.response?.data;
+      if (data && typeof data === 'object' && !Buffer.isBuffer(data)) {
+        return res.status(status).json(data);
+      }
+      res.status(status).json({
+        success: false,
+        error: err.message || 'Apps Script 호출 중 오류가 발생했습니다.'
+      });
+    });
 }
-
-// GET /lunch/places - 장소 목록 조회
-app.get('/lunch/places', async (req, res) => {
-  try {
-    const result = await callAppsScript('/places', 'GET');
-    res.json(result);
-  } catch (error) {
-    console.error('장소 목록 조회 실패:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message || '장소 목록 조회 실패' 
-    });
-  }
-});
-
-// POST /lunch/places - 새 장소 등록
-app.post('/lunch/places', async (req, res) => {
-  try {
-    const result = await callAppsScript('/places', 'POST', req.body);
-    res.json(result);
-  } catch (error) {
-    console.error('장소 등록 실패:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message || '장소 등록 실패' 
-    });
-  }
-});
+app.get('/lunch/api/apps-script', appsScriptProxy);
+app.post('/lunch/api/apps-script', appsScriptProxy);
 
 // POST /lunch/search-place - 네이버 공식 지역검색 API 프록시 (이름/주소 검색 → 목록 선택용)
 app.post('/lunch/search-place', async (req, res) => {
@@ -3332,161 +3302,6 @@ app.post('/lunch/geocode-address', async (req, res) => {
   }
 });
 
-// POST /lunch/reviews - 리뷰 등록
-app.post('/lunch/reviews', async (req, res) => {
-  try {
-    const result = await callAppsScript('/reviews', 'POST', req.body);
-    res.json(result);
-  } catch (error) {
-    console.error('리뷰 등록 실패:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message || '리뷰 등록 실패' 
-    });
-  }
-});
-
-// POST /lunch/scrape-naver - 네이버 지도 URL로 식당 정보 조회 (비공개 summary API 사용, 불안정할 수 있음)
-app.post('/lunch/scrape-naver', async (req, res) => {
-  const logCtx = { url: (req.body && req.body.naverMapUrl) ? String(req.body.naverMapUrl).slice(0, 80) : '' };
-  try {
-    const { naverMapUrl } = req.body || {};
-    if (!naverMapUrl || typeof naverMapUrl !== 'string') {
-      return res.status(400).json({ success: false, error: 'naverMapUrl이 필요합니다.' });
-    }
-    let resolvedUrl = naverMapUrl.trim();
-    if (resolvedUrl.startsWith('https://naver.me/') || resolvedUrl.startsWith('http://naver.me/')) {
-      for (let i = 0; i < 5; i++) {
-        const redir = await axios.get(resolvedUrl, {
-          maxRedirects: 0,
-          timeout: 10000,
-          validateStatus: (s) => s >= 200 && s < 400,
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-        });
-        const loc = redir.headers?.location;
-        if (redir.status >= 300 && loc) {
-          resolvedUrl = loc.startsWith('http') ? loc : new URL(loc, resolvedUrl).href;
-          continue;
-        }
-        break;
-      }
-    }
-    logCtx.resolvedUrl = resolvedUrl.slice(0, 100);
-    const placeId = extractNaverPlaceId(resolvedUrl);
-    if (!placeId) {
-      console.warn('[scrape-naver] placeId 추출 실패:', logCtx);
-      return res.status(400).json({
-        success: false,
-        error: '지원하는 네이버 지도 URL이 아닙니다. map.naver.com 또는 naver.me 링크를 입력해 주세요.',
-        manualEntry: true
-      });
-    }
-    logCtx.placeId = placeId;
-    const summaryUrl = `https://map.naver.com/v5/api/sites/summary/${placeId}`;
-    const apiRes = await axios.get(summaryUrl, {
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Accept-Language': 'ko-KR,ko;q=0.9',
-        'Referer': 'https://map.naver.com/'
-      },
-      validateStatus: (s) => s === 200 || s === 404 || s === 403
-    });
-    if (apiRes.status === 404) {
-      console.warn('[scrape-naver] 장소 없음 (404):', logCtx);
-      return res.json({
-        success: false,
-        error: '해당 장소를 찾을 수 없습니다. 네이버 지도에 등록된 식당인지 확인하거나 수동 입력을 이용해 주세요.',
-        manualEntry: true
-      });
-    }
-    if (apiRes.status === 403) {
-      console.warn('[scrape-naver] 접근 거부 (403). 네이버 측 제한 가능:', logCtx);
-      return res.json({
-        success: false,
-        error: '일시적으로 네이버 지도 정보를 가져올 수 없습니다. 수동 입력을 이용해 주세요.',
-        manualEntry: true
-      });
-    }
-    const raw = apiRes.data;
-    const name = raw.name || raw.title || raw.bizName || (raw.business && raw.business.name) || '';
-    const address = raw.address || raw.roadAddress || raw.addr || (raw.business && raw.business.address) || '';
-    const category = raw.category || raw.categoryName || raw.type || (raw.business && raw.business.category) || '';
-    const x = raw.x != null ? parseFloat(raw.x) : (raw.lng != null ? parseFloat(raw.lng) : (raw.business && raw.business.x) != null ? parseFloat(raw.business.x) : null);
-    const y = raw.y != null ? parseFloat(raw.y) : (raw.lat != null ? parseFloat(raw.lat) : (raw.business && raw.business.y) != null ? parseFloat(raw.business.y) : null);
-    const placeUrl = raw.url || raw.placeUrl || `https://map.naver.com/v5/search/place/${placeId}`;
-    let walk_min = 0;
-    if (typeof x === 'number' && typeof y === 'number' && !Number.isNaN(x) && !Number.isNaN(y)) {
-      walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, y, x);
-    }
-    const data = {
-      name: name || undefined,
-      address_text: address || undefined,
-      category: category || undefined,
-      naver_map_url: placeUrl,
-      walk_min,
-      price_level: '',
-      tags: '',
-      solo_ok: false,
-      group_ok: false,
-      indoor_ok: false
-    };
-    return res.json({ success: true, data });
-  } catch (error) {
-    const status = error.response?.status;
-    const body = error.response?.data;
-    console.error('[scrape-naver] 실패:', logCtx, 'status=', status, 'message=', error.message, body != null ? JSON.stringify(body).slice(0, 200) : '');
-    if (status === 404 || (body && (body.message === 'not found' || body.error === 'not found'))) {
-      return res.json({
-        success: false,
-        error: '해당 장소를 찾을 수 없습니다. 네이버 지도에 등록된 식당인지 확인하거나 수동 입력을 이용해 주세요.',
-        manualEntry: true
-      });
-    }
-    if (status === 403) {
-      return res.json({
-        success: false,
-        error: '일시적으로 네이버 지도 정보를 가져올 수 없습니다. 수동 입력을 이용해 주세요.',
-        manualEntry: true
-      });
-    }
-    return res.status(500).json({
-      success: false,
-      error: error.message || '정보를 가져오는데 실패했습니다. 수동 입력을 이용해 주세요.',
-      manualEntry: true
-    });
-  }
-});
-
-// POST /lunch/recommend - 점심 추천 요청
-app.post('/lunch/recommend', async (req, res) => {
-  try {
-    const { text, preset = [], exclude = [] } = req.body;
-    
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'text 필드는 필수이며 비어있을 수 없습니다' 
-      });
-    }
-
-    const result = await callAppsScript('/recommend', 'POST', {
-      text: text.trim(),
-      preset: Array.isArray(preset) ? preset : [],
-      exclude: Array.isArray(exclude) ? exclude : []
-    });
-    
-    res.json(result);
-  } catch (error) {
-    console.error('추천 요청 실패:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message || '추천 요청 실패' 
-    });
-  }
-});
-
 // GET /lunch/static-map - NCP Static Map 프록시 (지도 미리보기 이미지)
 app.get('/lunch/static-map', async (req, res) => {
   try {
@@ -3517,188 +3332,7 @@ app.get('/lunch/static-map', async (req, res) => {
   }
 });
 
-// POST /lunch/upload-image - Google Drive에 이미지 업로드 (Apps Script 프록시)
-app.post('/lunch/upload-image', async (req, res) => {
-  try {
-    const { image_base64, filename, place_id } = req.body || {};
-    if (!image_base64) {
-      return res.status(400).json({ success: false, error: 'image_base64가 필요합니다.' });
-    }
-    const result = await callAppsScript('/upload-image', 'POST', {
-      image_base64, filename: filename || 'place_image.jpg', place_id: place_id || ''
-    });
-    return res.json(result);
-  } catch (error) {
-    console.error('[upload-image] 실패:', error.message);
-    return res.status(500).json({ success: false, error: error.message || '이미지 업로드 실패' });
-  }
-});
-
-// POST /lunch/verify-register-password - 장소 등록 암호 검증
-app.post('/lunch/verify-register-password', async (req, res) => {
-  try {
-    const { password } = req.body || {};
-    if (!password) {
-      return res.status(400).json({ success: false, error: '암호를 입력하세요.' });
-    }
-    const result = await callAppsScript('/config', 'GET');
-    const configs = result?.data || result || [];
-    const configArr = Array.isArray(configs) ? configs : [];
-    const pwRow = configArr.find(c => c.key === 'register_password');
-    const correctPw = pwRow ? pwRow.value : '1234';
-    if (password === correctPw) {
-      return res.json({ success: true });
-    }
-    return res.json({ success: false, error: '암호가 일치하지 않습니다.' });
-  } catch (error) {
-    console.error('[verify-register-password] 실패:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// GET /lunch/daily-recommendations - 오늘의 추천 조회
-app.get('/lunch/daily-recommendations', async (req, res) => {
-  try {
-    const result = await callAppsScript('/daily-recommendations', 'GET');
-    return res.json(result);
-  } catch (error) {
-    console.error('[daily-recommendations] 실패:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// POST /lunch/admin/verify - 관리자 비밀번호 확인
-app.post('/lunch/admin/verify', async (req, res) => {
-  try {
-    const { password } = req.body || {};
-    if (!password) {
-      return res.status(400).json({ success: false, error: '비밀번호를 입력하세요.' });
-    }
-    const result = await callAppsScript('/config', 'GET');
-    const configs = result?.data || result || [];
-    const configArr = Array.isArray(configs) ? configs : [];
-    const pwRow = configArr.find(c => c.key === 'admin_password');
-    const correctPw = pwRow ? pwRow.value : 'admin1234';
-    if (password === correctPw) {
-      return res.json({ success: true });
-    }
-    return res.json({ success: false, error: '비밀번호가 일치하지 않습니다.' });
-  } catch (error) {
-    console.error('[admin/verify] 실패:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// GET /lunch/admin/config - 관리자 설정 조회
-app.get('/lunch/admin/config', async (req, res) => {
-  try {
-    const result = await callAppsScript('/config', 'GET');
-    return res.json(result);
-  } catch (error) {
-    console.error('[admin/config GET] 실패:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// POST /lunch/verify-register-password - 등록 비밀번호 검증
-app.post('/lunch/verify-register-password', async (req, res) => {
-  try {
-    const result = await callAppsScript('/verify-register-password', 'POST', req.body);
-    return res.json(result);
-  } catch (error) {
-    console.error('[verify-register-password] 실패:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// POST /lunch/admin/config - 관리자 설정 변경
-app.post('/lunch/admin/config', async (req, res) => {
-  try {
-    const result = await callAppsScript('/config', 'POST', req.body);
-    return res.json(result);
-  } catch (error) {
-    console.error('[admin/config POST] 실패:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// POST /lunch/admin/generate-daily - 수동 일일 추천 생성
-app.post('/lunch/admin/generate-daily', async (req, res) => {
-  try {
-    const result = await callAppsScript('/generate-daily', 'POST', {
-      text: req.body?.text || '오늘의 점심 추천',
-      preset: req.body?.preset || []
-    });
-    return res.json(result);
-  } catch (error) {
-    console.error('[admin/generate-daily] 실패:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// PUT /lunch/admin/places/:id - 장소 수정
-app.put('/lunch/admin/places/:id', async (req, res) => {
-  try {
-    const result = await callAppsScript(`/places/${req.params.id}`, 'PUT', req.body);
-    return res.json(result);
-  } catch (error) {
-    console.error('[admin/places PUT] 실패:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// DELETE /lunch/admin/places/:id - 장소 삭제
-app.delete('/lunch/admin/places/:id', async (req, res) => {
-  try {
-    const result = await callAppsScript(`/places/${req.params.id}`, 'DELETE');
-    return res.json(result);
-  } catch (error) {
-    console.error('[admin/places DELETE] 실패:', error.message);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// === Cron: 매일 일일 추천 자동 생성 ===
-const nodeCron = require('node-cron');
-let dailyCronJob = null;
-
-function startDailyCron(cronTime = '0 10 * * 1-5') {
-  if (dailyCronJob) dailyCronJob.stop();
-  if (!nodeCron.validate(cronTime)) {
-    console.error('[cron] 잘못된 cron 표현식:', cronTime);
-    return;
-  }
-  dailyCronJob = nodeCron.schedule(cronTime, async () => {
-    console.log('[cron] 일일 추천 생성 시작:', new Date().toISOString());
-    try {
-      await callAppsScript('/generate-daily', 'POST', {
-        text: '오늘의 점심 추천', preset: []
-      });
-      console.log('[cron] 일일 추천 생성 완료');
-    } catch (err) {
-      console.error('[cron] 일일 추천 생성 실패:', err.message);
-    }
-  }, { timezone: 'Asia/Seoul' });
-  console.log(`[cron] 일일 추천 스케줄 등록: ${cronTime} (Asia/Seoul)`);
-}
-
-// 서버 시작 시 config에서 cron_time 읽어 스케줄 등록
-(async () => {
-  try {
-    if (GOOGLE_APPS_SCRIPT_URL && LUNCH_API_KEY) {
-      const result = await callAppsScript('/config', 'GET');
-      const configs = result?.data || result || [];
-      const configArr = Array.isArray(configs) ? configs : [];
-      const cronRow = configArr.find(c => c.key === 'cron_time');
-      startDailyCron(cronRow ? cronRow.value : '0 10 * * 1-5');
-    }
-  } catch (e) {
-    console.log('[cron] config 조회 실패, 기본 스케줄 사용:', e.message);
-    startDailyCron('0 10 * * 1-5');
-  }
-})();
-
-console.log('점심 추천 서비스 라우트 등록됨 (/lunch/*)');
+console.log('점심 추천 서비스 라우트 등록됨 (/lunch/*) - Apps Script 프록시: /lunch/api/apps-script, 외부 API: search-place, geocode-address, static-map');
 
 app.get('/', (req, res) => {
   res.send('API 서버가 정상적으로 실행 중입니다.');
