@@ -2970,9 +2970,46 @@ const NCP_APIGW_API_KEY = process.env.NCP_APIGW_API_KEY;
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const TMAP_API_KEY = process.env.TMAP_API_KEY;
 
-// 코레일유통 본사 (도보 거리 산정 기준)
-const KORAIL_HQ_LAT = 37.5245;
-const KORAIL_HQ_LNG = 126.9065;
+// 도보 거리 출발점 기본값 (관리자에서 company_lat, company_lng 미설정 시 사용)
+const DEFAULT_ORIGIN_LAT = 37.5245;
+const DEFAULT_ORIGIN_LNG = 126.9065;
+
+// 관리자 설정에서 읽은 출발점 캐시 (5분 TTL)
+let lunchOriginCache = { lat: DEFAULT_ORIGIN_LAT, lng: DEFAULT_ORIGIN_LNG, fetchedAt: 0 };
+const LUNCH_ORIGIN_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/** 도보 거리 계산 출발점(회사 좌표) 반환. 관리자 config의 company_lat, company_lng 사용, 없으면 기본값 */
+async function getLunchOrigin() {
+  if (Date.now() - lunchOriginCache.fetchedAt < LUNCH_ORIGIN_CACHE_TTL_MS) {
+    return { lat: lunchOriginCache.lat, lng: lunchOriginCache.lng };
+  }
+  const scriptUrl = GOOGLE_APPS_SCRIPT_URL;
+  if (!scriptUrl || !LUNCH_API_KEY) {
+    return { lat: DEFAULT_ORIGIN_LAT, lng: DEFAULT_ORIGIN_LNG };
+  }
+  try {
+    const apiUrl = `${scriptUrl}?path=config&method=GET`;
+    const res = await axios.get(apiUrl, {
+      headers: { 'x-api-key': LUNCH_API_KEY },
+      timeout: 10000
+    });
+    const data = res.data;
+    if (data && data.success && Array.isArray(data.data)) {
+      const latCfg = data.data.find(c => c.key === 'company_lat');
+      const lngCfg = data.data.find(c => c.key === 'company_lng');
+      const lat = latCfg && latCfg.value != null ? parseFloat(String(latCfg.value).trim()) : NaN;
+      const lng = lngCfg && lngCfg.value != null ? parseFloat(String(lngCfg.value).trim()) : NaN;
+      if (!Number.isNaN(lat) && !Number.isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        lunchOriginCache = { lat, lng, fetchedAt: Date.now() };
+        return { lat, lng };
+      }
+    }
+  } catch (e) {
+    console.warn('[getLunchOrigin] config 조회 실패, 기본값 사용:', e.message);
+  }
+  lunchOriginCache.fetchedAt = Date.now();
+  return { lat: lunchOriginCache.lat, lng: lunchOriginCache.lng };
+}
 
 // 카테고리 매핑: 네이버 지역검색 API 카테고리 -> 앱 카테고리
 const CATEGORY_KEYWORDS = {
@@ -2991,18 +3028,18 @@ function mapCategory(rawCategory) {
 }
 
 /** TMAP API로 정확한 도보 시간(분) 조회. 실패 시 null 반환 */
-async function getWalkingMinutesFromTmap(destLat, destLng) {
+async function getWalkingMinutesFromTmap(originLat, originLng, destLat, destLng) {
   if (!TMAP_API_KEY) {
     return null;
   }
   try {
     const url = 'https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1&format=json';
     const requestBody = {
-      startX: KORAIL_HQ_LNG,
-      startY: KORAIL_HQ_LAT,
+      startX: originLng,
+      startY: originLat,
       endX: destLng,
       endY: destLat,
-      startName: '코레일 본사',
+      startName: '출발지',
       endName: '목적지',
       reqCoordType: 'WGS84GEO',
       resCoordType: 'WGS84GEO'
@@ -3260,6 +3297,12 @@ app.post('/lunch/admin/reload-daily-cron', async (req, res) => {
   }
 });
 
+// POST /lunch/admin/reload-origin - 도보 거리 출발점 캐시 무효화 (관리자에서 회사 좌표 저장 후 호출)
+app.post('/lunch/admin/reload-origin', (req, res) => {
+  lunchOriginCache.fetchedAt = 0;
+  res.json({ success: true, message: '출발점 캐시가 갱신됩니다.' });
+});
+
 // POST /lunch/search-place - 네이버 공식 지역검색 API 프록시 (이름/주소 검색 → 목록 선택용)
 app.post('/lunch/search-place', async (req, res) => {
   try {
@@ -3366,10 +3409,11 @@ app.post('/lunch/geocode-address', async (req, res) => {
     }
     let walk_min = null;
     let walk_source = 'estimate';
+    const origin = await getLunchOrigin();
     
     // TMAP API로 도보 경로 계산 시도
     if (TMAP_API_KEY) {
-      walk_min = await getWalkingMinutesFromTmap(lat, lng);
+      walk_min = await getWalkingMinutesFromTmap(origin.lat, origin.lng, lat, lng);
       if (walk_min != null) {
         walk_source = 'tmap';
       }
@@ -3377,7 +3421,7 @@ app.post('/lunch/geocode-address', async (req, res) => {
     
     // TMAP API 실패하거나 키가 없으면 직선거리 추정
     if (walk_min == null) {
-      walk_min = walkMinutesFromHaversine(KORAIL_HQ_LAT, KORAIL_HQ_LNG, lat, lng);
+      walk_min = walkMinutesFromHaversine(origin.lat, origin.lng, lat, lng);
     }
     const naver_map_url = `https://map.naver.com/v5/?c=${lng},${lat},17,0,0,0,dh`;
     return res.json({
