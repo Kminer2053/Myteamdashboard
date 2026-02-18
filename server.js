@@ -140,6 +140,7 @@ const NEWS_FILE = 'news-data.json';
 
 let newsCronJob = null;
 let dailyAnnounceCronJob = null;  // 매일 자동 발송 cron job
+let lunchDailyCronJob = null;     // 점심 일일 추천 생성 cron job
 
 // === 공통 DB 저장 함수 ===
 async function saveNewsToDB(newsItems, model, category, keywords) {
@@ -2962,6 +2963,7 @@ console.log('카카오 라우터 등록됨');
 const LUNCH_WEB_URL = process.env.LUNCH_WEB_URL || '';
 const GOOGLE_APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL || '';
 const LUNCH_API_KEY = process.env.LUNCH_API_KEY || '';
+const LUNCH_DAILY_CRON = process.env.LUNCH_DAILY_CRON || '';  // 예: '0 10 * * 1-5' = 평일 10시
 const NCP_APIGW_API_KEY_ID = process.env.NCP_APIGW_API_KEY_ID;
 const NCP_APIGW_API_KEY = process.env.NCP_APIGW_API_KEY;
 
@@ -3194,6 +3196,67 @@ app.post('/lunch/recommend', async (req, res) => {
       success: false,
       error: error.message || 'Apps Script 호출 중 오류가 발생했습니다.'
     });
+  }
+});
+
+// 점심 일일 추천 크론: cronExpression 있으면 사용, 없으면 LUNCH_DAILY_CRON 환경변수 사용
+function scheduleLunchDailyJob(cronExpression) {
+  if (lunchDailyCronJob) {
+    lunchDailyCronJob.stop();
+    lunchDailyCronJob = null;
+  }
+  const scriptUrl = GOOGLE_APPS_SCRIPT_URL;
+  const cronExp = (typeof cronExpression === 'string' ? cronExpression : LUNCH_DAILY_CRON || '').trim();
+  if (!scriptUrl || !cronExp) {
+    if (!cronExp && scriptUrl) console.log('[점심 일일추천] 크론 표현식 없음 (관리자 화면 또는 LUNCH_DAILY_CRON 설정)');
+    return;
+  }
+  const apiUrl = `${scriptUrl}?path=generate-daily&method=POST`;
+  const headers = { 'Content-Type': 'application/json' };
+  if (LUNCH_API_KEY) headers['x-api-key'] = LUNCH_API_KEY;
+  lunchDailyCronJob = cron.schedule(cronExp, async () => {
+    try {
+      const res = await axios.post(apiUrl, {}, { headers, timeout: 60000 });
+      console.log('[크론] 점심 일일 추천 생성 완료:', res.data?.success ? '성공' : res.data);
+    } catch (err) {
+      console.error('[크론] 점심 일일 추천 생성 실패:', err.message || err);
+    }
+  });
+  console.log('[점심 일일추천] 크론 등록됨:', cronExp);
+}
+
+// Apps Script config에서 cron_time 조회 (서버에서 크론 스케줄 반영용)
+async function fetchLunchCronFromConfig() {
+  const scriptUrl = GOOGLE_APPS_SCRIPT_URL;
+  if (!scriptUrl) return null;
+  const url = `${scriptUrl}?path=config&method=GET`;
+  const headers = {};
+  if (LUNCH_API_KEY) headers['x-api-key'] = LUNCH_API_KEY;
+  try {
+    const res = await axios.get(url, { headers, timeout: 10000 });
+    const data = res.data;
+    if (data && data.success && Array.isArray(data.data)) {
+      const row = data.data.find((c) => c.key === 'cron_time');
+      return row && row.value ? String(row.value).trim() : null;
+    }
+  } catch (err) {
+    console.error('[점심 일일추천] config 조회 실패:', err.message);
+  }
+  return null;
+}
+
+// POST /lunch/admin/reload-daily-cron - 관리자 화면에서 크론 저장 후 서버에 반영
+app.post('/lunch/admin/reload-daily-cron', async (req, res) => {
+  try {
+    const cronExp = await fetchLunchCronFromConfig();
+    if (cronExp) {
+      scheduleLunchDailyJob(cronExp);
+      return res.json({ success: true, cron: cronExp, message: '크론 스케줄이 반영되었습니다.' });
+    }
+    scheduleLunchDailyJob(''); // 표현식 없으면 해제
+    return res.json({ success: true, cron: null, message: '저장된 크론 표현식이 없어 스케줄을 해제했습니다.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message || '크론 반영 실패' });
   }
 });
 
@@ -3901,6 +3964,15 @@ app.listen(PORT, async () => {
       await scheduleDailyAnnounceJob(true);
     } else {
       console.log(`[서버] 자동 발송 크론 작업이 이미 등록되어 있어 초기화를 건너뜁니다.`);
+    }
+
+    // 점심 일일 추천 크론: LUNCH_DAILY_CRON 있으면 사용, 없으면 Apps Script config의 cron_time 사용
+    if (LUNCH_DAILY_CRON && String(LUNCH_DAILY_CRON).trim()) {
+      scheduleLunchDailyJob(LUNCH_DAILY_CRON);
+    } else {
+      const cronFromConfig = await fetchLunchCronFromConfig();
+      if (cronFromConfig) scheduleLunchDailyJob(cronFromConfig);
+      else scheduleLunchDailyJob();
     }
   } catch (error) {
     console.error(`[서버] 초기화 중 오류 발생:`, error);
