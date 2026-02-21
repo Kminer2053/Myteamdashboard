@@ -610,12 +610,10 @@ async function fetchHolidays(year) {
   }
 }
 
-// 특정 날짜가 공휴일인지 확인
-async function isHoliday(date) {
+// 특정 날짜가 공휴일인지 확인 (dateStr: YYYY-MM-DD 형식)
+async function isHolidayByDateStr(dateStr) {
   try {
-    const year = date.getFullYear();
-    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD 형식
-    
+    const year = parseInt(dateStr.split('-')[0], 10);
     const holidays = await fetchHolidays(year);
     return holidays.some(holiday => holiday.date === dateStr);
   } catch (error) {
@@ -624,25 +622,32 @@ async function isHoliday(date) {
   }
 }
 
-// 오늘이 주말 또는 공휴일인지 확인
+// 한국 시간(KST) 기준 오늘 날짜 문자열 (YYYY-MM-DD) 반환
+function getKstDateString() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+}
+
+// 오늘이 주말 또는 공휴일인지 확인 (한국 시간 기준)
 async function shouldSkipToday() {
   try {
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0=일요일, 6=토요일
-    
+    // 서버가 UTC 환경(Render 등)이어도 한국 시간 기준으로 판단
+    const kstDateStr = getKstDateString();
+    const [y, m, d] = kstDateStr.split('-').map(Number);
+    const dayOfWeek = new Date(y, m - 1, d).getDay(); // 0=일요일, 6=토요일
+
     // 주말 체크
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       return { skip: true, reason: dayOfWeek === 0 ? '일요일' : '토요일' };
     }
-    
+
     // 공휴일 체크
-    const isHolidayToday = await isHoliday(today);
+    const isHolidayToday = await isHolidayByDateStr(kstDateStr);
     if (isHolidayToday) {
-      const holidays = await fetchHolidays(today.getFullYear());
-      const holiday = holidays.find(h => h.date === today.toISOString().split('T')[0]);
+      const holidays = await fetchHolidays(y);
+      const holiday = holidays.find(h => h.date === kstDateStr);
       return { skip: true, reason: holiday ? holiday.title : '공휴일' };
     }
-    
+
     return { skip: false };
   } catch (error) {
     console.error('[자동발송] 주말/공휴일 체크 중 오류:', error);
